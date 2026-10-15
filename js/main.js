@@ -113,7 +113,7 @@ function vConfigExtra(tab) {
         <tr><td>Pedidos aguardando detalhe (itens e CPF/CNPJ)</td><td>${fila ?? '—'}</td></tr>
         <tr><td>Pedidos carregados neste navegador</td><td>${D.pedidos.length}</td></tr>
       </tbody></table>
-      <p class="explica">Como funciona: a cada 10 minutos o servidor confere o Tiny. Pedidos e clientes alterados são puxados <b>de hora em hora</b>, e os detalhes dos pedidos vão sendo baixados aos poucos, porque o Tiny limita a 1 chamada por segundo. É tudo <b>só leitura</b>: o CRM nunca altera nada no Tiny.</p>
+      <p class="explica">Como funciona: a cada 2 minutos o servidor confere o Tiny. Pedidos e clientes alterados são puxados <b>de hora em hora</b>, e os detalhes dos pedidos vão sendo baixados aos poucos, porque o Tiny limita a 1 chamada por segundo. É tudo <b>só leitura</b>: o CRM nunca altera nada no Tiny.</p>
       <button class="btn pri" data-a="syncAgora">↻ Atualizar agora</button></div>
     <div class="card"><h2>Últimas rodadas</h2><table class="tabela"><thead><tr><th>Quando</th><th>Modo</th><th class="dir">Pedidos</th><th class="dir">Detalhes</th><th class="dir">Contatos</th><th></th></tr></thead><tbody>
       ${(LOG_SYNC || []).map(l => `<tr><td><small>${new Date(l.inicio).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</small></td><td>${esc(l.modo)}</td><td class="dir">${l.pedidos ?? ''}</td><td class="dir">${l.detalhados ?? ''}</td><td class="dir">${l.contatos ?? ''}</td><td>${l.ok === false ? `<span class="tag ruim" title="${esc(l.erro)}">erro</span>` : l.ok ? '<span class="tag ok">ok</span>' : '<span class="tag">…</span>'}</td></tr>`).join('') || '<tr><td class="mut">—</td></tr>'}
