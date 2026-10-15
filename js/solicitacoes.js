@@ -57,6 +57,7 @@ function vSuporte() {
       <div class="card kpi-card"><div class="rot">Tempo médio aberto</div><div class="val">${abertos.length ? Math.round(soma(abertos.map(s => (Date.now() - new Date(s.criado_em)) / 864e5)) / abertos.length) + ' dias' : '—'}</div></div></div>
     <div class="card mt"><h2>Quadro de RMA</h2><div class="kanban" style="grid-template-columns:repeat(${ETAPAS_RMA.length}, minmax(190px,1fr))">${ETAPAS_RMA.map(et => `<div class="col"><h4>${et}</h4>${abertos.filter(s => (s.dados?.etapa || ETAPAS_RMA[0]) === et).map(s => `<div class="item" data-a="verSolicitacao" data-id="${s.id}"><b>#${s.id} ${esc(s.dados?.produto || s.titulo)}</b><br><small>${esc(s.dados?.cliente_nome || '')}</small><br><small class="mut">há ${Math.round((Date.now() - new Date(s.criado_em)) / 864e5)} dia(s) · ${esc(nomeP(s.responsavel_id))}</small></div>`).join('')}</div>`).join('')}</div></div>
     <div class="card mt em-breve"><h2>Em breve: atendimento integrado</h2><p class="explica">Este módulo vai receber o <b>RMA Control</b> e o atendimento por <b>WhatsApp e redes sociais</b> direto no CRM. As conversas vão virar chamados ligados ao cliente do Tiny, com histórico, responsável e prazo. Por enquanto, registre os RMAs aqui pelo botão "Novo RMA".</p></div>
+    ${blocoOS()}
     <h2 class="mt2">Todos os RMAs</h2>${vSolicitacoes('rma')}`;
 }
 

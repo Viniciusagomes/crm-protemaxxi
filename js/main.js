@@ -93,7 +93,7 @@ function vConfigExtra(tab) {
         return `<div class="cfg-linha cfg-acesso"><div style="display:flex;gap:8px;align-items:center">${av(p)}<div><b>${esc(p.nome)}</b><br><small>${esc(p.cargo)}${p.ativo ? '' : ' · inativo'}</small></div></div>
         <select data-c="set" data-path="pessoas.${i}.papel">${Object.entries(PAPEIS).map(([k, v]) => `<option value="${k}" ${p.papel === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
         <select data-c="set" data-path="pessoas.${i}.tiny"><option value="">— não vende —</option>${D.vendedoresTiny.map(v => `<option value="${v.id}" ${p.tiny === v.id ? 'selected' : ''}>${esc(v.nome)}</option>`).join('')}${p.tiny && !D.vendedoresTiny.some(v => v.id === p.tiny) ? `<option value="${p.tiny}" selected>id ${p.tiny}</option>` : ''}</select>
-        <div style="display:flex;flex-direction:column;gap:2px;font-size:13px">${[['vendas_todas', 'Todas as vendas e clientes'], ['ecommerce', 'Pedidos do e-commerce'], ['admin', 'Configurações (admin)']].map(([k, n]) => `<label><input type="checkbox" ${p.permissoes?.[k] ? 'checked' : ''} data-c="perm" data-i="${i}" data-k="${k}"> ${n}</label>`).join('')}</div>
+        <div style="display:flex;flex-direction:column;gap:2px;font-size:13px">${[['vendas_todas', 'Todas as vendas e clientes'], ['ecommerce', 'Pedidos do e-commerce'], ['suporte', 'Ordens de serviço (suporte)'], ['admin', 'Configurações (admin)']].map(([k, n]) => `<label><input type="checkbox" ${p.permissoes?.[k] ? 'checked' : ''} data-c="perm" data-i="${i}" data-k="${k}"> ${n}</label>`).join('')}</div>
         <div>${p.user_id ? `<b>${esc(p.email || u?.email || '')}</b><br><small>${u?.bloqueado ? '<span class="c-ruim">bloqueado</span>' : u?.ultimo_login ? 'último acesso ' + new Date(u.ultimo_login).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'nunca entrou'}</small>
           <div class="acoes" style="margin-top:4px"><button class="btn peq" data-a="loginSenha" data-p="${p.id}">Trocar senha</button>${p.papel !== 'dono' ? `<button class="btn peq" data-a="loginBloq" data-p="${p.id}" data-v="${u?.bloqueado ? 'desbloquear' : 'bloquear'}">${u?.bloqueado ? 'Desbloquear' : 'Bloquear'}</button><button class="btn peq perigo" data-a="loginRemover" data-p="${p.id}">Remover login</button>` : ''}</div>`
           : `<button class="btn peq pri" data-a="loginCriar" data-p="${p.id}" ${p.ativo ? '' : 'disabled'}>+ Criar login</button>`}</div></div>`; }).join('')}
@@ -115,6 +115,7 @@ function vConfigExtra(tab) {
       </tbody></table>
       <p class="explica">Como funciona: a cada 2 minutos o servidor confere o Tiny. Pedidos e clientes alterados são puxados <b>de hora em hora</b>, e os detalhes dos pedidos vão sendo baixados aos poucos, porque o Tiny limita a 1 chamada por segundo. É tudo <b>só leitura</b>: o CRM nunca altera nada no Tiny.</p>
       <button class="btn pri" data-a="syncAgora">↻ Atualizar agora</button></div>
+    ${cardTinyV3()}
     <div class="card"><h2>Últimas rodadas</h2><table class="tabela"><thead><tr><th>Quando</th><th>Modo</th><th class="dir">Pedidos</th><th class="dir">Detalhes</th><th class="dir">Contatos</th><th></th></tr></thead><tbody>
       ${(LOG_SYNC || []).map(l => `<tr><td><small>${new Date(l.inicio).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</small></td><td>${esc(l.modo)}</td><td class="dir">${l.pedidos ?? ''}</td><td class="dir">${l.detalhados ?? ''}</td><td class="dir">${l.contatos ?? ''}</td><td>${l.ok === false ? `<span class="tag ruim" title="${esc(l.erro)}">erro</span>` : l.ok ? '<span class="tag ok">ok</span>' : '<span class="tag">…</span>'}</td></tr>`).join('') || '<tr><td class="mut">—</td></tr>'}
     </tbody></table></div></div>`;
@@ -197,6 +198,11 @@ const A = {
     } catch (e) { avisar('Não deu para atualizar agora: ' + e.message); }
   },
   verPedido: el => abrirPedido(el.dataset.id),
+  verOS: el => abrirOS(el.dataset.id),
+  recarregarOS: async () => { await carregarOS(true).catch(e => avisar(e.message)); render(); },
+  cfgTiny: () => { UI.view = 'config'; UI.cfgTab = 'tiny'; render(); },
+  conectarV3: async () => { try { const r = await chamarFuncao('tiny-oauth', { acao: 'iniciar' }); location.href = r.url; } catch (e) { avisar(e.message); } },
+  desconectarV3: async () => { if (!confirm('Desconectar a API v3 do Tiny? As ordens de serviço param de atualizar.')) return; try { await chamarFuncao('tiny-oauth', { acao: 'desconectar' }); D.sync.v3 = { conectado: false }; render(); } catch (e) { avisar(e.message); } },
   verCliente: (el, e) => { e.preventDefault?.(); abrirCliente(el.dataset.chave); },
   recarregarClientes: async () => { D.clientes = null; await carregarInteracoes(); render(); },
   cliFiltro: el => { UI.cliFiltro = el.dataset.v; render(); },
@@ -393,6 +399,13 @@ async function iniciar() {
   try { await carregarTudo(); } catch (e) { console.error(e); return telaLogin('Erro ao carregar: ' + e.message); }
   if (!EU) { await sb.auth.signOut(); return telaLogin('Seu login ainda não está ligado a uma pessoa do sistema. Fale com o administrador.'); }
   const v = location.hash.replace('#/', ''); if (VIEWS_FN[v]) UI.view = v;
+  const retornoV3 = new URLSearchParams(location.search).get('tinyv3');
+  if (retornoV3) {
+    history.replaceState(null, '', location.pathname + location.hash);
+    UI.view = 'config'; UI.cfgTab = 'tiny';
+    const msg = { ok: '✓ Tiny v3 conectado! As ordens de serviço começam a chegar em poucos minutos.', negado: 'Você não autorizou o acesso no Tiny.', expirado: 'O pedido de conexão expirou. Clique em Conectar de novo.', erro_token: 'O Tiny recusou a conexão. Confira as chaves no Supabase e tente de novo.' }[retornoV3] || 'Não foi possível conectar: ' + retornoV3;
+    setTimeout(() => avisar(msg), 400);
+  }
   if (v === 'tv') { UI.view = 'vendas'; setTimeout(() => A.tv(), 300); }
   if (!UI.pessoa) UI.pessoa = EU.id;
   statusSalvo('✓ Conectado');
