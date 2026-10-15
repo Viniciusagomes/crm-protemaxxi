@@ -1,0 +1,401 @@
+'use strict';
+/* CRM Protemaxxi — login, menu, Início, administração e ações. */
+
+// ═══════════════════════════ menu ═══════════════════════════
+function menu() {
+  const itens = [
+    ['', 'inicio', '⌂', 'Início'],
+    ['Comercial'], ['', 'vendas', '📈', 'Vendas'], ['', 'pedidos', '🧾', 'Pedidos'], ['', 'clientes', '👤', 'Clientes'],
+    ['Intranet'], ['', 'solicitacoes', '📨', 'Solicitações', minhasPendentes().length], ['', 'suporte', '🔧', 'Suporte e RMA'],
+    ['Equipe'], ['', 'checklist', '☑', 'Checklist do dia'],
+    ...(temEquipe() ? [['', 'supervisao', '👥', 'Supervisão']] : []),
+    ...(ehDono() ? [['', 'geral', '◉', 'Visão da equipe']] : []),
+    ['', 'metas', '🎯', 'Metas e números'], ['', 'remuneracao', '💰', ehDono() ? 'Remuneração' : 'Meu ganho'],
+    ...(temEquipe() || ehDono() ? [['', 'feedbacks', '💬', 'Feedbacks']] : []),
+    ['Sistema'], ...(ehDono() ? [['', 'config', '⚙', 'Configurações']] : []), ['', 'ajuda', '?', 'Como usar'],
+  ];
+  return itens.map(([g, k, ic, nome, badge]) => g !== '' && !k ? `<div class="grupo">${g}</div>`
+    : `<button class="${UI.view === k ? 'on' : ''}" data-a="nav" data-v="${k}"><span class="ic">${ic}</span>${nome}${badge ? `<span class="badge">${badge}</span>` : ''}</button>`).join('');
+}
+const VIEWS_FN = {
+  inicio: () => vInicio(), vendas: () => vVendas(), pedidos: () => vPedidos(), clientes: () => vClientes(),
+  solicitacoes: () => vIntranet(), suporte: () => vSuporte(),
+  checklist: () => vChecklist(), supervisao: () => vSupervisao(), geral: () => vGeral(), metas: () => vMetas(),
+  remuneracao: () => vRemuneracao(), feedbacks: () => vFeedbacks(), config: () => vConfig(), ajuda: () => vAjuda(),
+};
+const SO_DONO = ['config', 'geral'];
+
+function render() {
+  if (!D || !EU) return;
+  if (SO_DONO.includes(UI.view) && !ehDono()) UI.view = 'inicio';
+  if (UI.view === 'checklist' && !D.pessoas.find(p => p.id === UI.pessoa && p.ativo && pessoasQueVejo().includes(p.id))) UI.pessoa = EU.id;
+  const fid = document.activeElement?.dataset?.fid;
+  const pos = document.activeElement?.selectionStart;
+  const y = window.scrollY;
+  $('#nav').innerHTML = menu();
+  $('#usuario').innerHTML = `${av(EU)}<div><b>${esc(EU.nome)}</b><small>${esc(EU.cargo)}</small></div>`;
+  $('#main').innerHTML = (VIEWS_FN[UI.view] || vInicio)();
+  window.scrollTo(0, y);
+  if (fid) { const el = document.querySelector(`[data-fid="${CSS.escape(fid)}"]`); if (el) { el.focus(); if (pos != null && el.setSelectionRange) try { el.setSelectionRange(pos, pos); } catch { /* tipo sem seleção */ } } }
+  if (location.hash !== '#/' + UI.view) history.replaceState(null, '', '#/' + UI.view);
+  guardarUI();
+}
+const pessoasQueVejo = () => ehDono() ? D.pessoas.map(p => p.id) : [EU.id, ...descendentes(EU.id)];
+function descendentes(id) { const out = []; for (const p of D.pessoas.filter(x => x.supervisor === id)) out.push(p.id, ...descendentes(p.id)); return out; }
+
+// gruposPessoas do módulo Equipe: só mostra quem eu posso ver
+const _gruposOriginal = gruposPessoas;
+gruposPessoas = function () {
+  const vejo = new Set(pessoasQueVejo());
+  return _gruposOriginal().map(([n, ps]) => [n, ps.filter(p => vejo.has(p.id))]).filter(([, ps]) => ps.length);
+};
+
+// ═══════════════════════════ INÍCIO ═══════════════════════════
+function vInicio() {
+  const h = hoje(), m = mesDe(h), hora = new Date().getHours();
+  const saud = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
+  const pc = pctDia(EU, h), temTarefas = tarefas(EU, 'D').length > 0;
+  const paraMim = minhasPendentes(), pedi = D.solicitacoes.filter(s => s.solicitante_id === EU.id && ABERTAS.includes(s.status));
+  const fus = followupsHoje(ehDono() ? null : EU.id);
+  const kFat = kpiDe(EU, 'fat');
+  const r = EU.tiny ? resumoVendedor(EU.tiny, h) : null;
+  const val = D.pedidos.filter(p => valido(p) && p.data.startsWith(m));
+  const du = diasUteisEntre(`${m}-01`, h), duT = diasUteisEntre(`${m}-01`, `${m}-${pad(ultimoDia(m))}`);
+  const rem = EU.regras.length ? calcRem(EU, m, 'projecao') : null;
+  const al = ehDono() ? alertas().slice(0, 6) : [];
+  const cards = [];
+  if (veTudoVendas()) cards.push(`<div class="card kpi-card"><div class="rot">Vendas da loja no mês</div><div class="val">${R0(somaV(val))}</div><div class="sub">Projeção ${R0(du ? somaV(val) / du * duT : 0)} · hoje ${R0(somaV(val.filter(p => p.data === h)))}</div></div>`);
+  if (r) cards.push(`<div class="card kpi-card"><div class="rot">Minhas vendas no mês</div><div class="val">${R0(r.mes)}</div><div class="sub">Projeção ${R0(r.proj)}${kFat ? ` · meta ${R0(kFat.meta)}` : ''}</div>${kFat ? `<div class="mt">${barra(r.proj / (kFat.meta || 1))}</div>` : ''}</div>`);
+  if (temTarefas) cards.push(`<div class="card kpi-card clic" style="cursor:pointer" data-a="nav" data-v="checklist"><div class="rot">Meu checklist de hoje</div><div class="val c-${classe(pc)}">${pc == null ? 'folga' : P(pc)}</div><div class="sub">No mês: ${P(adesao(EU, m))}</div><div class="mt">${barra(pc)}</div></div>`);
+  if (rem) cards.push(`<div class="card kpi-card clic" style="cursor:pointer" data-a="nav" data-v="remuneracao"><div class="rot">${ehDono() ? 'Meu ganho previsto' : 'Quanto vou ganhar este mês'}</div><div class="val c-ok">${R0(rem.total)}</div><div class="sub">Variável: ${R0(rem.variavel + rem.equipe)} · projeção</div></div>`);
+  if (ehDono()) { const rs = D.pessoas.filter(p => p.ativo && p.regras.length).map(p => calcRem(p, m, 'projecao')); cards.push(`<div class="card kpi-card clic" style="cursor:pointer" data-a="nav" data-v="remuneracao"><div class="rot">Folha prevista do mês</div><div class="val">${R0(soma(rs.map(x => x.total)))}</div><div class="sub">Custo c/ encargos ${R0(soma(rs.map(x => x.custo)))}</div></div>`); }
+  cards.push(`<div class="card kpi-card clic" style="cursor:pointer" data-a="nav" data-v="solicitacoes"><div class="rot">Solicitações para mim</div><div class="val ${paraMim.length ? 'c-med' : ''}">${paraMim.length}</div><div class="sub">${pedi.length} que eu pedi em aberto</div></div>`);
+  const linhaSol = s => `<tr class="clic" data-a="verSolicitacao" data-id="${s.id}"><td>${(TIPOS_SOL[s.tipo] || TIPOS_SOL.outro).ic} <b>${esc(s.titulo)}</b><br><small>de ${esc(nomeP(s.solicitante_id))}${s.prazo ? ` · prazo ${fmtCurta(s.prazo)}` : ''}</small></td><td class="pri-${s.prioridade}">${PRIORIDADES[s.prioridade]}</td><td><span class="st st-${s.status}">${STATUS_SOL[s.status]}</span></td></tr>`;
+  return topo(`${saud}, ${esc(primeiroNome(EU))}!`, `${fmtData(h)} · ${infoSync()}`, '<button class="btn pri" data-a="novaSolicitacao">+ Nova solicitação</button>')
+    + `<div class="grid g4">${cards.join('')}</div>
+    <div class="grid g2 mt">
+      <div class="card"><div class="secao-titulo"><h2>Para mim resolver</h2><a href="#/solicitacoes">ver todas</a></div>${paraMim.length ? `<table class="tabela"><tbody>${paraMim.slice(0, 8).map(linhaSol).join('')}</tbody></table>` : '<div class="vazio">Nenhuma solicitação pendente para você. 🎉</div>'}</div>
+      <div class="card"><div class="secao-titulo"><h2>Follow-ups de hoje</h2><a href="#/clientes">clientes</a></div>${fus.length ? `<table class="tabela"><tbody>${fus.slice(0, 10).map(i => `<tr><td class="clic" data-a="verCliente" data-chave="${esc(i.cliente_chave)}" style="cursor:pointer"><b>${esc(i.cliente_nome || '')}</b><br><small>${TIPOS_INT[i.tipo] || ''} · ${esc(i.texto.slice(0, 80))}${ehDono() ? ' · ' + esc(nomeP(i.autor_id)) : ''}</small></td><td><span class="tag ${i.proximo_contato < h ? 'ruim' : 'ok'}">${fmtCurta(i.proximo_contato)}</span></td><td><button class="btn peq" data-a="followupFeito" data-id="${i.id}">✓ Feito</button></td></tr>`).join('')}</tbody></table>` : '<div class="vazio">Nenhum retorno marcado para hoje. Registre contatos na ficha do cliente e marque o próximo.</div>'}</div>
+    </div>
+    ${al.length ? `<div class="card mt"><div class="secao-titulo"><h2>Atenção na equipe</h2><a href="#/geral">visão da equipe</a></div><div class="alertas">${al.map(a => `<div class="alerta ${a.c}" ${a.p ? `data-a="abrirPessoa" data-p="${a.p.id}" data-d="${a.d || ''}"` : ''}><span class="ic">${a.ic}</span><span>${a.t}</span></div>`).join('')}</div></div>` : ''}
+    ${r ? `<div class="card mt"><div class="secao-titulo"><h2>Minha corrida do mês</h2><a href="#/vendas">painel de vendas</a></div>${graficoCorrida([EU.tiny], h)}</div>` : ''}`;
+}
+
+// ═══════════════════════════ CONFIGURAÇÕES EXTRAS (dono) ═══════════════════════════
+let USUARIOS = null;
+function vConfigExtra(tab) {
+  if (tab === 'acessos') {
+    if (!USUARIOS) { chamarFuncao('admin-usuarios', { acao: 'listar' }).then(r => { USUARIOS = r.usuarios; render(); }).catch(e => { USUARIOS = []; avisar(e.message); }); }
+    const PAPEIS = { dono: 'Dono / admin', supervisor: 'Supervisor', vendedor: 'Vendedor', estagiario: 'Estagiário', colaborador: 'Colaborador' };
+    return `<div class="card"><p class="explica" style="margin-top:0">Cada pessoa entra com o próprio e-mail e senha e só vê o que o papel permite. <b>Vendedor</b> vê só as próprias vendas e clientes. <b>Supervisor</b> vê a equipe abaixo dele. <b>Dono</b> vê tudo e acessa as Configurações.</p>
+      <div class="cfg-linha cfg-acesso cfg-cab"><span>Pessoa</span><span>Papel</span><span>Vendedor no Tiny</span><span>Pode ver também</span><span>Login</span></div>
+      ${D.pessoas.map((p, i) => { const u = USUARIOS?.find(x => x.id === p.user_id);
+        return `<div class="cfg-linha cfg-acesso"><div style="display:flex;gap:8px;align-items:center">${av(p)}<div><b>${esc(p.nome)}</b><br><small>${esc(p.cargo)}${p.ativo ? '' : ' · inativo'}</small></div></div>
+        <select data-c="set" data-path="pessoas.${i}.papel">${Object.entries(PAPEIS).map(([k, v]) => `<option value="${k}" ${p.papel === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+        <select data-c="set" data-path="pessoas.${i}.tiny"><option value="">— não vende —</option>${D.vendedoresTiny.map(v => `<option value="${v.id}" ${p.tiny === v.id ? 'selected' : ''}>${esc(v.nome)}</option>`).join('')}${p.tiny && !D.vendedoresTiny.some(v => v.id === p.tiny) ? `<option value="${p.tiny}" selected>id ${p.tiny}</option>` : ''}</select>
+        <div style="display:flex;flex-direction:column;gap:2px;font-size:13px">${[['vendas_todas', 'Todas as vendas e clientes'], ['ecommerce', 'Pedidos do e-commerce'], ['admin', 'Configurações (admin)']].map(([k, n]) => `<label><input type="checkbox" ${p.permissoes?.[k] ? 'checked' : ''} data-c="perm" data-i="${i}" data-k="${k}"> ${n}</label>`).join('')}</div>
+        <div>${p.user_id ? `<b>${esc(p.email || u?.email || '')}</b><br><small>${u?.bloqueado ? '<span class="c-ruim">bloqueado</span>' : u?.ultimo_login ? 'último acesso ' + new Date(u.ultimo_login).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'nunca entrou'}</small>
+          <div class="acoes" style="margin-top:4px"><button class="btn peq" data-a="loginSenha" data-p="${p.id}">Trocar senha</button>${p.papel !== 'dono' ? `<button class="btn peq" data-a="loginBloq" data-p="${p.id}" data-v="${u?.bloqueado ? 'desbloquear' : 'bloquear'}">${u?.bloqueado ? 'Desbloquear' : 'Bloquear'}</button><button class="btn peq perigo" data-a="loginRemover" data-p="${p.id}">Remover login</button>` : ''}</div>`
+          : `<button class="btn peq pri" data-a="loginCriar" data-p="${p.id}" ${p.ativo ? '' : 'disabled'}>+ Criar login</button>`}</div></div>`; }).join('')}
+      <p class="mut"><small>A senha precisa ter pelo menos 8 caracteres. Entregue a senha pessoalmente e peça para a pessoa trocar no primeiro acesso, no menu "Trocar minha senha". Ao bloquear, a pessoa sai do sistema na próxima ação.</small></p></div>`;
+  }
+  if (tab === 'solicitacoes') {
+    return `<div class="card"><h2>Responsável padrão por tipo</h2><p class="explica" style="margin-top:0">Quando alguém abre uma solicitação, este nome já vem escolhido (dá para trocar na hora).</p>
+      <div class="form-grid">${Object.entries(TIPOS_SOL).filter(([k]) => k !== 'outro').map(([k, t]) => `<label class="campo">${t.ic} ${t.nome}<select data-c="solPadrao" data-k="${k}">${optPessoas(D.config.solicitacoes?.[k] || '', D.pessoas.filter(p => p.ativo), '— a pessoa escolhe —')}</select></label>`).join('')}</div></div>`;
+  }
+  // tiny
+  const bf = D.sync.backfill, ult = D.sync.ultimo_incremental?.em, fila = D.sync.fila_detalhe?.pendentes;
+  if (!LOG_SYNC) ok(sb.from('sync_log').select('*').order('id', { ascending: false }).limit(15)).then(l => { LOG_SYNC = l; render(); }).catch(() => {});
+  return `<div class="grid g2"><div class="card"><h2>Integração com o Tiny</h2>
+      <table class="tabela"><tbody>
+        <tr><td>Histórico (12 meses)</td><td>${bf?.concluido ? '<span class="tag ok">carregado</span>' : `<span class="tag med">carregando · faltam ${bf?.pendentes?.length ?? 13} mês(es)</span>`}</td></tr>
+        <tr><td>Última atualização de pedidos e clientes</td><td>${ult ? new Date(ult).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—'}</td></tr>
+        <tr><td>Pedidos aguardando detalhe (itens e CPF/CNPJ)</td><td>${fila ?? '—'}</td></tr>
+        <tr><td>Pedidos carregados neste navegador</td><td>${D.pedidos.length}</td></tr>
+      </tbody></table>
+      <p class="explica">Como funciona: a cada 10 minutos o servidor confere o Tiny. Pedidos e clientes alterados são puxados <b>de hora em hora</b>, e os detalhes dos pedidos vão sendo baixados aos poucos, porque o Tiny limita a 1 chamada por segundo. É tudo <b>só leitura</b>: o CRM nunca altera nada no Tiny.</p>
+      <button class="btn pri" data-a="syncAgora">↻ Atualizar agora</button></div>
+    <div class="card"><h2>Últimas rodadas</h2><table class="tabela"><thead><tr><th>Quando</th><th>Modo</th><th class="dir">Pedidos</th><th class="dir">Detalhes</th><th class="dir">Contatos</th><th></th></tr></thead><tbody>
+      ${(LOG_SYNC || []).map(l => `<tr><td><small>${new Date(l.inicio).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</small></td><td>${esc(l.modo)}</td><td class="dir">${l.pedidos ?? ''}</td><td class="dir">${l.detalhados ?? ''}</td><td class="dir">${l.contatos ?? ''}</td><td>${l.ok === false ? `<span class="tag ruim" title="${esc(l.erro)}">erro</span>` : l.ok ? '<span class="tag ok">ok</span>' : '<span class="tag">…</span>'}</td></tr>`).join('') || '<tr><td class="mut">—</td></tr>'}
+    </tbody></table></div></div>`;
+}
+let LOG_SYNC = null;
+
+// ═══════════════════════════ AJUDA ═══════════════════════════
+vAjuda = function () {
+  return topo('Como usar o CRM', 'A rotina de cada um, em poucos minutos por dia.') + `<div class="grid g2">
+  <div class="card explica"><h2>Todo mundo</h2><ul>
+    <li><b>Início</b>: o que é seu hoje. Solicitações para você resolver, follow-ups de clientes, checklist e quanto vai ganhar no mês.</li>
+    <li><b>Solicitações</b>: em vez de pedir no corredor ou no WhatsApp, abra uma solicitação. Pode ser informação, compra, cotação, cadastro de produto ou RMA. Ela fica com dono, prazo e histórico até ser resolvida.</li>
+    <li><b>Checklist do dia</b>: marque cada tarefa quando fizer. Os números de venda vêm sozinhos do Tiny.</li></ul></div>
+  <div class="card explica"><h2>Vendedores</h2><ul>
+    <li><b>Vendas</b>: sua corrida do mês, projeção x meta e últimos pedidos (o Tiny atualiza de hora em hora).</li>
+    <li><b>Clientes</b>: abra a ficha e veja tudo o que o cliente comprou. Registre cada contato e marque a data do próximo. Ele aparece no seu Início no dia certo.</li>
+    <li>Filtro <b>"Para reativar"</b>: clientes bons que sumiram. Comece pelos maiores, com o botão de WhatsApp.</li></ul></div>
+  <div class="card explica"><h2>Supervisores</h2><ul>
+    <li><b>Supervisão</b>: o que cobrar de cada um hoje, o mapa do mês e o "conferido".</li>
+    <li><b>Feedbacks</b>: registre 1:1, elogios e ocorrências.</li>
+    <li>As solicitações da sua equipe aparecem em "Da minha equipe".</li></ul></div>
+  <div class="card explica"><h2>Dono</h2><ul>
+    <li><b>Configurações › Logins e acessos</b>: crie o login de cada pessoa e defina o que ela vê.</li>
+    <li><b>Remuneração</b>: realizado, projeção e simulação, com o faturamento real do Tiny.</li>
+    <li><b>Configurações › Integração Tiny</b>: situação da sincronização e o botão "Atualizar agora".</li></ul></div></div>`;
+};
+
+// ═══════════════════════════ modal e TV ═══════════════════════════
+function modal(html, largo) {
+  let f = $('#modal');
+  if (!f) { f = document.createElement('div'); f.id = 'modal'; f.className = 'modal-fundo'; f.addEventListener('click', e => { if (e.target === f) fecharModal(); }); document.body.appendChild(f); }
+  f.innerHTML = `<div class="modal ${largo ? 'largo' : ''}">${html}</div>`;
+}
+function fecharModal() { $('#modal')?.remove(); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { fecharModal(); if (document.body.classList.contains('tv')) A.tv(); } });
+let timerTV = null;
+
+// ═══════════════════════════ ações ═══════════════════════════
+const A = {
+  nav: el => { UI.view = el.dataset.v; fecharModal(); render(); window.scrollTo(0, 0); },
+  tema: () => {
+    const r = document.documentElement, atual = r.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    r.dataset.theme = atual === 'dark' ? 'light' : 'dark'; try { localStorage.setItem('crm-tema', r.dataset.theme); } catch { /* ok */ }
+  },
+  sair: async () => { await gravarPendentes(); await sb.auth.signOut(); location.reload(); },
+  minhaSenha: () => modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>Trocar minha senha</h2>
+    <label class="campo">Nova senha (mínimo 8 caracteres)<input type="password" id="novaSenha" autocomplete="new-password"></label>
+    <label class="campo mt">Repita a nova senha<input type="password" id="novaSenha2" autocomplete="new-password"></label>
+    <div class="mt"><button class="btn pri" data-a="salvarMinhaSenha">Salvar</button></div>`),
+  salvarMinhaSenha: async () => {
+    const a = $('#novaSenha').value, b = $('#novaSenha2').value;
+    if (a.length < 8) return avisar('A senha precisa ter pelo menos 8 caracteres.');
+    if (a !== b) return avisar('As duas senhas não são iguais.');
+    const { error } = await sb.auth.updateUser({ password: a }); if (error) return avisar(error.message);
+    fecharModal(); avisar('Senha alterada.');
+  },
+  fecharModal: () => fecharModal(),
+  tv: () => {
+    const on = document.body.classList.toggle('tv');
+    clearInterval(timerTV);
+    if (on) {
+      UI.view = 'vendas'; render();
+      document.documentElement.requestFullscreen?.().catch(() => {});
+      let n = 0;
+      timerTV = setInterval(async () => {
+        const vids = vendedoresPainel().map(p => p.tiny); if (vids.length) UI.vendSel = vids[(vids.indexOf(UI.vendSel) + 1) % vids.length];
+        if (++n % 15 === 0) await carregarPedidos(`${addMes(mesDe(hoje()), -13)}-01`).catch(() => {});
+        render();
+      }, 20000);
+    } else { if (document.fullscreenElement) document.exitFullscreen?.(); render(); }
+  },
+  vendSel: el => { UI.vendSel = el.dataset.v; render(); },
+  syncAgora: async () => {
+    avisar('Buscando no Tiny… pode levar até 2 minutos.');
+    try {
+      const r = await chamarFuncao('tiny-sync', {}, '?modo=auto&forcar=1');
+      await Promise.all([carregarPedidos(`${addMes(mesDe(hoje()), -13)}-01`), ok(sb.from('sync_estado').select('*')).then(est => { D.sync = Object.fromEntries(est.map(x => [x.chave, { ...x.valor, em_db: x.atualizado_em }])); })]);
+      D.clientes = null; LOG_SYNC = null; render();
+      avisar(`Pronto: ${r.pedidos} pedido(s) atualizados, ${r.detalhados} detalhados.`);
+    } catch (e) { avisar('Não deu para atualizar agora: ' + e.message); }
+  },
+  verPedido: el => abrirPedido(el.dataset.id),
+  verCliente: (el, e) => { e.preventDefault?.(); abrirCliente(el.dataset.chave); },
+  recarregarClientes: async () => { D.clientes = null; await carregarInteracoes(); render(); },
+  cliFiltro: el => { UI.cliFiltro = el.dataset.v; render(); },
+  novaInteracao: el => formInteracao(el.dataset.chave, el.dataset.nome),
+  salvarInteracao: el => salvarInteracao(el.dataset.chave, el.dataset.nome).catch(e => avisar(e.message)),
+  followupFeito: el => concluirFollowup(el.dataset.id).catch(e => avisar(e.message)),
+  novaSolicitacao: el => formSolicitacao(el.dataset.tipo, el.dataset.chave ? { chave: el.dataset.chave, nome: el.dataset.nome } : null),
+  salvarSolicitacao: el => salvarSolicitacao(el.dataset.tipo, el.dataset.chave).catch(e => avisar(e.message)),
+  verSolicitacao: el => abrirSolicitacao(el.dataset.id).catch(e => avisar(e.message)),
+  comentarSolicitacao: el => comentarSolicitacao(el.dataset.id).catch(e => avisar(e.message)),
+  concluirSolicitacao: el => mudarSolicitacao(el.dataset.id, 'status', 'concluida').catch(e => avisar(e.message)),
+  solCaixa: el => { UI.solCaixa = el.dataset.v; render(); },
+  loginCriar: async el => {
+    const p = pessoa(el.dataset.p);
+    modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>Criar login: ${esc(p.nome)}</h2>
+      <label class="campo">E-mail<input type="email" id="lgEmail" autocomplete="off"></label>
+      <label class="campo mt">Senha inicial (mínimo 8 caracteres)<input type="text" id="lgSenha" autocomplete="off"></label>
+      <p class="mut"><small>Papel atual: <b>${esc(p.papel)}</b>. Confira antes de entregar o acesso.</small></p>
+      <button class="btn pri" data-a="loginCriarOk" data-p="${p.id}">Criar login</button>`);
+  },
+  loginCriarOk: async el => {
+    try { await chamarFuncao('admin-usuarios', { acao: 'criar', pessoa_id: el.dataset.p, email: $('#lgEmail').value.trim(), senha: $('#lgSenha').value });
+      fecharModal(); avisar('Login criado.'); await recarregarPessoas(); USUARIOS = null; render(); } catch (e) { avisar(e.message); }
+  },
+  loginSenha: el => modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>Nova senha: ${esc(pessoa(el.dataset.p).nome)}</h2>
+      <label class="campo">Nova senha (mínimo 8 caracteres)<input type="text" id="lgSenha" autocomplete="off"></label>
+      <div class="mt"><button class="btn pri" data-a="loginSenhaOk" data-p="${el.dataset.p}">Salvar</button></div>`),
+  loginSenhaOk: async el => { try { await chamarFuncao('admin-usuarios', { acao: 'senha', pessoa_id: el.dataset.p, senha: $('#lgSenha').value }); fecharModal(); avisar('Senha alterada.'); } catch (e) { avisar(e.message); } },
+  loginBloq: async el => { try { await chamarFuncao('admin-usuarios', { acao: el.dataset.v, pessoa_id: el.dataset.p }); USUARIOS = null; render(); avisar(el.dataset.v === 'bloquear' ? 'Login bloqueado.' : 'Login liberado.'); } catch (e) { avisar(e.message); } },
+  loginRemover: async el => {
+    if (!confirm(`Remover o login de ${pessoa(el.dataset.p).nome}? O histórico da pessoa continua no sistema.`)) return;
+    try { await chamarFuncao('admin-usuarios', { acao: 'remover_login', pessoa_id: el.dataset.p }); await recarregarPessoas(); USUARIOS = null; render(); } catch (e) { avisar(e.message); }
+  },
+
+  // ─── módulo Equipe ───
+  selPessoa: el => { UI.pessoa = el.dataset.p; render(); },
+  abrirPessoa: el => {
+    const p = pessoa(el.dataset.p); if (!p) return;
+    if (!p.ativo) { if (ehDono()) { UI.view = 'config'; UI.cfgTab = 'pessoas'; render(); } return; }
+    UI.pessoa = p.id; if (el.dataset.d) UI.data = el.dataset.d;
+    UI.view = el.dataset.view || 'checklist'; if (UI.view === 'metas') UI.metasDet = '';
+    fecharModal(); render(); window.scrollTo(0, 0);
+  },
+  dia: async el => { const v = +el.dataset.v; UI.data = v === 0 ? hoje() : addDias(UI.data, v); await garantirMes(mesDe(UI.data)); render(); },
+  mes: async el => { const v = +el.dataset.v; UI.mes = v === 0 ? mesDe(hoje()) : addMes(UI.mes, v); render(); if (await garantirMes(UI.mes)) render(); },
+  sup: el => { UI.sup = el.dataset.p; render(); },
+  verRem: (el, e) => { e.preventDefault(); UI.remPessoa = el.dataset.p; UI.view = 'remuneracao'; render(); window.scrollTo(0, 0); },
+  remModo: el => { UI.remModo = el.dataset.v; render(); },
+  remSel: el => { UI.remPessoa = el.dataset.p; render(); },
+  metasDet: el => { UI.metasDet = UI.metasDet === el.dataset.p ? '' : el.dataset.p; render(); },
+  print: () => window.print(),
+  nota: el => {
+    const r = reg(el.dataset.p, el.dataset.d, true), atual = r.notas[el.dataset.t] || '';
+    const txt = prompt('Observação sobre esta tarefa (deixe vazio para apagar):', atual);
+    if (txt === null) return;
+    if (txt.trim()) r.notas[el.dataset.t] = txt.trim(); else delete r.notas[el.dataset.t];
+    marcar('dia', el.dataset.p, el.dataset.d); render();
+  },
+  trabalhou: el => { reg(el.dataset.p, el.dataset.d, true).status = 'extra'; marcar('dia', el.dataset.p, el.dataset.d); render(); },
+  fbAdd: async () => {
+    const texto = $('#fbTexto').value.trim(); if (!texto) { avisar('Escreva o que aconteceu.'); return; }
+    try {
+      const n = await ok(sb.from('feedbacks').insert({ pessoa_id: $('#fbPessoa').value, autor_id: EU.id, tipo: $('#fbTipo').value, data: $('#fbData').value || hoje(), texto }).select().single());
+      D.feedbacks.unshift({ id: n.id, pessoa: n.pessoa_id, autor: n.autor_id, tipo: n.tipo, data: n.data, texto: n.texto });
+      UI.fbPessoa = n.pessoa_id; render(); avisar('Registro salvo.');
+    } catch (e) { avisar(e.message); }
+  },
+  fbDel: async el => { if (!confirm('Apagar este registro?')) return; try { await ok(sb.from('feedbacks').delete().eq('id', el.dataset.id)); D.feedbacks = D.feedbacks.filter(f => f.id !== el.dataset.id); render(); } catch (e) { avisar(e.message); } },
+  cfgTab: el => { UI.cfgTab = el.dataset.v; render(); },
+  del: el => {
+    const arr = getPath(el.dataset.path); const i = +el.dataset.i;
+    const item = arr[i]; const nome = item?.titulo || item?.nome;
+    if (nome && !confirm(`Apagar "${nome}"?`)) return;
+    arr.splice(i, 1); marcarPath(el.dataset.path); render();
+  },
+  mov: el => { const arr = getPath(el.dataset.path), i = +el.dataset.i, j = i + +el.dataset.v; if (j < 0 || j >= arr.length) return; [arr[i], arr[j]] = [arr[j], arr[i]]; marcarPath(el.dataset.path); render(); },
+  addTarefa: el => { getPath(el.dataset.path).push({ id: 't' + uid(), titulo: 'Nova tarefa', freq: 'D', bloco: 'dia', diaSemana: 5, diaMes: 5, conferir: '', critica: false }); marcarPath(el.dataset.path); render(); },
+  addKpi: el => { getPath(el.dataset.path).push({ id: 'k_' + uid(), nome: 'Novo indicador', un: 'un', meta: 0, entrada: 'D', agreg: 'soma', dir: 'maior', fonte: 'manual' }); marcarPath(el.dataset.path); render(); },
+  addFaixa: el => { const arr = getPath(el.dataset.path), ult = ordFaixas(arr).pop(); arr.push({ de: ult ? ult.de + 10 : 0, [el.dataset.campo]: ult ? ult[el.dataset.campo] : 0 }); marcarPath(el.dataset.path); render(); },
+  addRegra: el => {
+    const tipo = $('#novaRegra').value, p = pessoa(UI.cfgPessoa), k0 = p.kpis[0]?.id || '';
+    const kEq = D.pessoas.find(x => x.supervisor === p.id && x.kpis.length)?.kpis[0]?.id || '';
+    const modelos = {
+      fixo: { nome: 'Valor fixo', valor: 0 },
+      comissao: { nome: 'Comissão', kpi: k0, faixas: [{ de: 0, taxa: 1 }, { de: 100, taxa: 2 }] },
+      override: { nome: 'Comissão sobre a equipe', kpi: kEq, faixas: [{ de: 0, taxa: 0 }, { de: 100, taxa: 0.5 }] },
+      premio_meta: { nome: 'Prêmio de meta', kpi: k0, escopo: 'proprio', faixas: [{ de: 0, valor: 0 }, { de: 100, valor: 100 }] },
+      premio_disciplina: { nome: 'Prêmio de disciplina', valor: 200, escopo: 'proprio', faixas: [{ de: 0, mult: 0 }, { de: 80, mult: 50 }, { de: 90, mult: 100 }] },
+      premio_por_subordinado: { nome: 'Prêmio por pessoa da equipe na meta', kpi: kEq, valor: 100 },
+    };
+    getPath(el.dataset.path).push({ tipo, ...modelos[tipo] }); marcarPath(el.dataset.path); render();
+  },
+  addPessoa: () => {
+    const modelo = pessoa($('#novoModelo').value);
+    const nome = prompt('Nome da nova pessoa:'); if (!nome) return;
+    const nova = { ...clone(modelo), id: nome.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') + '_' + uid().slice(0, 3), nome: nome.trim(), ativo: true, inicio: hoje(), user_id: null, email: '', tiny: '' };
+    D.pessoas.push(nova); marcar('pessoa', nova.id); render(); avisar(`${nome} adicionado(a) com início hoje.`);
+  },
+  delPessoa: async el => {
+    const i = +el.dataset.i, p = D.pessoas[i];
+    if (p.id === EU.id) return avisar('Você não pode remover a si mesmo.');
+    if (!confirm(`Remover ${p.nome} do sistema? Todo o histórico (checklist, feedbacks) dessa pessoa será apagado. Para só desativar, desmarque "Ativo".`)) return;
+    try {
+      for (const x of D.pessoas.filter(x => x.supervisor === p.id)) { x.supervisor = p.supervisor || null; await GRAVAR.pessoa(x.id); }
+      await ok(sb.from('pessoas').delete().eq('id', p.id));
+      D.pessoas.splice(i, 1); render();
+    } catch (e) { avisar(e.message); }
+  },
+  copiarTarefas: () => {
+    const de = pessoa($('#copiarDe').value), p = pessoa(UI.cfgPessoa); if (!de) return;
+    if (!confirm(`Substituir as ${p.tarefas.length} tarefas de ${p.nome} pelas ${de.tarefas.length} de ${de.nome}?`)) return;
+    p.tarefas = clone(de.tarefas); marcar('pessoa', p.id); render();
+  },
+  exportar: () => {
+    const blob = new Blob([JSON.stringify(D, (k, v) => v instanceof Set ? [...v] : v, 1)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `crm-protemaxxi-copia-${hoje()}.json`; a.click(); URL.revokeObjectURL(a.href);
+  },
+};
+async function recarregarPessoas() {
+  const rows = await ok(sb.from('pessoas').select('id,user_id,email'));
+  for (const r of rows) { const p = pessoa(r.id); if (p) { p.user_id = r.user_id; p.email = r.email || ''; } }
+}
+function getPath(path) { return path.split('.').reduce((o, k) => o?.[k], D); }
+function setPath(path, val) { const ks = path.split('.'); let o = D; for (let i = 0; i < ks.length - 1; i++) o = o[ks[i]]; o[ks[ks.length - 1]] = val; }
+const numOuVazio = v => v === '' ? '' : Number(v);
+
+let timerBusca = null;
+const C = {
+  ui: el => { UI[el.dataset.k] = el.value; if (el.type === 'search') { clearTimeout(timerBusca); timerBusca = setTimeout(render, 150); } else render(); },
+  chk: el => { const r = reg(el.dataset.p, el.dataset.d, true); if (el.checked) r.checks[el.dataset.t] = true; else delete r.checks[el.dataset.t]; marcar('dia', el.dataset.p, el.dataset.d); render(); },
+  chkS: el => { const s = semReg(el.dataset.p, el.dataset.s, true); if (el.checked) s[el.dataset.t] = true; else delete s[el.dataset.t]; marcar('sem', el.dataset.p, el.dataset.s); render(); },
+  chkM: el => { const s = mesReg(el.dataset.p, el.dataset.m, true); if (el.checked) s.checks[el.dataset.t] = true; else delete s.checks[el.dataset.t]; marcar('mes', el.dataset.p, el.dataset.m); render(); },
+  kpiD: el => { const r = reg(el.dataset.p, el.dataset.d, true); if (el.value === '') delete r.kpi[el.dataset.k]; else r.kpi[el.dataset.k] = Number(el.value); marcar('dia', el.dataset.p, el.dataset.d); render(); },
+  kpiM: el => { const r = mesReg(el.dataset.p, el.dataset.m, true); if (el.value === '') delete r.kpi[el.dataset.k]; else r.kpi[el.dataset.k] = Number(el.value); marcar('mes', el.dataset.p, el.dataset.m); render(); },
+  status: el => { const r = reg(el.dataset.p, el.dataset.d, true); if (el.value === 'normal') delete r.status; else r.status = el.value; marcar('dia', el.dataset.p, el.dataset.d); render(); },
+  conferido: el => { const r = reg(el.dataset.p, el.dataset.d, true); r.conferido = el.checked; r.conferidoEm = el.checked ? `${fmtCurta(hoje())} ${hora()} por ${EU.nome}` : ''; marcar('dia', el.dataset.p, el.dataset.d); render(); },
+  obs: el => { reg(el.dataset.p, el.dataset.d, true).obs = el.value; marcar('dia', el.dataset.p, el.dataset.d); },
+  irData: async el => { if (el.value) { UI.data = el.value; await garantirMes(mesDe(UI.data)); render(); } },
+  meta: el => { const p = pessoa(el.dataset.p), k = kpiDe(p, el.dataset.k); k.meta = Number(el.value) || 0; marcar('pessoa', p.id); render(); },
+  remPessoa: el => { UI.remPessoa = el.value; render(); },
+  simMeta: el => { UI.simMeta = +el.value; render(); },
+  simCheck: el => { UI.simCheck = +el.value; render(); },
+  fbFiltro: el => { UI.fbPessoa = el.value; render(); },
+  cfgPessoa: el => { UI.cfgPessoa = el.value; render(); },
+  set: el => {
+    const t = el.dataset.t; const v = t === 'bool' ? el.checked : t === 'num' ? numOuVazio(el.value) : el.value;
+    setPath(el.dataset.path, t === 'num' && v === '' ? 0 : v); marcarPath(el.dataset.path); render();
+  },
+  setSup: el => { const p = D.pessoas[+el.dataset.i], novo = el.value || null;
+    let x = novo && pessoa(novo); while (x) { if (x.id === p.id) { avisar('Isso criaria um ciclo no organograma.'); render(); return; } x = x.supervisor && pessoa(x.supervisor); }
+    p.supervisor = novo; marcar('pessoa', p.id); render(); },
+  dia: el => { const p = D.pessoas[+el.dataset.i], v = +el.dataset.v; p.dias = el.checked ? [...new Set([...p.dias, v])].sort() : p.dias.filter(x => x !== v); marcar('pessoa', p.id); render(); },
+  perm: el => { const p = D.pessoas[+el.dataset.i]; p.permissoes = { ...(p.permissoes || {}), [el.dataset.k]: el.checked }; marcar('pessoa', p.id); render(); },
+  feriados: el => { D.config.feriados = el.value.split(/\s+/).map(s => s.trim()).filter(s => /^\d{4}-\d{2}-\d{2}$/.test(s)); marcar('config'); render(); },
+  solPadrao: el => { D.config.solicitacoes = { ...(D.config.solicitacoes || {}), [el.dataset.k]: el.value }; marcar('config'); },
+  solCampo: el => mudarSolicitacao(el.dataset.id, el.dataset.k, el.value).catch(e => avisar(e.message)),
+  solEtapa: el => mudarEtapa(el.dataset.id, el.value).catch(e => avisar(e.message)),
+};
+
+document.addEventListener('click', e => { const el = e.target.closest('[data-a]'); if (el && A[el.dataset.a]) { if (el.tagName === 'A') e.preventDefault(); A[el.dataset.a](el, e); } });
+document.addEventListener('change', e => { const el = e.target.closest('[data-c]'); if (el && C[el.dataset.c] && el.type !== 'search') C[el.dataset.c](el, e); });
+document.addEventListener('input', e => {
+  const el = e.target;
+  if (el.dataset.live) { const lb = document.getElementById(el.dataset.live); if (lb) lb.textContent = el.value + '%'; }
+  if (el.type === 'search' && el.dataset.c === 'ui') C.ui(el);
+});
+window.addEventListener('hashchange', () => { const v = location.hash.replace('#/', ''); if (v && v !== UI.view && VIEWS_FN[v]) { UI.view = v; render(); } });
+
+// ═══════════════════════════ login e início ═══════════════════════════
+function telaLogin(msg = '') {
+  document.body.innerHTML = `<div class="login"><form class="caixa" id="formLogin">
+    <img src="img/logo.svg" alt="Protemaxxi"><div class="sub">CRM · Intranet</div>
+    <label>E-mail<input type="email" id="lEmail" autocomplete="username" required></label>
+    <label>Senha<input type="password" id="lSenha" autocomplete="current-password" required></label>
+    <button class="btn pri" type="submit">Entrar</button><div class="erro" id="lErro">${esc(msg)}</div>
+    <div class="rodape">Esqueceu a senha? Peça ao administrador para trocar.</div></form></div>`;
+  $('#formLogin').addEventListener('submit', async e => {
+    e.preventDefault(); $('#lErro').textContent = 'Entrando…';
+    const { error } = await sb.auth.signInWithPassword({ email: $('#lEmail').value.trim(), password: $('#lSenha').value });
+    if (error) { $('#lErro').textContent = /invalid/i.test(error.message) ? 'E-mail ou senha incorretos.' : error.message; return; }
+    location.reload();
+  });
+}
+async function iniciar() {
+  try { const t = localStorage.getItem('crm-tema'); if (t) document.documentElement.dataset.theme = t; } catch { /* ok */ }
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return telaLogin();
+  try { await carregarTudo(); } catch (e) { console.error(e); return telaLogin('Erro ao carregar: ' + e.message); }
+  if (!EU) { await sb.auth.signOut(); return telaLogin('Seu login ainda não está ligado a uma pessoa do sistema. Fale com o administrador.'); }
+  const v = location.hash.replace('#/', ''); if (VIEWS_FN[v]) UI.view = v;
+  if (v === 'tv') { UI.view = 'vendas'; setTimeout(() => A.tv(), 300); }
+  if (!UI.pessoa) UI.pessoa = EU.id;
+  statusSalvo('✓ Conectado');
+  render();
+  // mantém atualizado: a cada 10 min recarrega pedidos e solicitações; ao voltar para a aba também
+  const atualizar = async () => { try { await Promise.all([carregarPedidos(`${addMes(mesDe(hoje()), -13)}-01`), carregarSolicitacoes(), carregarInteracoes(), ok(sb.from('sync_estado').select('*')).then(est => { D.sync = Object.fromEntries(est.map(x => [x.chave, { ...x.valor, em_db: x.atualizado_em }])); })]); if (!$('#modal')) render(); } catch { /* offline */ } };
+  setInterval(atualizar, 10 * 60e3);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !document.activeElement?.matches('input,textarea,select')) atualizar(); });
+  let diaAtual = hoje();
+  setInterval(() => { if (hoje() !== diaAtual) { if (UI.data === diaAtual) UI.data = hoje(); if (UI.mes === mesDe(diaAtual)) UI.mes = mesDe(hoje()); diaAtual = hoje(); render(); } }, 60000);
+}
+iniciar();

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>CRM Protemaxxi</title>
+<link rel="icon" href="img/icone.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Figtree:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="marca"><img src="img/logo.svg" alt="Protemaxxi"><small>CRM · Intranet</small></div>
+    <nav id="nav"></nav>
+    <div class="side-rodape">
+      <div class="usuario" id="usuario"></div>
+      <div id="salvo" class="salvo">Carregando…</div>
+      <div class="linha-botoes"><button class="tema" data-a="minhaSenha" title="Trocar minha senha">🔑 Senha</button><button class="tema" data-a="tema" title="Tema claro/escuro">◐ Tema</button><button class="tema" data-a="sair" title="Sair">⎋ Sair</button></div>
+    </div>
+  </aside>
+  <main id="main"><div class="carregando">Carregando o CRM…</div></main>
+</div>
+<div id="aviso" class="aviso" hidden></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/util.js"></script>
+<script src="js/dados.js"></script>
+<script src="js/equipe.js"></script>
+<script src="js/vendas.js"></script>
+<script src="js/clientes.js"></script>
+<script src="js/solicitacoes.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
