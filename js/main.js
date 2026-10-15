@@ -93,9 +93,10 @@ function vConfigExtra(tab) {
         return `<div class="cfg-linha cfg-acesso"><div style="display:flex;gap:8px;align-items:center">${av(p)}<div><b>${esc(p.nome)}</b><br><small>${esc(p.cargo)}${p.ativo ? '' : ' · inativo'}</small></div></div>
         <select data-c="set" data-path="pessoas.${i}.papel">${Object.entries(PAPEIS).map(([k, v]) => `<option value="${k}" ${p.papel === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
         <select data-c="set" data-path="pessoas.${i}.tiny"><option value="">— não vende —</option>${D.vendedoresTiny.map(v => `<option value="${v.id}" ${p.tiny === v.id ? 'selected' : ''}>${esc(v.nome)}</option>`).join('')}${p.tiny && !D.vendedoresTiny.some(v => v.id === p.tiny) ? `<option value="${p.tiny}" selected>id ${p.tiny}</option>` : ''}</select>
-        <div style="display:flex;flex-direction:column;gap:2px;font-size:13px">${[['vendas_todas', 'Todas as vendas e clientes'], ['ecommerce', 'Pedidos do e-commerce'], ['suporte', 'Ordens de serviço (suporte)'], ['admin', 'Configurações (admin)']].map(([k, n]) => `<label><input type="checkbox" ${p.permissoes?.[k] ? 'checked' : ''} data-c="perm" data-i="${i}" data-k="${k}"> ${n}</label>`).join('')}</div>
+        <div style="display:flex;flex-direction:column;gap:2px;font-size:13px">${[['vendas_todas', 'Todas as vendas e clientes'], ['ecommerce', 'Pedidos do e-commerce'], ['suporte', 'Ordens de serviço (suporte)'], ['admin', 'Configurações (admin)'], ['mfa', 'Exigir 2FA (código no celular)']].map(([k, n]) => `<label><input type="checkbox" ${p.permissoes?.[k] ? 'checked' : ''} data-c="perm" data-i="${i}" data-k="${k}"> ${n}</label>`).join('')}</div>
         <div>${p.user_id ? `<b>${esc(p.email || u?.email || '')}</b><br><small>${u?.bloqueado ? '<span class="c-ruim">bloqueado</span>' : u?.ultimo_login ? 'último acesso ' + new Date(u.ultimo_login).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'nunca entrou'}</small>
-          <div class="acoes" style="margin-top:4px"><button class="btn peq" data-a="loginSenha" data-p="${p.id}">Trocar senha</button>${p.papel !== 'dono' ? `<button class="btn peq" data-a="loginBloq" data-p="${p.id}" data-v="${u?.bloqueado ? 'desbloquear' : 'bloquear'}">${u?.bloqueado ? 'Desbloquear' : 'Bloquear'}</button><button class="btn peq perigo" data-a="loginRemover" data-p="${p.id}">Remover login</button>` : ''}</div>`
+          <br><small>2FA: ${u?.mfa ? '<span class="c-ok">ativo</span>' : (['dono', 'supervisor'].includes(p.papel) || p.permissoes?.admin || p.permissoes?.mfa) ? '<span class="c-med">obrigatório, cadastra no próximo acesso</span>' : 'não exigido'}</small>
+          <div class="acoes" style="margin-top:4px"><button class="btn peq" data-a="loginSenha" data-p="${p.id}">Trocar senha</button>${u?.mfa && p.id !== EU.id ? `<button class="btn peq" data-a="zerar2fa" data-p="${p.id}" title="Use se a pessoa perdeu ou trocou de celular">Zerar 2FA</button>` : ''}${p.papel !== 'dono' ? `<button class="btn peq" data-a="loginBloq" data-p="${p.id}" data-v="${u?.bloqueado ? 'desbloquear' : 'bloquear'}">${u?.bloqueado ? 'Desbloquear' : 'Bloquear'}</button><button class="btn peq perigo" data-a="loginRemover" data-p="${p.id}">Remover login</button>` : ''}</div>`
           : `<button class="btn peq pri" data-a="loginCriar" data-p="${p.id}" ${p.ativo ? '' : 'disabled'}>+ Criar login</button>`}</div></div>`; }).join('')}
       <p class="mut"><small>A senha precisa ter pelo menos 8 caracteres. Entregue a senha pessoalmente e peça para a pessoa trocar no primeiro acesso, no menu "Trocar minha senha". Ao bloquear, a pessoa sai do sistema na próxima ação.</small></p></div>`;
   }
@@ -243,6 +244,11 @@ const A = {
       <div class="mt"><button class="btn pri" data-a="loginSenhaOk" data-p="${el.dataset.p}">Salvar</button></div>`),
   loginSenhaOk: async el => { try { await chamarFuncao('admin-usuarios', { acao: 'senha', pessoa_id: el.dataset.p, senha: $('#lgSenha').value }); fecharModal(); avisar('Senha alterada.'); } catch (e) { avisar(e.message); } },
   loginBloq: async el => { try { await chamarFuncao('admin-usuarios', { acao: el.dataset.v, pessoa_id: el.dataset.p }); USUARIOS = null; render(); avisar(el.dataset.v === 'bloquear' ? 'Login bloqueado.' : 'Login liberado.'); } catch (e) { avisar(e.message); } },
+  zerar2fa: async el => {
+    const p = pessoa(el.dataset.p);
+    if (!confirm(`Zerar o 2FA de ${p.nome}? No próximo acesso, a pessoa vai cadastrar o celular de novo (use quando ela perder ou trocar de celular).`)) return;
+    try { await chamarFuncao('admin-usuarios', { acao: 'resetar_2fa', pessoa_id: p.id }); USUARIOS = null; render(); avisar('2FA zerado.'); } catch (e) { avisar(e.message); }
+  },
   loginRemover: async el => {
     if (!confirm(`Remover o login de ${pessoa(el.dataset.p).nome}? O histórico da pessoa continua no sistema.`)) return;
     try { await chamarFuncao('admin-usuarios', { acao: 'remover_login', pessoa_id: el.dataset.p }); await recarregarPessoas(); USUARIOS = null; render(); } catch (e) { avisar(e.message); }
@@ -416,11 +422,64 @@ async function checarOcioso() {
   return false;
 }
 
+// ─── 2FA (código no celular) ───
+function caixaMFA(conteudo) {
+  document.body.innerHTML = `<div class="login"><div class="caixa"><img src="img/logo.svg" alt="Protemaxxi"><div class="sub">Verificação em duas etapas</div>${conteudo}
+    <div class="erro" id="mfaErro"></div><div class="rodape"><a href="#" id="mfaSair" style="color:#7F93A6">Sair e entrar com outro login</a></div></div></div>`;
+  $('#mfaSair').addEventListener('click', async e => { e.preventDefault(); await sb.auth.signOut(); location.reload(); });
+}
+async function verificarCodigo(factorId) {
+  const code = ($('#mfaCodigo').value || '').replace(/\D/g, '');
+  if (code.length !== 6) { $('#mfaErro').textContent = 'Digite os 6 números do aplicativo.'; return; }
+  $('#mfaErro').textContent = 'Conferindo…';
+  const { error } = await sb.auth.mfa.challengeAndVerify({ factorId, code });
+  if (error) { $('#mfaErro').textContent = /invalid|expired/i.test(error.message) ? 'Código errado ou vencido. Use o código que está aparecendo agora.' : error.message; $('#mfaCodigo').value = ''; $('#mfaCodigo').focus(); return; }
+  location.reload();
+}
+function campoCodigo(rotulo) {
+  return `<label>${rotulo}<input id="mfaCodigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" style="font-size:24px;letter-spacing:.3em;text-align:center"></label>
+    <button class="btn pri" id="mfaOk" type="button">Confirmar</button>`;
+}
+async function telaMFAVerificar() {
+  const { data } = await sb.auth.mfa.listFactors();
+  const f = data?.totp?.[0];
+  if (!f) return telaMFACadastrar();
+  caixaMFA(`<p style="text-align:center;color:#A9B7C4;font-size:14px">Abra o aplicativo autenticador no seu celular e digite o código do <b>CRM Protemaxxi</b>.</p>${campoCodigo('Código de 6 números')}`);
+  const ir = () => verificarCodigo(f.id);
+  $('#mfaOk').addEventListener('click', ir);
+  $('#mfaCodigo').addEventListener('keydown', e => { if (e.key === 'Enter') ir(); });
+  $('#mfaCodigo').focus();
+}
+async function telaMFACadastrar() {
+  // apaga tentativas de cadastro que não foram concluídas
+  const { data: lista } = await sb.auth.mfa.listFactors();
+  for (const f of (lista?.all || []).filter(f => f.status !== 'verified')) await sb.auth.mfa.unenroll({ factorId: f.id });
+  const { data, error } = await sb.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'CRM Protemaxxi ' + new Date().toISOString().slice(0, 16) });
+  if (error) { caixaMFA(`<p style="color:#FF8A80">Não deu para iniciar o cadastro do 2FA: ${esc(error.message)}</p>`); return; }
+  caixaMFA(`<p style="color:#A9B7C4;font-size:14px;margin-top:0">Por segurança, o seu acesso precisa de um <b>código do celular</b> além da senha. É só na primeira vez:</p>
+    <ol style="color:#C9D3DC;font-size:13.5px;padding-left:18px;margin:0 0 12px">
+      <li>Instale no celular o <b>Google Authenticator</b> ou o <b>Microsoft Authenticator</b> (grátis).</li>
+      <li>No aplicativo, toque em <b>+</b> e escolha <b>ler QR code</b>.</li>
+      <li>Aponte para o código abaixo e digite os 6 números que aparecerem.</li></ol>
+    <div style="background:#fff;border-radius:12px;padding:10px;width:200px;margin:0 auto 8px"><img src="${esc(data.totp.qr_code)}" alt="QR code do 2FA" style="width:180px;height:180px;display:block"></div>
+    <p style="text-align:center;font-size:12px;color:#7F93A6;word-break:break-all">Sem câmera? Digite esta chave no aplicativo:<br><b style="color:#C9D3DC;font-family:monospace">${esc(data.totp.secret)}</b></p>
+    ${campoCodigo('Código de 6 números')}`);
+  const ir = () => verificarCodigo(data.id);
+  $('#mfaOk').addEventListener('click', ir);
+  $('#mfaCodigo').addEventListener('keydown', e => { if (e.key === 'Enter') ir(); });
+}
+
 async function iniciar() {
   try { const t = localStorage.getItem('crm-tema'); if (t) document.documentElement.dataset.theme = t; } catch { /* ok */ }
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return telaLogin();
   if (await checarOcioso()) return;
+  const { data: nivel } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (nivel?.currentLevel !== 'aal2') {
+    if (nivel?.nextLevel === 'aal2') return telaMFAVerificar();
+    const { data: precisa } = await sb.rpc('precisa_mfa');
+    if (precisa === true) return telaMFACadastrar();
+  }
   marcarAtividade();
   setInterval(checarOcioso, 60e3);
   try { await carregarTudo(); } catch (e) { console.error(e); return telaLogin('Erro ao carregar: ' + e.message); }
