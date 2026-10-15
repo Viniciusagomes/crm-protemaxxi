@@ -4,7 +4,7 @@
 const valido = p => p.situacao !== 'Cancelado';
 const vendedoresPainel = () => D.pessoas.filter(p => p.ativo && p.tiny);
 const nomeVendedor = vid => D.pessoas.find(p => p.tiny === vid)?.nome || D.vendedoresTiny.find(v => v.id === vid)?.nome || (vid ? 'Vendedor ' + vid : 'Sem vendedor');
-const corVendedor = vid => D.pessoas.find(p => p.tiny === vid)?.cor || '#8AA0B4';
+const corVendedor = vid => { const c = D.pessoas.find(p => p.tiny === vid)?.cor; return /^#[0-9a-fA-F]{3,8}$/.test(c || '') ? c : '#8AA0B4'; };
 function diasUteisEntre(ini, fim) { let n = 0; for (let d = ini; d <= fim; d = addDias(d, 1)) if (dow(d) !== 0 && !D.config.feriados.includes(d)) n++; return n; }
 const somaV = ps => soma(ps.map(p => p.valor));
 const chaveCli = p => p.cliente_chave || 'n:' + (p.cliente_nome || '').toLowerCase().trim();

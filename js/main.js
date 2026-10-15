@@ -99,6 +99,17 @@ function vConfigExtra(tab) {
           : `<button class="btn peq pri" data-a="loginCriar" data-p="${p.id}" ${p.ativo ? '' : 'disabled'}>+ Criar login</button>`}</div></div>`; }).join('')}
       <p class="mut"><small>A senha precisa ter pelo menos 8 caracteres. Entregue a senha pessoalmente e peça para a pessoa trocar no primeiro acesso, no menu "Trocar minha senha". Ao bloquear, a pessoa sai do sistema na próxima ação.</small></p></div>`;
   }
+  if (tab === 'auditoria') {
+    if (!AUDITORIA) ok(sb.from('auditoria').select('*').order('quando', { ascending: false }).limit(200)).then(l => { AUDITORIA = l; render(); }).catch(e => avisar(e.message));
+    const NOMES = { pessoas: 'Pessoa / acesso', regras: 'Regra de remuneração', kpis: 'Meta / indicador', config: 'Configuração', solicitacoes: 'Solicitação', feedbacks: 'Feedback' };
+    const resumo = a => { const o = a.antes || {}, n = a.depois || {}; const mud = Object.keys({ ...o, ...n }).filter(k => !['atualizado_em', 'criado_em'].includes(k) && JSON.stringify(o[k]) !== JSON.stringify(n[k]));
+      const alvo = n.nome || o.nome || n.pessoa_id || o.pessoa_id || n.chave || o.chave || n.titulo || o.titulo || n.id || o.id || '';
+      return `${esc(String(alvo))}${a.operacao === 'UPDATE' && mud.length ? ` · mudou: ${mud.map(esc).join(', ')}` : ''}`; };
+    return `<div class="card"><h2>Auditoria</h2><p class="explica" style="margin-top:0">Registro automático de quem alterou pessoas, acessos, metas, regras de ganho, configurações, solicitações e feedbacks apagados. Só o dono vê. Fica guardado por 2 anos.</p>
+      <div class="rolagem"><table class="tabela"><thead><tr><th>Quando</th><th>Quem</th><th>O quê</th><th>Ação</th><th>Detalhe</th></tr></thead><tbody>
+      ${(AUDITORIA || []).map(a => `<tr><td><small>${new Date(a.quando).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</small></td><td>${esc(nomeP(a.pessoa_id) === '—' ? (a.usuario ? 'login ' + a.usuario.slice(0, 8) : 'sistema') : nomeP(a.pessoa_id))}</td><td>${NOMES[a.tabela] || esc(a.tabela)}</td><td><span class="tag ${a.operacao === 'DELETE' ? 'ruim' : a.operacao === 'INSERT' ? 'ok' : ''}">${{ INSERT: 'criou', UPDATE: 'alterou', DELETE: 'apagou' }[a.operacao] || esc(a.operacao)}</span></td><td><small>${resumo(a)}</small></td></tr>`).join('') || '<tr><td colspan="5" class="vazio">Nenhuma alteração registrada ainda.</td></tr>'}
+      </tbody></table></div></div>`;
+  }
   if (tab === 'solicitacoes') {
     return `<div class="card"><h2>Responsável padrão por tipo</h2><p class="explica" style="margin-top:0">Quando alguém abre uma solicitação, este nome já vem escolhido (dá para trocar na hora).</p>
       <div class="form-grid">${Object.entries(TIPOS_SOL).filter(([k]) => k !== 'outro').map(([k, t]) => `<label class="campo">${t.ic} ${t.nome}<select data-c="solPadrao" data-k="${k}">${optPessoas(D.config.solicitacoes?.[k] || '', D.pessoas.filter(p => p.ativo), '— a pessoa escolhe —')}</select></label>`).join('')}</div></div>`;
@@ -120,7 +131,7 @@ function vConfigExtra(tab) {
       ${(LOG_SYNC || []).map(l => `<tr><td><small>${new Date(l.inicio).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</small></td><td>${esc(l.modo)}</td><td class="dir">${l.pedidos ?? ''}</td><td class="dir">${l.detalhados ?? ''}</td><td class="dir">${l.contatos ?? ''}</td><td>${l.ok === false ? `<span class="tag ruim" title="${esc(l.erro)}">erro</span>` : l.ok ? '<span class="tag ok">ok</span>' : '<span class="tag">…</span>'}</td></tr>`).join('') || '<tr><td class="mut">—</td></tr>'}
     </tbody></table></div></div>`;
 }
-let LOG_SYNC = null;
+let LOG_SYNC = null, AUDITORIA = null;
 
 // ═══════════════════════════ AJUDA ═══════════════════════════
 vAjuda = function () {
@@ -271,7 +282,7 @@ const A = {
     } catch (e) { avisar(e.message); }
   },
   fbDel: async el => { if (!confirm('Apagar este registro?')) return; try { await ok(sb.from('feedbacks').delete().eq('id', el.dataset.id)); D.feedbacks = D.feedbacks.filter(f => f.id !== el.dataset.id); render(); } catch (e) { avisar(e.message); } },
-  cfgTab: el => { UI.cfgTab = el.dataset.v; render(); },
+  cfgTab: el => { UI.cfgTab = el.dataset.v; if (el.dataset.v === 'auditoria') AUDITORIA = null; render(); },
   del: el => {
     const arr = getPath(el.dataset.path); const i = +el.dataset.i;
     const item = arr[i]; const nome = item?.titulo || item?.nome;
@@ -392,10 +403,26 @@ function telaLogin(msg = '') {
     location.reload();
   });
 }
+// ─── proteções do navegador ───
+// Não deixa o CRM ser aberto dentro de outro site (clickjacking).
+if (window.top !== window.self) { try { window.top.location = window.location.href; } catch { document.documentElement.innerHTML = ''; } }
+// Sai sozinho depois de 8 horas sem uso.
+const LIMITE_OCIOSO = 8 * 3600e3;
+const marcarAtividade = () => { try { localStorage.setItem('crm-ativo', String(Date.now())); } catch { /* ok */ } };
+['click', 'keydown', 'touchstart'].forEach(ev => document.addEventListener(ev, marcarAtividade, { passive: true }));
+async function checarOcioso() {
+  let ultimo = 0; try { ultimo = +localStorage.getItem('crm-ativo') || 0; } catch { /* ok */ }
+  if (ultimo && Date.now() - ultimo > LIMITE_OCIOSO) { try { localStorage.removeItem('crm-ativo'); } catch { /* ok */ } await sb.auth.signOut(); location.reload(); return true; }
+  return false;
+}
+
 async function iniciar() {
   try { const t = localStorage.getItem('crm-tema'); if (t) document.documentElement.dataset.theme = t; } catch { /* ok */ }
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return telaLogin();
+  if (await checarOcioso()) return;
+  marcarAtividade();
+  setInterval(checarOcioso, 60e3);
   try { await carregarTudo(); } catch (e) { console.error(e); return telaLogin('Erro ao carregar: ' + e.message); }
   if (!EU) { await sb.auth.signOut(); return telaLogin('Seu login ainda não está ligado a uma pessoa do sistema. Fale com o administrador.'); }
   const v = location.hash.replace('#/', ''); if (VIEWS_FN[v]) UI.view = v;

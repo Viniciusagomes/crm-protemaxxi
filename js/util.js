@@ -34,7 +34,8 @@ const soma = a => a.reduce((x, y) => x + y, 0);
 const media = a => { const v = a.filter(x => x != null); return v.length ? soma(v) / v.length : null; };
 const hora = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 function avisar(txt) { const el = $('#aviso'); el.textContent = txt; el.hidden = false; clearTimeout(avisar.t); avisar.t = setTimeout(() => (el.hidden = true), 2600); }
-const av = (p, cls = '') => `<div class="avatar ${cls}" style="background:${esc(p.cor || '#8AA0B4')}">${esc(iniciais(p.nome))}</div>`;
+const corSegura = c => /^#[0-9a-fA-F]{3,8}$/.test(c || '') ? c : '#8AA0B4';
+const av = (p, cls = '') => `<div class="avatar ${cls}" style="background:${corSegura(p.cor)}">${esc(iniciais(p.nome))}</div>`;
 const barra = (a, cls) => `<div class="barra ${cls ?? classe(a)}"><i style="width:${Math.max(0, Math.min(1, a ?? 0)) * 100}%"></i></div>`;
 const tagPct = a => `<span class="tag ${classe(a)}">${P(a)}</span>`;
 const topo = (titulo, sub, acoes = '') => `<div class="topo"><div><h1>${titulo}</h1>${sub ? `<p>${sub}</p>` : ''}</div><div class="acoes">${acoes}</div></div>`;

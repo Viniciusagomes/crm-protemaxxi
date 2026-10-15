@@ -612,12 +612,12 @@ function vFeedbacks() {
 
 // ═══════════════════════════ CONFIGURAÇÕES ═══════════════════════════
 function vConfig() {
-  const tabs = [['pessoas', 'Pessoas e organograma'], ['acessos', 'Logins e acessos'], ['tarefas', 'Tarefas'], ['kpis', 'Indicadores e metas'], ['regras', 'Regras de remuneração'], ['solicitacoes', 'Solicitações'], ['tiny', 'Integração Tiny'], ['geral', 'Geral e backup']];
+  const tabs = [['pessoas', 'Pessoas e organograma'], ['acessos', 'Logins e acessos'], ['tarefas', 'Tarefas'], ['kpis', 'Indicadores e metas'], ['regras', 'Regras de remuneração'], ['solicitacoes', 'Solicitações'], ['tiny', 'Integração Tiny'], ['auditoria', 'Auditoria'], ['geral', 'Geral e backup']];
   if (!pessoa(UI.cfgPessoa)) UI.cfgPessoa = D.pessoas[1]?.id || D.pessoas[0].id;
   const pi = D.pessoas.findIndex(p => p.id === UI.cfgPessoa), p = D.pessoas[pi];
   const selP = `<label class="campo" style="flex-direction:row;align-items:center;gap:8px">Pessoa: <select data-c="cfgPessoa">${optPessoas(p.id)}</select></label>`;
   let corpo = '';
-  if (['acessos', 'solicitacoes', 'tiny'].includes(UI.cfgTab)) corpo = vConfigExtra(UI.cfgTab);
+  if (['acessos', 'solicitacoes', 'tiny', 'auditoria'].includes(UI.cfgTab)) corpo = vConfigExtra(UI.cfgTab);
   else if (UI.cfgTab === 'pessoas') {
     corpo = `<div class="card"><div class="cfg-linha cfg-pessoa cfg-cab"><span>Nome</span><span>Cargo</span><span>Supervisor</span><span>Vínculo</span><span>Dias de trabalho</span><span>Ativo</span><span>Início</span><span></span></div>
     ${D.pessoas.map((x, i) => `<div class="cfg-linha cfg-pessoa">
