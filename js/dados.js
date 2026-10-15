@@ -67,11 +67,19 @@ async function carregarTudo() {
   EU = user ? ps.find(p => p.user_id === user.id) || null : null;
   D.mesesCarregados = new Set([0, -1, -2, -3].map(n => addMes(mesDe(hoje()), n)));
   await Promise.all([carregarPedidos(inicioVendas), carregarSolicitacoes(), carregarInteracoes()]);
+  await Promise.all([carregarBonif(mesDe(hoje())), carregarBonif(addMes(mesDe(hoje()), -1))]).catch(e => console.warn('bonif', e));
 }
 async function carregarPedidos(desde) {
-  D.pedidos = await todas(() => sb.from('pedidos').select('id,numero,numero_ecommerce,canal,data,cliente_nome,cliente_chave,vendedor_id,vendedor_nome,valor,situacao').gte('data', desde).order('data', { ascending: false }).order('id'));
-  for (const p of D.pedidos) p.valor = Number(p.valor) || 0;
+  D.pedidos = await todas(() => sb.from('pedidos').select('id,numero,numero_ecommerce,canal,data,cliente_nome,cliente_chave,vendedor_id,vendedor_nome,valor,situacao,total_produtos,desconto,detalhado').gte('data', desde).order('data', { ascending: false }).order('id'));
+  for (const p of D.pedidos) { p.valor = Number(p.valor) || 0; p.total_produtos = Number(p.total_produtos) || 0; p.desconto = Number(p.desconto) || 0; }
   recalcularVendas();
+}
+/** Quantidades vendidas dos produtos bonificados no mês (por vendedor). */
+async function carregarBonif(m) {
+  const cods = [...new Set(D.pessoas.flatMap(p => p.regras.filter(r => r.tipo === 'bonus_produtos').flatMap(r => (r.itens || []).flatMap(it => (it.codigos || []).map(c => c.codigo)))))];
+  D.bonif ||= {};
+  if (!cods.length) { D.bonif[m] = []; return; }
+  D.bonif[m] = await ok(sb.rpc('qtd_produtos_mes', { p_mes: m, p_codigos: cods }));
 }
 function recalcularVendas() {
   D.pedidos.sort((a, b) => b.data.localeCompare(a.data) || (+b.numero || 0) - (+a.numero || 0));
@@ -105,11 +113,12 @@ async function garantirMes(m) {
   for (const r of rdia) (D.reg[r.pessoa_id] ||= {})[r.data] = { checks: r.checks || {}, notas: r.notas || {}, kpi: r.kpi || {}, status: r.status || undefined, conferido: r.conferido, conferidoEm: r.conferido_em, obs: r.obs };
   for (const r of rsem) (D.sem[r.pessoa_id] ||= {})[r.segunda] = r.checks || {};
   if (m < `${addMes(mesDe(hoje()), -13)}`) {
-    const mais = await todas(() => sb.from('pedidos').select('id,numero,numero_ecommerce,canal,data,cliente_nome,cliente_chave,vendedor_id,vendedor_nome,valor,situacao').gte('data', ini).lte('data', fim));
+    const mais = await todas(() => sb.from('pedidos').select('id,numero,numero_ecommerce,canal,data,cliente_nome,cliente_chave,vendedor_id,vendedor_nome,valor,situacao,total_produtos,desconto,detalhado').gte('data', ini).lte('data', fim));
     const ja = new Set(D.pedidos.map(p => p.id));
     for (const p of mais) if (!ja.has(p.id)) { p.valor = Number(p.valor) || 0; D.pedidos.push(p); }
     recalcularVendas();
   }
+  await carregarBonif(m).catch(() => {});
   D.mesesCarregados.add(m);
   return true;
 }

@@ -241,7 +241,7 @@ const A = {
     fecharModal(); render(); window.scrollTo(0, 0);
   },
   dia: async el => { const v = +el.dataset.v; UI.data = v === 0 ? hoje() : addDias(UI.data, v); await garantirMes(mesDe(UI.data)); render(); },
-  mes: async el => { const v = +el.dataset.v; UI.mes = v === 0 ? mesDe(hoje()) : addMes(UI.mes, v); render(); if (await garantirMes(UI.mes)) render(); },
+  mes: async el => { const v = +el.dataset.v; UI.mes = v === 0 ? mesDe(hoje()) : addMes(UI.mes, v); render(); let mudou = await garantirMes(UI.mes); if (!D.bonif?.[UI.mes]) { await carregarBonif(UI.mes).catch(() => {}); mudou = true; } if (mudou) render(); },
   sup: el => { UI.sup = el.dataset.p; render(); },
   verRem: (el, e) => { e.preventDefault(); UI.remPessoa = el.dataset.p; UI.view = 'remuneracao'; render(); window.scrollTo(0, 0); },
   remModo: el => { UI.remModo = el.dataset.v; render(); },
@@ -275,6 +275,8 @@ const A = {
   mov: el => { const arr = getPath(el.dataset.path), i = +el.dataset.i, j = i + +el.dataset.v; if (j < 0 || j >= arr.length) return; [arr[i], arr[j]] = [arr[j], arr[i]]; marcarPath(el.dataset.path); render(); },
   addTarefa: el => { getPath(el.dataset.path).push({ id: 't' + uid(), titulo: 'Nova tarefa', freq: 'D', bloco: 'dia', diaSemana: 5, diaMes: 5, conferir: '', critica: false }); marcarPath(el.dataset.path); render(); },
   addKpi: el => { getPath(el.dataset.path).push({ id: 'k_' + uid(), nome: 'Novo indicador', un: 'un', meta: 0, entrada: 'D', agreg: 'soma', dir: 'maior', fonte: 'manual' }); marcarPath(el.dataset.path); render(); },
+  addFaixaDesc: el => { const arr = getPath(el.dataset.path), ult = [...arr].sort((a, b) => a.ate - b.ate).pop(); arr.push({ ate: ult ? +(ult.ate + 1).toFixed(2) : 0.1, taxa: ult ? Math.max(0, +(ult.taxa - 0.1).toFixed(2)) : 1 }); marcarPath(el.dataset.path); render(); },
+  addItemBonus: el => { getPath(el.dataset.path).push({ nome: 'Novo produto', codigos: [], valor: 0, equipe_qtd: 0, equipe_valor: 0 }); marcarPath(el.dataset.path); render(); },
   addFaixa: el => { const arr = getPath(el.dataset.path), ult = ordFaixas(arr).pop(); arr.push({ de: ult ? ult.de + 10 : 0, [el.dataset.campo]: ult ? ult[el.dataset.campo] : 0 }); marcarPath(el.dataset.path); render(); },
   addRegra: el => {
     const tipo = $('#novaRegra').value, p = pessoa(UI.cfgPessoa), k0 = p.kpis[0]?.id || '';
@@ -286,6 +288,9 @@ const A = {
       premio_meta: { nome: 'Prêmio de meta', kpi: k0, escopo: 'proprio', faixas: [{ de: 0, valor: 0 }, { de: 100, valor: 100 }] },
       premio_disciplina: { nome: 'Prêmio de disciplina', valor: 200, escopo: 'proprio', faixas: [{ de: 0, mult: 0 }, { de: 80, mult: 50 }, { de: 90, mult: 100 }] },
       premio_por_subordinado: { nome: 'Prêmio por pessoa da equipe na meta', kpi: kEq, valor: 100 },
+      comissao_desconto: { nome: 'Comissão por desconto do pedido', kpi: 'fat', acima: 0, faixas: [0.1, 1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1, 9.1].map((ate, i) => ({ ate, taxa: +(1.05 - i * 0.1).toFixed(2) })) },
+      bonus_meta: { nome: 'Bônus ao bater a meta', kpi: 'fat', taxa: 0.5 },
+      bonus_produtos: { nome: 'Produtos bonificados', kpi: 'fat', exige_meta: true, itens: [] },
     };
     getPath(el.dataset.path).push({ tipo, ...modelos[tipo] }); marcarPath(el.dataset.path); render();
   },
@@ -349,6 +354,7 @@ const C = {
     let x = novo && pessoa(novo); while (x) { if (x.id === p.id) { avisar('Isso criaria um ciclo no organograma.'); render(); return; } x = x.supervisor && pessoa(x.supervisor); }
     p.supervisor = novo; marcar('pessoa', p.id); render(); },
   dia: el => { const p = D.pessoas[+el.dataset.i], v = +el.dataset.v; p.dias = el.checked ? [...new Set([...p.dias, v])].sort() : p.dias.filter(x => x !== v); marcar('pessoa', p.id); render(); },
+  codigos: el => { setPath(el.dataset.path, parseCodigos(el.value)); marcarPath(el.dataset.path); D.bonif = {}; carregarBonif(mesDe(hoje())).then(render); render(); },
   perm: el => { const p = D.pessoas[+el.dataset.i]; p.permissoes = { ...(p.permissoes || {}), [el.dataset.k]: el.checked }; marcar('pessoa', p.id); render(); },
   feriados: el => { D.config.feriados = el.value.split(/\s+/).map(s => s.trim()).filter(s => /^\d{4}-\d{2}-\d{2}$/.test(s)); marcar('config'); render(); },
   solPadrao: el => { D.config.solicitacoes = { ...(D.config.solicitacoes || {}), [el.dataset.k]: el.value }; marcar('config'); },
@@ -392,7 +398,7 @@ async function iniciar() {
   statusSalvo('✓ Conectado');
   render();
   // mantém atualizado: a cada 10 min recarrega pedidos e solicitações; ao voltar para a aba também
-  const atualizar = async () => { try { await Promise.all([carregarPedidos(`${addMes(mesDe(hoje()), -13)}-01`), carregarSolicitacoes(), carregarInteracoes(), ok(sb.from('sync_estado').select('*')).then(est => { D.sync = Object.fromEntries(est.map(x => [x.chave, { ...x.valor, em_db: x.atualizado_em }])); })]); if (!$('#modal')) render(); } catch { /* offline */ } };
+  const atualizar = async () => { try { await Promise.all([carregarPedidos(`${addMes(mesDe(hoje()), -13)}-01`), carregarSolicitacoes(), carregarInteracoes(), carregarBonif(mesDe(hoje())), ok(sb.from('sync_estado').select('*')).then(est => { D.sync = Object.fromEntries(est.map(x => [x.chave, { ...x.valor, em_db: x.atualizado_em }])); })]); if (!$('#modal')) render(); } catch { /* offline */ } };
   setInterval(atualizar, 10 * 60e3);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !document.activeElement?.matches('input,textarea,select')) atualizar(); });
   let diaAtual = hoje();

@@ -34,10 +34,15 @@ const STATUS = { normal: 'Dia normal', falta: 'Falta', folga: 'Folga', feriado: 
 const STATUS_OFF = ['folga', 'feriado', 'ferias', 'atestado'];
 const statusDia = (p, d) => reg(p.id, d)?.status || 'normal';
 const escalado = (p, d) => p.dias.includes(dow(d)) && !(p.inicio && d < p.inicio) && !D.config.feriados.includes(d);
+/** Dia de trabalho para o checklist (só conta a partir do início de uso do sistema). */
 function trabalha(p, d) {
+  if (D.config.inicioUso && d < D.config.inicioUso) return false;
+  return trabalhaCal(p, d);
+}
+/** Dia de trabalho no calendário (usado no ritmo de vendas/projeção). */
+function trabalhaCal(p, d) {
   const st = statusDia(p, d);
   if (p.inicio && d < p.inicio) return false;
-  if (D.config.inicioUso && d < D.config.inicioUso) return false;
   if (st === 'extra') return true;
   return escalado(p, d) && !STATUS_OFF.includes(st);
 }
@@ -103,8 +108,8 @@ function kpiReal(p, k, m) {
 function diasUteisMes(p, m) {
   let tot = 0, dec = 0; const h = hoje();
   for (const d of diasDoMes(m)) {
-    if (d < h) { if (trabalha(p, d)) { tot++; dec++; } }
-    else if (d === h) { if (trabalha(p, d)) { tot++; if (Object.keys(reg(p.id, d)?.kpi || {}).length || p.kpis.some(k => ehTiny(k) && kpiTinyDia(p, k, d) > 0)) dec++; } }
+    if (d < h) { if (trabalhaCal(p, d)) { tot++; dec++; } }
+    else if (d === h) { if (trabalhaCal(p, d)) { tot++; if (Object.keys(reg(p.id, d)?.kpi || {}).length || p.kpis.some(k => ehTiny(k) && kpiTinyDia(p, k, d) > 0)) dec++; } }
     else if (escalado(p, d)) tot++;
   }
   return { tot, dec };
@@ -135,12 +140,52 @@ const TIPOS_REGRA = {
   premio_meta: 'Prêmio por atingir meta',
   premio_disciplina: 'Prêmio por cumprir o checklist',
   premio_por_subordinado: 'Prêmio por subordinado que bateu a meta',
+  comissao_desconto: 'Comissão pelo desconto de cada pedido',
+  bonus_meta: 'Bônus de % ao bater a meta',
+  bonus_produtos: 'Bônus por produto vendido',
 };
 const ordFaixas = fs => [...(fs || [])].sort((a, b) => a.de - b.de);
 function faixa(fs, a) { const o = ordFaixas(fs); let f = o[0] || { de: 0 }; for (const x of o) if ((a ?? 0) * 100 >= x.de - 1e-9) f = x; return f; }
 const proxFaixa = (fs, a) => ordFaixas(fs).find(x => x.de > (a ?? 0) * 100 + 1e-9);
 function subsComKpi(pid, kid) { return subs(pid).map(s => ({ s, k: kpiDe(s, kid) })).filter(x => x.k); }
 function domUteis(m) { let dom = 0, uteis = 0; for (const d of diasDoMes(m)) { if (dow(d) === 0 || D.config.feriados.includes(d)) dom++; else uteis++; } return { dom, uteis }; }
+
+// ─── comissão por desconto e produtos bonificados ───
+function pedidosDoMes(p, m) { return p.tiny ? D.pedidos.filter(x => x.vendedor_id === p.tiny && x.situacao !== 'Cancelado' && x.data.startsWith(m)) : []; }
+function taxaPorDesconto(fs, descPct, acima) { for (const f of [...(fs || [])].sort((a, b) => a.ate - b.ate)) if (descPct <= +f.ate + 1e-9) return +f.taxa; return +(acima ?? 0); }
+/** Fator para levar o realizado ao fim do mês (projeção) ou à meta simulada. */
+function fatorModo(p, m, modo, kid = 'fat') {
+  if (modo === 'realizado') return 1;
+  const k = kpiDe(p, kid); if (!k) return 1;
+  const real = kpiReal(p, k, m) || 0, alvo = kpiValor(p, k, m, modo) || 0;
+  return real > 0 ? alvo / real : 0;
+}
+function comissaoDesconto(p, m, modo, r) {
+  let base = 0, valor = 0, n = 0, est = 0;
+  for (const x of pedidosDoMes(p, m)) {
+    const tp = +x.total_produtos || 0, dsc = +x.desconto || 0;
+    let b, pct;
+    if (x.detalhado && tp > 0) { b = tp - dsc; pct = dsc / tp * 100; } else { b = x.valor; pct = 0; est++; }
+    base += b; valor += b * taxaPorDesconto(r.faixas, pct, r.acima) / 100; n++;
+  }
+  const taxaMedia = base ? valor / base * 100 : +(r.faixas?.[0]?.taxa || 0);
+  if (modo === 'simulacao' && base === 0) { const k = kpiDe(p, r.kpi || 'fat'); base = k ? kpiValor(p, k, m, modo) : 0; valor = base * taxaMedia / 100; }
+  else { const f = fatorModo(p, m, modo, r.kpi || 'fat'); base *= f; valor *= f; }
+  return { base, valor, n, est, taxaMedia };
+}
+const parseCodigos = txt => String(txt || '').split(/[,;\s]+/).filter(Boolean).map(c => { const [codigo, mult] = c.split('*'); return { codigo: codigo.trim().toUpperCase(), mult: +mult || 1 }; });
+const fmtCodigos = cs => (cs || []).map(c => c.mult > 1 ? `${c.codigo}*${c.mult}` : c.codigo).join(', ');
+function qtdProduto(vids, m, codigos) {
+  const rows = D.bonif?.[m] || [], set = new Set(vids);
+  let q = 0; for (const c of codigos || []) for (const r of rows) if (r.codigo === c.codigo && set.has(r.vendedor_id)) q += (+r.qtd || 0) * (c.mult || 1);
+  return q;
+}
+const vendedoresEquipe = () => D.pessoas.filter(x => x.ativo && x.papel === 'vendedor' && x.tiny).map(x => x.tiny);
+function fatorCalendario(m, modo) {
+  if (modo !== 'projecao' || m !== mesDe(hoje())) return 1;
+  const h = hoje(), du = diasUteisEntre(`${m}-01`, h), duT = diasUteisEntre(`${m}-01`, `${m}-${pad(ultimoDia(m))}`);
+  return du ? duT / du : 1;
+}
 
 function calcRem(p, m, modo = UI.remModo) {
   const itens = []; let fixo = 0, comP = 0, comE = 0;
@@ -192,6 +237,34 @@ function calcRem(p, m, modo = UI.remModo) {
       itens.push({ nome: r.nome, valor: val, grupo: r.escopo === 'equipe' ? 'equipe' : 'variavel',
         det: `${r.escopo === 'equipe' ? 'Checklist médio da equipe' : 'Checklist cumprido no mês'}: ${P(a)} → recebe ${N(f.mult)}% de ${R0(r.valor)}`,
         dica: nx ? `Com ${nx.de}% do checklist cumprido, recebe ${N(nx.mult)}% (${R0(r.valor * nx.mult / 100)}).` : '' });
+    } else if (r.tipo === 'comissao_desconto') {
+      const c = comissaoDesconto(p, m, modo, r); comP += c.valor;
+      itens.push({ nome: r.nome, valor: c.valor, grupo: 'variavel', integra: true,
+        det: `${c.n} pedido(s) · base ${R0(c.base)} (produtos − desconto, sem frete) · taxa média ${N(Math.round(c.taxaMedia * 100) / 100)}%${c.est ? ` · ${c.est} pedido(s) ainda sem detalhe do Tiny, calculados sem desconto` : ''}`,
+        dica: `Pedido com desconto de até ${N(r.faixas?.[0]?.ate)}% paga ${N(r.faixas?.[0]?.taxa)}%. Cada faixa de desconto a mais reduz a comissão do pedido.` });
+    } else if (r.tipo === 'bonus_meta') {
+      const k = kpiDe(p, r.kpi || 'fat'); if (!k) { itens.push(semKpi(r)); continue; }
+      const v = kpiValor(p, k, m, modo) || 0, a = ating(k, v), bateu = (a || 0) >= 1;
+      const base = comissaoDesconto(p, m, modo, { faixas: [], acima: 0 }).base;
+      const val = bateu ? base * (+r.taxa || 0) / 100 : 0; comP += val;
+      itens.push({ nome: r.nome, valor: val, grupo: 'variavel', integra: true,
+        det: bateu ? `Meta batida (${P(a)}): +${N(r.taxa)}% sobre ${R0(base)}` : `Só paga ao bater a meta de ${fmtK(k, k.meta)}. Agora: ${fmtK(k, v)} (${P(a)})`,
+        dica: bateu ? '' : `Faltam ${fmtK(k, Math.max(0, k.meta - v))} para a meta: libera +${N(r.taxa)}% sobre toda a venda do mês (≈ ${R0(base / (v || 1) * k.meta * r.taxa / 100)}) e os produtos bonificados.` });
+    } else if (r.tipo === 'bonus_produtos') {
+      const k = kpiDe(p, r.kpi || 'fat'); const v = k ? kpiValor(p, k, m, modo) || 0 : 0; const a = k ? ating(k, v) : 1;
+      const bateu = !r.exige_meta || (a || 0) >= 1, fc = fatorCalendario(m, modo);
+      let tot = 0; const partes = [], dicas = [];
+      for (const it of r.itens || []) {
+        const q = Math.round(qtdProduto([p.tiny], m, it.codigos) * fc), qe = Math.round(qtdProduto(vendedoresEquipe(), m, it.codigos) * fc);
+        const subiu = +it.equipe_qtd > 0 && qe >= +it.equipe_qtd, unit = subiu ? +it.equipe_valor : +it.valor;
+        const val = bateu ? q * unit : 0; tot += val;
+        partes.push(`${it.nome}: ${q} × ${R0(unit)}${subiu ? ' (meta da equipe batida)' : ''}`);
+        if (+it.equipe_qtd > 0 && !subiu) dicas.push(`${it.nome}: a equipe vendeu ${qe} de ${it.equipe_qtd}. Com ${it.equipe_qtd}, cada um paga ${R0(it.equipe_valor)}.`);
+      }
+      comP += tot;
+      itens.push({ nome: r.nome, valor: tot, grupo: 'variavel', integra: true,
+        det: (bateu ? '' : `Só paga ao bater a meta (agora ${P(a)}). `) + (partes.join(' · ') || 'Nenhum produto configurado') + (D.bonif?.[m] ? '' : ' · carregando quantidades…'),
+        dica: dicas.join(' ') });
     } else if (r.tipo === 'premio_por_subordinado') {
       const ss = subsComKpi(p.id, r.kpi);
       const bat = ss.filter(x => (ating(x.k, kpiValor(x.s, x.k, m, modo)) || 0) >= 1);
@@ -224,6 +297,9 @@ function explicaRegra(p, r) {
     case 'override': return `<b>${esc(r.nome)}</b>: um percentual sobre o total de ${esc(nomeKpi(r.kpi, true))} da equipe (${subsComKpi(p.id, r.kpi).map(x => esc(x.s.nome)).join(', ') || 'ninguém ativo'}). Quanto mais a equipe vende, mais o supervisor ganha: ${fx(r.faixas, f => N(f.taxa) + '%')}.`;
     case 'premio_meta': return `<b>${esc(r.nome)}</b>: prêmio pago quando ${r.escopo === 'equipe' ? 'a equipe atinge' : 'você atinge'} a meta de ${esc(nomeKpi(r.kpi, r.escopo === 'equipe'))}: ${fx(r.faixas, f => R0(f.valor))}.`;
     case 'premio_disciplina': return `<b>${esc(r.nome)}</b>: até ${R0(r.valor)}, conforme o % do checklist ${r.escopo === 'equipe' ? 'da equipe' : ''} cumprido no mês: ${fx(r.faixas, f => N(f.mult) + '% do valor', 'do checklist')}.`;
+    case 'comissao_desconto': return `<b>${esc(r.nome)}</b>: em cada pedido, a comissão depende do desconto dado. ${ordFaixas((r.faixas || []).map(f => ({ ...f, de: f.ate }))).map(f => `desconto até ${N(f.ate)}% → <b>${N(f.taxa)}%</b>`).join(' · ')} · acima disso → <b>${N(r.acima || 0)}%</b>. A base é o valor dos produtos menos o desconto (sem frete).`;
+    case 'bonus_meta': return `<b>${esc(r.nome)}</b>: ao bater a meta de ${esc(nomeKpi(r.kpi || 'fat'))}, ganha mais <b>${N(r.taxa)}%</b> sobre toda a venda do mês.`;
+    case 'bonus_produtos': return `<b>${esc(r.nome)}</b>: ${r.exige_meta ? 'ao bater a meta, ' : ''}ganha por unidade vendida: ${(r.itens || []).map(it => `${esc(it.nome)} <b>${R0(it.valor)}</b>${+it.equipe_qtd ? ` (vira <b>${R0(it.equipe_valor)}</b> se os vendedores juntos venderem ${it.equipe_qtd} no mês)` : ''}`).join(' · ')}.`;
     case 'premio_por_subordinado': return `<b>${esc(r.nome)}</b>: ${R0(r.valor)} para cada pessoa da equipe que bater a meta de ${esc(nomeKpi(r.kpi, true))}. Incentiva a desenvolver todo mundo, não só o melhor vendedor.`;
   }
   return '';
@@ -599,9 +675,18 @@ function vConfig() {
       if (['comissao', 'override', 'premio_meta', 'premio_por_subordinado'].includes(r.tipo)) campos += `<label class="campo" style="flex-direction:row;align-items:center">Indicador <select data-c="set" data-path="${pth}.kpi">${optK(eq ? kpisEquipe : kpisProprios, r.kpi)}</select></label>`;
       if (r.tipo === 'premio_meta' || r.tipo === 'premio_disciplina') campos += `<select data-c="set" data-path="${pth}.escopo"><option value="proprio" ${r.escopo !== 'equipe' ? 'selected' : ''}>da própria pessoa</option><option value="equipe" ${r.escopo === 'equipe' ? 'selected' : ''}>da equipe dela</option></select>`;
       if (r.tipo === 'premio_disciplina' || r.tipo === 'premio_por_subordinado') campos += `<label class="campo" style="flex-direction:row;align-items:center">${r.tipo === 'premio_disciplina' ? 'Valor cheio' : 'Por pessoa'} R$ <input type="number" step="any" value="${r.valor}" data-c="set" data-t="num" data-path="${pth}.valor"></label>`;
+      if (r.tipo === 'bonus_meta' || r.tipo === 'bonus_produtos') campos += `<label class="campo" style="flex-direction:row;align-items:center">Meta usada <select data-c="set" data-path="${pth}.kpi">${optK(kpisProprios, r.kpi || 'fat')}</select></label>`;
+      if (r.tipo === 'bonus_meta') campos += `<label class="campo" style="flex-direction:row;align-items:center">+ <input type="number" step="any" value="${r.taxa}" data-c="set" data-t="num" data-path="${pth}.taxa" style="width:70px"> %</label>`;
+      if (r.tipo === 'bonus_produtos') campos += `<label style="font-size:13px"><input type="checkbox" ${r.exige_meta ? 'checked' : ''} data-c="set" data-t="bool" data-path="${pth}.exige_meta"> só paga se bater a meta</label>`;
+      let extra = '';
+      if (r.tipo === 'comissao_desconto') extra = `<div class="faixas"><b>Faixas:</b>${(r.faixas || []).map((f, j) => `<span class="faixa">desconto até <input type="number" step="any" value="${f.ate}" data-c="set" data-t="num" data-path="${pth}.faixas.${j}.ate">% → <input type="number" step="any" value="${f.taxa}" data-c="set" data-t="num" data-path="${pth}.faixas.${j}.taxa">% <button class="icone-btn" data-a="del" data-path="${pth}.faixas" data-i="${j}" title="Remover faixa">×</button></span>`).join('')}
+        <button class="btn peq" data-a="addFaixaDesc" data-path="${pth}.faixas">+ faixa</button><span class="faixa">acima da última → <input type="number" step="any" value="${r.acima ?? 0}" data-c="set" data-t="num" data-path="${pth}.acima">%</span></div>`;
+      if (r.tipo === 'bonus_produtos') extra = `<div class="mt" style="font-size:13px"><div class="cfg-linha cfg-cab" style="grid-template-columns:1.3fr 1.3fr 100px 120px 120px 30px;display:grid"><span>Produto</span><span>Códigos no Tiny (caixa: CÓDIGO*25)</span><span>R$ por unidade</span><span>Meta da equipe (un)</span><span>R$ com a meta da equipe</span><span></span></div>
+        ${(r.itens || []).map((it, j) => `<div class="cfg-linha" style="grid-template-columns:1.3fr 1.3fr 100px 120px 120px 30px;display:grid"><input type="text" value="${esc(it.nome)}" data-c="set" data-path="${pth}.itens.${j}.nome"><input type="text" value="${esc(fmtCodigos(it.codigos))}" data-c="codigos" data-path="${pth}.itens.${j}.codigos"><input type="number" step="any" value="${it.valor}" data-c="set" data-t="num" data-path="${pth}.itens.${j}.valor"><input type="number" step="any" value="${it.equipe_qtd || 0}" data-c="set" data-t="num" data-path="${pth}.itens.${j}.equipe_qtd"><input type="number" step="any" value="${it.equipe_valor || 0}" data-c="set" data-t="num" data-path="${pth}.itens.${j}.equipe_valor"><button class="icone-btn" data-a="del" data-path="${pth}.itens" data-i="${j}">🗑</button></div>`).join('')}
+        <button class="btn peq mt" data-a="addItemBonus" data-path="${pth}.itens">+ produto</button></div>`;
       const campoF = { comissao: ['taxa', '% sobre o valor'], override: ['taxa', '% sobre a equipe'], premio_meta: ['valor', 'R$ de prêmio'], premio_disciplina: ['mult', '% do valor cheio'] }[r.tipo];
       const faixas = campoF ? `<div class="faixas"><b>Faixas:</b>${(r.faixas || []).map((f, j) => `<span class="faixa">a partir de <input type="number" step="any" value="${f.de}" data-c="set" data-t="num" data-path="${pth}.faixas.${j}.de">% ${r.tipo === 'premio_disciplina' ? 'do checklist' : 'da meta'} → <input type="number" step="any" value="${f[campoF[0]]}" data-c="set" data-t="num" data-path="${pth}.faixas.${j}.${campoF[0]}"> ${campoF[1]} <button class="icone-btn" data-a="del" data-path="${pth}.faixas" data-i="${j}" title="Remover faixa">×</button></span>`).join('')}<button class="btn peq" data-a="addFaixa" data-path="${pth}.faixas" data-campo="${campoF[0]}">+ faixa</button></div>` : '';
-      return `<div class="regra"><div class="rcab"><span class="tag azul">${TIPOS_REGRA[r.tipo]}</span><input type="text" value="${esc(r.nome)}" data-c="set" data-path="${pth}.nome" data-fid="rn${i}">${campos}<button class="icone-btn" data-a="mov" data-path="${base}" data-i="${i}" data-v="-1">↑</button><button class="icone-btn" data-a="mov" data-path="${base}" data-i="${i}" data-v="1">↓</button><button class="icone-btn" data-a="del" data-path="${base}" data-i="${i}" title="Apagar regra">🗑</button></div>${faixas}</div>`;
+      return `<div class="regra"><div class="rcab"><span class="tag azul">${TIPOS_REGRA[r.tipo]}</span><input type="text" value="${esc(r.nome)}" data-c="set" data-path="${pth}.nome" data-fid="rn${i}">${campos}<button class="icone-btn" data-a="mov" data-path="${base}" data-i="${i}" data-v="-1">↑</button><button class="icone-btn" data-a="mov" data-path="${base}" data-i="${i}" data-v="1">↓</button><button class="icone-btn" data-a="del" data-path="${base}" data-i="${i}" title="Apagar regra">🗑</button></div>${faixas}${extra}</div>`;
     }).join('') || '<div class="vazio">Sem regras de remuneração (ex.: sócio).</div>'}
     <div class="mt acoes"><select id="novaRegra">${Object.entries(TIPOS_REGRA).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select><button class="btn pri" data-a="addRegra" data-path="${base}">+ Adicionar regra</button></div>
     <div class="explica mt"><b>Como as faixas funcionam:</b> vale a maior faixa que a pessoa alcançou, e o percentual se aplica ao valor inteiro do mês. Ex.: faixas 0% → 0,5% · 70% → 1,5% · 100% → 2,5%. Quem vendeu 105% da meta recebe 2,5% sobre tudo. Isso cria um "degrau" forte para bater a meta.</div></div>`;
