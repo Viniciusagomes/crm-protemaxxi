@@ -288,7 +288,7 @@ const A = {
       premio_meta: { nome: 'Prêmio de meta', kpi: k0, escopo: 'proprio', faixas: [{ de: 0, valor: 0 }, { de: 100, valor: 100 }] },
       premio_disciplina: { nome: 'Prêmio de disciplina', valor: 200, escopo: 'proprio', faixas: [{ de: 0, mult: 0 }, { de: 80, mult: 50 }, { de: 90, mult: 100 }] },
       premio_por_subordinado: { nome: 'Prêmio por pessoa da equipe na meta', kpi: kEq, valor: 100 },
-      comissao_desconto: { nome: 'Comissão por desconto do pedido', kpi: 'fat', acima: 0, faixas: [0.1, 1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1, 9.1].map((ate, i) => ({ ate, taxa: +(1.05 - i * 0.1).toFixed(2) })) },
+      comissao_desconto: { nome: 'Comissão por desconto do pedido', kpi: 'fat', acima: 0.15, faixas: [0.1, 1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1, 9.1].map((ate, i) => ({ ate, taxa: +(1.05 - i * 0.1).toFixed(2) })) },
       bonus_meta: { nome: 'Bônus ao bater a meta', kpi: 'fat', taxa: 0.5 },
       bonus_produtos: { nome: 'Produtos bonificados', kpi: 'fat', exige_meta: true, itens: [] },
     };
