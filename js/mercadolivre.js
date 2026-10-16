@@ -19,14 +19,16 @@ const tempoDesde = d => { const m = Math.round((Date.now() - new Date(d)) / 6000
 async function carregarML(forcar) {
   if (D.ml && !forcar) return D.ml;
   const desde = new Date(Date.now() - 60 * 864e5).toISOString();
-  const [pedidos, perguntas, reclamacoes, est] = await Promise.all([
+  const [pedidos, perguntas, reclamacoes, est, conferencias, emissoes] = await Promise.all([
     todas(() => sb.from('ml_pedidos').select('*').gte('data', desde).order('data', { ascending: false })),
     todas(() => sb.from('ml_perguntas').select('*').order('data', { ascending: false }).limit(400)),
     ok(sb.from('ml_reclamacoes').select('*').order('data', { ascending: false }).limit(200)),
     ok(sb.from('sync_estado').select('*').in('chave', ['ml', 'ml_varredura', 'ml_backfill'])),
+    ok(sb.from('nf_conferencias').select('*').order('conferido_em', { ascending: false })),
+    ok(sb.from('nf_emissoes').select('*').order('quando', { ascending: false }).limit(30)),
   ]);
   for (const e of est) D.sync[e.chave] = { ...e.valor, em_db: e.atualizado_em };
-  D.ml = { pedidos, perguntas, reclamacoes };
+  D.ml = { pedidos, perguntas, reclamacoes, conferencias, emissoes };
   return D.ml;
 }
 
@@ -78,12 +80,13 @@ function vML() {
 
     <div class="grid g2 mt">
       <div class="card"><h2>⚠ Despacho atrasado ou vencendo</h2>${tabelaPed([...atrasados, ...vencendo], 'Nenhum envio atrasado.')}</div>
-      <div class="card"><h2>🧾 Aguardando nota fiscal</h2><p class="mut" style="margin-top:-6px;font-size:13px">A NF sai pelo Tiny. Se ficar aqui muito tempo, confira o pedido no Tiny.</p>${tabelaPed(semNF, 'Nenhum pedido esperando NF.')}</div>
+      <div class="card"><h2>🧾 Aguardando nota fiscal</h2>${tabelaPed(semNF, 'Nenhum pedido esperando NF.')}</div>
     </div>
     <div class="grid g2 mt">
       <div class="card"><h2>🏷 Etiquetas para imprimir</h2>${tabelaPed(imprimir, 'Nenhuma etiqueta pendente.')}</div>
       <div class="card"><h2>Reclamações abertas</h2>${recl.length ? `<table class="tabela"><tbody>${recl.map(c => `<tr><td>Pedido ${esc(String(c.pedido_id || ''))}<br><small>${esc(c.motivo || '')} · ${esc(c.etapa || '')}</small></td><td><small>há ${tempoDesde(c.data)}</small></td></tr>`).join('')}</tbody></table>` : '<div class="vazio">Nenhuma reclamação aberta. 👏</div>'}</div>
     </div>
+    ${blocoFaturamento(semNF)}
     <div class="card mt"><div class="secao-titulo"><h2>Últimos pedidos</h2></div>${tabelaPed(ped, 'Os pedidos aparecem aqui depois da primeira sincronização.')}</div>
     <div class="card mt"><div class="secao-titulo"><h2>Perguntas respondidas recentemente</h2></div>
       ${D.ml.perguntas.filter(q => q.resposta).slice(0, 15).map(q => `<div class="coment"><div class="meta">${esc(q.item_titulo || '')} · ${new Date(q.data).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}${q.respondido_por ? ` · respondida por ${esc(nomeP(q.respondido_por))}` : ''}</div><p>❓ ${esc(q.texto)}</p><p class="mut">↳ ${esc(q.resposta)}</p></div>`).join('') || '<div class="vazio">—</div>'}</div>
@@ -100,4 +103,49 @@ async function responderML(id) {
     if (q) { q.status = 'ANSWERED'; q.resposta = txt; q.resposta_data = new Date().toISOString(); q.respondido_por = EU.id; }
     avisar('Resposta publicada no Mercado Livre.'); render();
   } catch (e) { avisar(e.message); }
+}
+
+// ─── Faturamento: conferência fiscal + emissão da NF pelo Tiny ───
+const COR_CONF = { ok: 'ok', aviso: 'med', erro: 'ruim', ja_tem_nf: 'azul' };
+const NOME_CONF = { ok: 'Pronto para emitir', aviso: 'Emitir com atenção', erro: 'Bloqueado', ja_tem_nf: 'Já tem NF' };
+function blocoFaturamento(semNF) {
+  const pend = new Set(semNF.map(p => String(p.id)));
+  const confs = (D.ml.conferencias || []).filter(c => pend.has(String(c.ml_pedido_id)) || (c.status === 'ja_tem_nf' && new Date(c.conferido_em) > Date.now() - 864e5));
+  const prontos = confs.filter(c => c.status === 'ok' || c.status === 'aviso');
+  const semConf = semNF.filter(p => !confs.some(c => String(c.ml_pedido_id) === String(p.id)));
+  const borda = { ok: 'var(--ok)', aviso: 'var(--med)', erro: 'var(--ruim)', ja_tem_nf: 'var(--borda-forte)' };
+  return `<div class="card mt"><div class="secao-titulo"><h2>🧾 Faturamento (NF pelo Tiny)</h2>
+      <div class="acoes"><button class="btn" data-a="conferirNF">🔍 Conferir pedidos</button>${prontos.length > 1 ? `<button class="btn pri" data-a="emitirTodasNF">Emitir todas as liberadas (${prontos.length})</button>` : ''}</div></div>
+    <p class="explica" style="margin-top:0">O CRM confere cada pedido (produto, NCM, GTIN, origem, CFOP, endereço, CPF/CNPJ, unidade, peso e valor). Se estiver tudo certo, <b>Emitir NF</b> gera a nota no Tiny, confere o CFOP da nota e transmite à SEFAZ. Autorizada, o próprio Tiny envia a nota ao Mercado Livre: depois é só imprimir a etiqueta.</p>
+    ${semConf.length ? `<div class="alerta med"><span class="ic">⚠</span><span>${semConf.length} pedido(s) aguardando NF ainda não conferido(s). Clique em "Conferir pedidos".</span></div>` : ''}
+    ${confs.length ? confs.map(c => `<div class="coment" style="border-left-color:${borda[c.status] || 'var(--borda-forte)'}">
+        <div class="secao-titulo" style="margin:0"><div><b>Pedido ${esc(c.pedido_numero || '')}</b> · ${esc(c.cliente || '')} · ${esc(c.uf || '')} · CFOP ${esc(c.cfop_previsto || '—')} · ${R(c.total)}</div>
+        <div class="acoes"><span class="tag ${COR_CONF[c.status] || ''}">${NOME_CONF[c.status] || esc(c.status)}</span>${c.status === 'ok' || c.status === 'aviso' ? `<button class="btn pri peq" data-a="emitirNF" data-id="${esc(c.tiny_pedido_id)}" data-num="${esc(c.pedido_numero || '')}" data-st="${c.status}">Emitir NF</button>` : ''}</div></div>
+        <ul class="pend" style="margin-top:6px">${(c.checagens || []).filter(x => x.nivel !== 'ok' || c.status === 'ok' || c.status === 'ja_tem_nf').map(x => `<li class="c-${x.nivel === 'erro' ? 'ruim' : x.nivel === 'aviso' ? 'med' : 'ok'}">${x.nivel === 'erro' ? '✖' : x.nivel === 'aviso' ? '⚠' : '✓'} ${esc(x.texto)}</li>`).join('')}</ul>
+        <small class="mut">Conferido ${new Date(c.conferido_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}${c.conferido_por ? ' por ' + esc(nomeP(c.conferido_por)) : ''}</small></div>`).join('') : '<div class="vazio">Nada conferido ainda.</div>'}
+    ${(D.ml.emissoes || []).length ? `<h3 class="mt">Últimas emissões pelo CRM</h3><table class="tabela"><tbody>${D.ml.emissoes.slice(0, 10).map(e => `<tr><td><small>${new Date(e.quando).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</small></td><td>${e.numero ? 'NF ' + esc(e.numero) : '—'}<br><small>${esc(nomeP(e.pessoa_id))}</small></td><td>${e.erro ? `<span class="c-ruim">${esc(e.erro)}</span>` : `<span class="tag ok">${esc(e.situacao || 'emitida')}</span>`}</td></tr>`).join('')}</tbody></table>` : ''}
+  </div>`;
+}
+async function conferirNF() {
+  avisar('Conferindo os pedidos no Tiny… leva alguns segundos por pedido.');
+  try { await chamarFuncao('tiny-nf', { acao: 'conferir' }); await carregarML(true); render(); avisar('Conferência concluída.'); }
+  catch (e) { avisar(e.message); }
+}
+async function emitirNF(id, numero, status, semPerguntar) {
+  if (!semPerguntar && !confirm(`Emitir a nota fiscal do pedido ${numero}?${status === 'aviso' ? '\n\nHá avisos na conferência (ex.: peso ou GTIN). A nota pode sair mesmo assim.' : ''}\n\nA nota será transmitida à SEFAZ e enviada ao Mercado Livre. Não dá para desfazer (só cancelar a nota no Tiny).`)) return false;
+  try {
+    const r = await chamarFuncao('tiny-nf', { acao: 'emitir', tiny_pedido_id: id });
+    avisar(`NF ${r.numero} ${r.situacao || 'emitida'} ✓`);
+    return true;
+  } catch (e) { alert('Não emitida: ' + e.message); return false; }
+  finally { await carregarML(true).catch(() => {}); render(); }
+}
+async function emitirTodasNF() {
+  const pend = new Set(D.ml.pedidos.filter(p => p.envio_substatus === 'invoice_pending').map(p => String(p.id)));
+  const lista = (D.ml.conferencias || []).filter(c => pend.has(String(c.ml_pedido_id)) && (c.status === 'ok' || c.status === 'aviso'));
+  if (!lista.length) return;
+  if (!confirm(`Emitir ${lista.length} nota(s) fiscal(is)?\n\n${lista.map(c => `• Pedido ${c.pedido_numero} · ${c.cliente} · ${R(c.total)}${c.status === 'aviso' ? ' (com avisos)' : ''}`).join('\n')}\n\nAs notas serão transmitidas à SEFAZ e enviadas ao Mercado Livre.`)) return;
+  let ok = 0;
+  for (const c of lista) if (await emitirNF(c.tiny_pedido_id, c.pedido_numero, c.status, true)) ok++;
+  avisar(`${ok} de ${lista.length} nota(s) emitida(s).`);
 }
