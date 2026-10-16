@@ -1,6 +1,7 @@
 'use strict';
 /* CRM Protemaxxi — Mercado Livre: pedidos, envios (NF e etiqueta), perguntas, reclamações e reputação. */
 
+const ML_ATUALIZANDO = { v: false };   // fora do UI para não ficar salvo no navegador
 const veML = () => ehDono() || !!EU?.permissoes?.ecommerce;
 const ENVIO_NOME = {
   pending: 'Pendente', handling: 'Preparando', ready_to_ship: 'Pronto para enviar', shipped: 'A caminho', delivered: 'Entregue',
@@ -19,16 +20,17 @@ const tempoDesde = d => { const m = Math.round((Date.now() - new Date(d)) / 6000
 async function carregarML(forcar) {
   if (D.ml && !forcar) return D.ml;
   const desde = new Date(Date.now() - 60 * 864e5).toISOString();
-  const [pedidos, perguntas, reclamacoes, est, conferencias, emissoes] = await Promise.all([
+  const [pedidos, perguntas, reclamacoes, est, conferencias, emissoes, fiscal] = await Promise.all([
     todas(() => sb.from('ml_pedidos').select('*').gte('data', desde).order('data', { ascending: false })),
     todas(() => sb.from('ml_perguntas').select('*').order('data', { ascending: false }).limit(400)),
     ok(sb.from('ml_reclamacoes').select('*').order('data', { ascending: false }).limit(200)),
     ok(sb.from('sync_estado').select('*').in('chave', ['ml', 'ml_varredura', 'ml_backfill'])),
     ok(sb.from('nf_conferencias').select('*').order('conferido_em', { ascending: false })),
     ok(sb.from('nf_emissoes').select('*').order('quando', { ascending: false }).limit(30)),
+    sb.from('config').select('valor').eq('chave', 'fiscal').maybeSingle().then(r => r.data?.valor || {}),
   ]);
   for (const e of est) D.sync[e.chave] = { ...e.valor, em_db: e.atualizado_em };
-  D.ml = { pedidos, perguntas, reclamacoes, conferencias, emissoes };
+  D.ml = { pedidos, perguntas, reclamacoes, conferencias, emissoes, fiscal };
   return D.ml;
 }
 
@@ -43,6 +45,7 @@ function vML() {
   const agora = Date.now(), ped = D.ml.pedidos;
   const semNF = ped.filter(p => p.envio_substatus === 'invoice_pending');
   const imprimir = ped.filter(p => p.envio_status === 'ready_to_ship' && p.envio_substatus === 'ready_to_print');
+  const impressas = ped.filter(p => p.envio_status === 'ready_to_ship' && p.envio_substatus === 'printed');
   const atrasados = ped.filter(p => ['handling', 'ready_to_ship'].includes(p.envio_status) && p.prazo_despacho && new Date(p.prazo_despacho) < agora);
   const vencendo = ped.filter(p => ['handling', 'ready_to_ship'].includes(p.envio_status) && p.prazo_despacho && new Date(p.prazo_despacho) >= agora && new Date(p.prazo_despacho) - agora < 24 * 3600e3);
   const semResp = D.ml.perguntas.filter(perguntaPendente).sort((a, b) => new Date(a.data) - new Date(b.data));
@@ -58,9 +61,12 @@ function vML() {
     <td><span class="tag">${esc(ENVIO_NOME[p.envio_status] || p.envio_status || '—')}</span>${p.envio_substatus ? `<br><small>${esc(SUBSTATUS_NOME[p.envio_substatus] || p.envio_substatus)}</small>` : ''}</td>
     <td>${p.prazo_despacho ? `<span class="${new Date(p.prazo_despacho) < agora && ['handling', 'ready_to_ship'].includes(p.envio_status) ? 'c-ruim' : ''}">${new Date(p.prazo_despacho).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span>` : '—'}</td>
     <td class="dir">${R0(p.total)}</td></tr>`;
+  const linhaEtiqueta = (p, rot) => `<tr><td><b>${esc(p.comprador || '')}</b><br><small>${(p.itens || []).map(i => `${esc(String(i.qtd))}× ${esc(i.titulo || '')}`).join(' · ')}</small></td>
+    <td><small>${p.prazo_despacho ? 'despachar até ' + new Date(p.prazo_despacho).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : ''}</small></td>
+    <td class="dir"><button class="btn ${rot === 'Imprimir' ? 'pri' : ''} peq" data-a="imprimirEtiquetas" data-envios="${esc(String(p.envio_id))}">🖨 ${rot}</button></td></tr>`;
   const tabelaPed = (lista, vazio) => lista.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Comprador / itens</th><th>Data</th><th>Envio</th><th>Despachar até</th><th class="dir">Total</th></tr></thead><tbody>${lista.slice(0, 50).map(linhaPed).join('')}</tbody></table></div>` : `<div class="vazio">${vazio}</div>`;
   return topo('Mercado Livre', `Conta <b>${esc(st.apelido || '')}</b> · ${D.sync.ml_varredura?.em ? 'atualizado há ' + tempoDesde(D.sync.ml_varredura.em) : 'sincronizando…'}`,
-    `<button class="btn" data-a="recarregarML">↻ Recarregar</button>${ehDono() ? '<button class="btn" data-a="sincronizarML">Buscar no ML agora</button>' : ''}`)
+    `<button class="btn" data-a="recarregarML" ${ML_ATUALIZANDO.v ? 'disabled' : ''}>${ML_ATUALIZANDO.v ? '⏳ Atualizando…' : '↻ Atualizar agora'}</button>`)
     + `<div class="grid g4">
       <div class="card kpi-card"><div class="rot">Perguntas sem resposta</div><div class="val ${semResp.length ? 'c-ruim' : 'c-ok'}">${semResp.length}</div><div class="sub">${semResp[0] ? 'mais antiga há ' + tempoDesde(semResp[0].data) : 'tudo respondido'}${tempoMed != null ? ` · resposta média hoje ${tempoMed} min` : ''}</div></div>
       <div class="card kpi-card"><div class="rot">Envios atrasados</div><div class="val ${atrasados.length ? 'c-ruim' : 'c-ok'}">${atrasados.length}</div><div class="sub">${vencendo.length} vencem nas próximas 24 h</div></div>
@@ -83,7 +89,9 @@ function vML() {
       <div class="card"><h2>🧾 Aguardando nota fiscal</h2>${tabelaPed(semNF, 'Nenhum pedido esperando NF.')}</div>
     </div>
     <div class="grid g2 mt">
-      <div class="card"><h2>🏷 Etiquetas para imprimir</h2>${tabelaPed(imprimir, 'Nenhuma etiqueta pendente.')}</div>
+      <div class="card"><div class="secao-titulo"><h2>🏷 Etiquetas para imprimir</h2>${imprimir.length > 1 ? `<button class="btn pri peq" data-a="imprimirEtiquetas" data-envios="${imprimir.map(p => p.envio_id).join(',')}">🖨 Imprimir todas (${imprimir.length})</button>` : ''}</div>
+        ${imprimir.length ? `<table class="tabela"><tbody>${imprimir.map(p => linhaEtiqueta(p, 'Imprimir')).join('')}</tbody></table>` : '<div class="vazio">Nenhuma etiqueta pendente.</div>'}
+        ${impressas.length ? `<h3 class="mt">Já impressas, aguardando coleta</h3><table class="tabela"><tbody>${impressas.map(p => linhaEtiqueta(p, 'Reimprimir')).join('')}</tbody></table>` : ''}</div>
       <div class="card"><h2>Reclamações abertas</h2>${recl.length ? `<table class="tabela"><tbody>${recl.map(c => `<tr><td>Pedido ${esc(String(c.pedido_id || ''))}<br><small>${esc(c.motivo || '')} · ${esc(c.etapa || '')}</small></td><td><small>há ${tempoDesde(c.data)}</small></td></tr>`).join('')}</tbody></table>` : '<div class="vazio">Nenhuma reclamação aberta. 👏</div>'}</div>
     </div>
     ${blocoFaturamento(semNF)}
@@ -115,8 +123,9 @@ function blocoFaturamento(semNF) {
   const semConf = semNF.filter(p => !confs.some(c => String(c.ml_pedido_id) === String(p.id)));
   const borda = { ok: 'var(--ok)', aviso: 'var(--med)', erro: 'var(--ruim)', ja_tem_nf: 'var(--ok)', nf_pendente: 'var(--med)', xml_pendente: 'var(--med)' };
   return `<div class="card mt"><div class="secao-titulo"><h2>🧾 Faturamento (NF pelo Tiny)</h2>
-      <div class="acoes"><button class="btn" data-a="conferirNF">🔍 Conferir pedidos</button>${prontos.length > 1 ? `<button class="btn pri" data-a="emitirTodasNF">Emitir todas as liberadas (${prontos.length})</button>` : ''}</div></div>
-    <p class="explica" style="margin-top:0">O CRM confere cada pedido (produto, NCM, GTIN, origem, CFOP, endereço, CPF/CNPJ, unidade, peso e valor). Se estiver tudo certo, <b>Emitir NF</b> gera a nota no Tiny, confere o CFOP, transmite à SEFAZ e <b>importa o XML autorizado no envio do Mercado Livre</b>, o que libera a etiqueta. Depois é só imprimir.</p>
+      <div class="acoes">${ehDono() ? `<button class="btn ${D.ml.fiscal?.automatico ? 'pri' : ''}" data-a="alternarNFAuto">${D.ml.fiscal?.automatico ? '⚡ Automático: LIGADO' : '⚡ Automático: desligado'}</button>` : `<span class="tag ${D.ml.fiscal?.automatico ? 'ok' : ''}">${D.ml.fiscal?.automatico ? '⚡ Automático ligado' : 'Manual'}</span>`}<button class="btn" data-a="conferirNF">🔍 Conferir pedidos</button>${prontos.length > 1 ? `<button class="btn pri" data-a="emitirTodasNF">Emitir todas as liberadas (${prontos.length})</button>` : ''}</div></div>
+    <p class="explica" style="margin-top:0">O CRM confere cada pedido (produto, NCM, GTIN, origem, CFOP, endereço, CPF/CNPJ, unidade, peso e valor). Se estiver tudo certo, <b>Emitir NF</b> gera a nota no Tiny, confere o CFOP, transmite à SEFAZ e <b>importa o XML autorizado no envio do Mercado Livre</b>, o que libera a etiqueta. Depois é só imprimir.
+      ${D.ml.fiscal?.automatico ? '<br><b>⚡ Automático ligado:</b> a cada 5 minutos o CRM confere os pedidos novos e emite sozinho os que passaram em tudo (verde), já enviando o XML ao ML. Os que tiverem aviso ou erro ficam aqui esperando uma pessoa.' : ''}</p>
     ${semConf.length ? `<div class="alerta med"><span class="ic">⚠</span><span>${semConf.length} pedido(s) aguardando NF ainda não conferido(s). Clique em "Conferir pedidos".</span></div>` : ''}
     ${confs.length ? confs.map(c => `<div class="coment" style="border-left-color:${borda[c.status] || 'var(--borda-forte)'}">
         <div class="secao-titulo" style="margin:0"><div><b>Pedido ${esc(c.pedido_numero || '')}</b> · ${esc(c.cliente || '')} · ${esc(c.uf || '')} · CFOP ${esc(c.cfop_previsto || '—')} · ${R(c.total)}</div>
@@ -156,4 +165,53 @@ async function enviarXmlNF(id, numero) {
   try { await chamarFuncao('tiny-nf', { acao: 'enviar_xml', tiny_pedido_id: id }); avisar('XML importado no Mercado Livre ✓ Já pode imprimir a etiqueta.'); }
   catch (e) { alert('Não enviado: ' + e.message); }
   finally { await carregarML(true).catch(() => {}); render(); }
+}
+
+// ─── Atualizar: busca no ML (servidor) e recarrega a tela ───
+async function atualizarML() {
+  if (ML_ATUALIZANDO.v) return;
+  ML_ATUALIZANDO.v = true; render();
+  try {
+    await chamarFuncao('ml-sync', { acao: 'sincronizar' }).catch(e => { if (!/andamento/.test(e.message)) throw e; });
+    await carregarML(true);
+    avisar('Mercado Livre atualizado ✓');
+  } catch (e) { avisar('Não atualizou: ' + e.message); }
+  finally { ML_ATUALIZANDO.v = false; render(); }
+}
+// a tela do ML se atualiza sozinha a cada minuto (sem apagar resposta que esteja sendo digitada)
+setInterval(async () => {
+  if (UI.view !== 'ml' || document.hidden || ML_ATUALIZANDO.v || !D.ml) return;
+  if ([...document.querySelectorAll('textarea')].some(t => t.value.trim())) return;
+  try { await carregarML(true); render(); } catch { /* tenta no próximo minuto */ }
+}, 60000);
+
+// ─── Etiquetas: PDF do Mercado Livre direto no navegador ───
+async function imprimirEtiquetas(envios) {
+  const lista = String(envios || '').split(',').filter(Boolean);
+  if (!lista.length) return;
+  const janela = window.open('', '_blank');   // abre já no clique para o navegador não bloquear
+  if (janela) janela.document.write('<p style="font-family:sans-serif;padding:20px">Buscando a etiqueta no Mercado Livre…</p>');
+  try {
+    const r = await chamarFuncao('ml-sync', { acao: 'etiquetas', envios: lista });
+    const bin = atob(r.base64), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    if (janela) janela.location.href = url;
+    else { const a = document.createElement('a'); a.href = url; a.download = `etiquetas-ml-${Date.now()}.pdf`; a.click(); }
+    setTimeout(() => URL.revokeObjectURL(url), 120000);
+    avisar(`${r.envios.length} etiqueta(s) aberta(s) — use Ctrl+P para imprimir.`);
+  } catch (e) { if (janela) janela.close(); alert('Etiqueta não saiu: ' + e.message); }
+  finally { await carregarML(true).catch(() => {}); render(); }
+}
+
+async function alternarNFAuto() {
+  const lig = !D.ml.fiscal?.automatico;
+  if (lig && !confirm('Ligar o faturamento automático?\n\nA cada 5 minutos o CRM vai conferir os pedidos do Mercado Livre e EMITIR SOZINHO a NF dos que passarem em todas as checagens (100% verde), já enviando o XML ao ML.\n\nPedidos com aviso ou erro continuam esperando uma pessoa.')) return;
+  try {
+    const { data } = await sb.from('config').select('valor').eq('chave', 'fiscal').single();
+    await ok(sb.from('config').update({ valor: { ...data.valor, automatico: lig } }).eq('chave', 'fiscal'));
+    D.ml.fiscal = { ...data.valor, automatico: lig };
+    avisar(lig ? 'Faturamento automático LIGADO ⚡' : 'Faturamento automático desligado.');
+  } catch (e) { alert('Não consegui mudar: ' + e.message); }
+  render();
 }
