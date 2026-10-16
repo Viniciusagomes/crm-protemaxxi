@@ -90,14 +90,18 @@ function semanaisAtrasadas(p, d) { const seg = segundaDa(d); return tarefas(p, '
 function mensaisAtrasadas(p, d) { const m = mesDe(d); return tarefas(p, 'M').filter(t => venceMes(t, m) < d && !feitaM(p, m, t) && !(p.inicio && venceMes(t, m) < p.inicio)); }
 
 // ─── indicadores ───
-const FONTES = { manual: 'Lançado à mão', tiny_vendas: 'Tiny: vendas do vendedor', tiny_ecommerce: 'Tiny: vendas do e-commerce (R$)', tiny_ecommerce_pedidos: 'Tiny: pedidos do e-commerce' };
+const FONTES = { manual: 'Lançado à mão', tiny_vendas: 'Tiny: vendas do vendedor', tiny_ecommerce: 'Tiny: vendas do e-commerce (R$)', tiny_ecommerce_pedidos: 'Tiny: pedidos do e-commerce',
+  exp_despachados: 'Expedição: pedidos despachados', exp_prazo_pct: 'Expedição: % no prazo', exp_erro_pct: 'Expedição: % de erro de separação', exp_faltantes: 'Expedição: pedidos com item faltante',
+  exp_contagens: 'Estoque: itens contados', exp_acuracia_pct: 'Estoque: % de acurácia' };
+const ehExp = k => String(k.fonte || '').startsWith('exp_');
 const ehTiny = k => (k.fonte || 'manual') !== 'manual';
 function serieTiny(p, k) {
   if (k.fonte === 'tiny_vendas') return p.tiny ? (D.vendas[p.tiny] || {}) : {};
   return D.ecom || {};
 }
-function kpiTinyDia(p, k, d) { const v = serieTiny(p, k)[d]; return v ? (k.fonte === 'tiny_ecommerce_pedidos' ? v.pedidos : v.valor) : 0; }
+function kpiTinyDia(p, k, d) { if (ehExp(k)) return expKpiDia(k.fonte, d); const v = serieTiny(p, k)[d]; return v ? (k.fonte === 'tiny_ecommerce_pedidos' ? v.pedidos : v.valor) : 0; }
 function kpiReal(p, k, m) {
+  if (ehExp(k)) return expKpiMes(k.fonte, m);
   if (ehTiny(k)) { let s = 0; const serie = serieTiny(p, k); for (const d in serie) if (d.startsWith(m)) s += k.fonte === 'tiny_ecommerce_pedidos' ? serie[d].pedidos : serie[d].valor; return s; }
   if (k.entrada === 'M') { const v = D.mes[p.id]?.[m]?.kpi?.[k.id]; return v === undefined || v === '' || v === null ? null : Number(v); }
   let s = 0, n = 0; const regs = D.reg[p.id] || {};
@@ -524,8 +528,8 @@ function vMetas() {
   const cards = ps.map(p => {
     const linhas = p.kpis.map(k => {
       const v = kpiReal(p, k, m), pr = kpiProj(p, k, m), a = ating(k, v), ap = ating(k, pr);
-      const real = ehTiny(k) ? `${fmtK(k, v)} <span class="tag azul">Tiny</span>` : k.entrada === 'M' ? `<input type="number" step="any" min="0" value="${D.mes[p.id]?.[m]?.kpi?.[k.id] ?? ''}" data-c="kpiM" data-p="${p.id}" data-m="${m}" data-k="${k.id}" data-fid="mk-${p.id}-${k.id}" style="width:100px">` : fmtK(k, v);
-      return `<tr><td><b>${esc(k.nome)}</b><br><small>${ehTiny(k) ? 'automático do Tiny' : k.entrada === 'D' ? 'lançado todo dia' : 'lançado 1x no mês'}${k.dir === 'menor' ? ' · menor é melhor' : ''}</small></td>
+      const real = ehTiny(k) ? `${fmtK(k, v)} <span class="tag azul">${ehExp(k) ? 'Expedição' : 'Tiny'}</span>` : k.entrada === 'M' ? `<input type="number" step="any" min="0" value="${D.mes[p.id]?.[m]?.kpi?.[k.id] ?? ''}" data-c="kpiM" data-p="${p.id}" data-m="${m}" data-k="${k.id}" data-fid="mk-${p.id}-${k.id}" style="width:100px">` : fmtK(k, v);
+      return `<tr><td><b>${esc(k.nome)}</b><br><small>${ehTiny(k) ? (ehExp(k) ? 'automático da Expedição' : 'automático do Tiny') : k.entrada === 'D' ? 'lançado todo dia' : 'lançado 1x no mês'}${k.dir === 'menor' ? ' · menor é melhor' : ''}</small></td>
         <td class="dir"><input type="number" step="any" min="0" value="${k.meta}" data-c="meta" data-p="${p.id}" data-k="${k.id}" data-fid="mt-${p.id}-${k.id}" style="width:110px"></td>
         <td class="dir num">${real}</td><td class="cen">${tagPct(a)}</td>
         <td class="dir num">${(k.entrada === 'D' || ehTiny(k)) && k.agreg !== 'media' ? fmtK(k, pr) : '—'}</td><td style="width:22%">${barra(ap)}<small>${P(ap)} na projeção</small></td></tr>`;

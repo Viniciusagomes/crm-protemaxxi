@@ -5,7 +5,7 @@ const sb = window.supabase.createClient(window.CRM_CONFIG.url, window.CRM_CONFIG
 
 let D = null;      // tudo o que está carregado (mesmo formato do painel local + dados do Tiny)
 let EU = null;     // pessoa logada
-const UI_PADRAO = { view: 'inicio', pessoa: '', sup: '', remModo: 'projecao', simMeta: 100, simCheck: 95, remPessoa: '', cfgTab: 'pessoas', cfgPessoa: '', fbPessoa: '', metasDet: '', vendSel: '', cliFiltro: 'todos', cliBusca: '', cliVend: '', cliOrdem: 'total', solCaixa: 'para_mim', solStatus: 'abertas', pedBusca: '', pedVend: '', pedSit: '', pedPeriodo: '30' };
+const UI_PADRAO = { view: 'inicio', pessoa: '', sup: '', remModo: 'projecao', simMeta: 100, simCheck: 95, remPessoa: '', cfgTab: 'pessoas', cfgPessoa: '', fbPessoa: '', metasDet: '', vendSel: '', cliFiltro: 'todos', cliBusca: '', cliVend: '', cliOrdem: 'total', solCaixa: 'para_mim', solStatus: 'abertas', pedBusca: '', pedVend: '', pedSit: '', pedPeriodo: '30', expAba: 'pedidos', expFiltro: 'fazer' };
 const UI = (() => { try { return { ...UI_PADRAO, ...JSON.parse(localStorage.getItem('crm-ui') || '{}') }; } catch { return { ...UI_PADRAO }; } })();
 UI.data = hoje(); UI.mes = mesDe(hoje());
 const guardarUI = () => { try { const { data, mes, ...resto } = UI; localStorage.setItem('crm-ui', JSON.stringify(resto)); } catch { /* sem armazenamento */ } };

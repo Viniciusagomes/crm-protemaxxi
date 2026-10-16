@@ -7,6 +7,7 @@ function menu() {
     ['', 'inicio', '⌂', 'Início'],
     ['Comercial'], ['', 'vendas', '📈', 'Vendas'], ['', 'pedidos', '🧾', 'Pedidos'], ['', 'clientes', '👤', 'Clientes'],
     ...(veML() ? [['', 'ml', '🛍', 'Mercado Livre', D.ml ? D.ml.perguntas.filter(perguntaPendente).length : 0]] : []),
+    ...(veExp() ? [['Operação'], ['', 'expedicao', '📦', 'Expedição e estoque', EXP ? EXP.ecom.map(infoPedido).filter(x => !x.despachado && x.atrasado).length : 0]] : []),
     ['Intranet'], ['', 'solicitacoes', '📨', 'Solicitações', minhasPendentes().length], ['', 'suporte', '🔧', 'Suporte e RMA'],
     ['Equipe'], ['', 'checklist', '☑', 'Checklist do dia'],
     ...(temEquipe() ? [['', 'supervisao', '👥', 'Supervisão']] : []),
@@ -20,7 +21,7 @@ function menu() {
 }
 const VIEWS_FN = {
   inicio: () => vInicio(), vendas: () => vVendas(), ml: () => vML(), pedidos: () => vPedidos(), clientes: () => vClientes(),
-  solicitacoes: () => vIntranet(), suporte: () => vSuporte(),
+  solicitacoes: () => vIntranet(), suporte: () => vSuporte(), expedicao: () => vExpedicao(),
   checklist: () => vChecklist(), supervisao: () => vSupervisao(), geral: () => vGeral(), metas: () => vMetas(),
   remuneracao: () => vRemuneracao(), feedbacks: () => vFeedbacks(), config: () => vConfig(), ajuda: () => vAjuda(),
 };
@@ -28,7 +29,7 @@ const SO_DONO = ['config', 'geral'];
 
 function render() {
   if (!D || !EU) return;
-  if ((SO_DONO.includes(UI.view) && !ehDono()) || (UI.view === 'ml' && !veML())) UI.view = 'inicio';
+  if ((SO_DONO.includes(UI.view) && !ehDono()) || (UI.view === 'ml' && !veML()) || (UI.view === 'expedicao' && !veExp())) UI.view = 'inicio';
   if (UI.view === 'checklist' && !D.pessoas.find(p => p.id === UI.pessoa && p.ativo && pessoasQueVejo().includes(p.id))) UI.pessoa = EU.id;
   const fid = document.activeElement?.dataset?.fid;
   const pos = document.activeElement?.selectionStart;
@@ -94,7 +95,7 @@ function vConfigExtra(tab) {
         return `<div class="cfg-linha cfg-acesso"><div style="display:flex;gap:8px;align-items:center">${av(p)}<div><b>${esc(p.nome)}</b><br><small>${esc(p.cargo)}${p.ativo ? '' : ' · inativo'}</small></div></div>
         <select data-c="set" data-path="pessoas.${i}.papel">${Object.entries(PAPEIS).map(([k, v]) => `<option value="${k}" ${p.papel === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
         <select data-c="set" data-path="pessoas.${i}.tiny"><option value="">— não vende —</option>${D.vendedoresTiny.map(v => `<option value="${v.id}" ${p.tiny === v.id ? 'selected' : ''}>${esc(v.nome)}</option>`).join('')}${p.tiny && !D.vendedoresTiny.some(v => v.id === p.tiny) ? `<option value="${p.tiny}" selected>id ${p.tiny}</option>` : ''}</select>
-        <div style="display:flex;flex-direction:column;gap:2px;font-size:13px">${[['vendas_todas', 'Todas as vendas e clientes'], ['ecommerce', 'Pedidos do e-commerce'], ['suporte', 'Ordens de serviço (suporte)'], ['admin', 'Configurações (admin)'], ['mfa', 'Exigir 2FA (código no celular)']].map(([k, n]) => `<label><input type="checkbox" ${p.permissoes?.[k] ? 'checked' : ''} data-c="perm" data-i="${i}" data-k="${k}"> ${n}</label>`).join('')}</div>
+        <div style="display:flex;flex-direction:column;gap:2px;font-size:13px">${[['vendas_todas', 'Todas as vendas e clientes'], ['ecommerce', 'Pedidos do e-commerce'], ['expedicao', 'Expedição e estoque'], ['suporte', 'Ordens de serviço (suporte)'], ['admin', 'Configurações (admin)'], ['mfa', 'Exigir 2FA (código no celular)']].map(([k, n]) => `<label><input type="checkbox" ${p.permissoes?.[k] ? 'checked' : ''} data-c="perm" data-i="${i}" data-k="${k}"> ${n}</label>`).join('')}</div>
         <div>${p.user_id ? `<b>${esc(p.email || u?.email || '')}</b><br><small>${u?.bloqueado ? '<span class="c-ruim">bloqueado</span>' : u?.ultimo_login ? 'último acesso ' + new Date(u.ultimo_login).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'nunca entrou'}</small>
           <br><small>2FA: ${u?.mfa ? '<span class="c-ok">ativo</span>' : (['dono', 'supervisor'].includes(p.papel) || p.permissoes?.admin || p.permissoes?.mfa) ? '<span class="c-med">obrigatório, cadastra no próximo acesso</span>' : 'não exigido'}</small>
           <div class="acoes" style="margin-top:4px"><button class="btn peq" data-a="loginSenha" data-p="${p.id}">Trocar senha</button>${u?.mfa && p.id !== EU.id ? `<button class="btn peq" data-a="zerar2fa" data-p="${p.id}" title="Use se a pessoa perdeu ou trocou de celular">Zerar 2FA</button>` : ''}${p.papel !== 'dono' ? `<button class="btn peq" data-a="loginBloq" data-p="${p.id}" data-v="${u?.bloqueado ? 'desbloquear' : 'bloquear'}">${u?.bloqueado ? 'Desbloquear' : 'Bloquear'}</button><button class="btn peq perigo" data-a="loginRemover" data-p="${p.id}">Remover login</button>` : ''}</div>`
@@ -219,6 +220,18 @@ const A = {
   enviarXmlNF: el => enviarXmlNF(el.dataset.id, el.dataset.num),
   recarregarML: () => atualizarML(),
   imprimirEtiquetas: el => imprimirEtiquetas(el.dataset.envios),
+  expAba: el => { UI.expAba = el.dataset.v; render(); },
+  expFiltro: el => { UI.expFiltro = el.dataset.v; render(); },
+  expAtualizar: () => expAtualizar(),
+  expEtapa: el => expEtapa(el.dataset.id, el.dataset.k),
+  expDesfazer: el => expDesfazer(el.dataset.id),
+  expOcorrencia: el => expFormOcorrencia(el.dataset.id),
+  expSalvarOcorrencia: () => expSalvarOcorrencia(),
+  expResolver: el => expResolver(el.dataset.id),
+  expContar: el => expContar(el.dataset.id),
+  expBuscar: () => expBuscar().catch(e => avisar(e.message)),
+  expAprovar: el => expAprovar(el.dataset.id, el.dataset.k),
+  expPedirCompra: el => expPedirCompra(el.dataset.id),
   alternarNFAuto: () => alternarNFAuto(),
   conectarML: async () => { try { const r = await chamarFuncao('ml-oauth', { acao: 'iniciar' }); location.href = r.url; } catch (e) { avisar(e.message); } },
   desconectarML: async () => { if (!confirm('Desconectar o Mercado Livre? O CRM para de acompanhar pedidos e perguntas.')) return; try { await chamarFuncao('ml-oauth', { acao: 'desconectar' }); D.sync.ml = { conectado: false }; D.ml = null; render(); } catch (e) { avisar(e.message); } },
@@ -514,8 +527,9 @@ async function iniciar() {
   if (!UI.pessoa) UI.pessoa = EU.id;
   statusSalvo('✓ Conectado');
   render();
+  if (veExp()) carregarExp().then(render).catch(e => console.warn('expedição', e));
   // mantém atualizado: a cada 10 min recarrega pedidos e solicitações; ao voltar para a aba também
-  const atualizar = async () => { try { await Promise.all([carregarPedidos(`${addMes(mesDe(hoje()), -13)}-01`), carregarSolicitacoes(), carregarInteracoes(), carregarBonif(mesDe(hoje())), veML() && D.ml ? carregarML(true) : null, ok(sb.from('sync_estado').select('*')).then(est => { D.sync = Object.fromEntries(est.map(x => [x.chave, { ...x.valor, em_db: x.atualizado_em }])); })]); if (!$('#modal')) render(); } catch { /* offline */ } };
+  const atualizar = async () => { try { await Promise.all([carregarPedidos(`${addMes(mesDe(hoje()), -13)}-01`), carregarSolicitacoes(), carregarInteracoes(), carregarBonif(mesDe(hoje())), veML() && D.ml ? carregarML(true) : null, veExp() && EXP ? carregarExp(true) : null, ok(sb.from('sync_estado').select('*')).then(est => { D.sync = Object.fromEntries(est.map(x => [x.chave, { ...x.valor, em_db: x.atualizado_em }])); })]); if (!$('#modal')) render(); } catch { /* offline */ } };
   setInterval(atualizar, 10 * 60e3);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !document.activeElement?.matches('input,textarea,select')) atualizar(); });
   let diaAtual = hoje();
