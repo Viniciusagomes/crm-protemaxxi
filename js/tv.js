@@ -1,5 +1,5 @@
 'use strict';
-/* Intranet Protemaxxi — TV do estoque: tela cheia para a segunda tela/TV do Fefão, no estilo da cozinha do McDonald's.
+/* Intranet Protemaxxi — TV do estoque: tela cheia para a segunda tela/TV do Fefão, no estilo de painel de cozinha (KDS), com as cores da Intranet.
    Comandas lado a lado (a mais antiga primeiro, balcão na frente), itens no padrão do Tiny (SKU | Produto | Qtd),
    painel "em andamento" e "aguardando aprovação" (com o botão + para ver o pedido). Toca um sino a cada pedido novo. */
 
