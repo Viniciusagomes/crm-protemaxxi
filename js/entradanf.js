@@ -55,9 +55,11 @@ function detalheEntrada(n) {
           ${i.lancado ? `<br><small class="c-ok">✓ ${N(i.lancado_qtd)} lançado(s) no estoque</small>` : i.erro ? `<br><small class="c-ruim">⚠ ${esc(i.erro)}</small>` : ''}</td>
         <td class="dir">${fechada ? N(i.qtd_conferida) : `<input type="number" min="0" step="1" value="${i.qtd_conferida ?? ''}" placeholder="${N(i.quantidade)}" data-c="entQtd" data-nota="${esc(n.id_tiny)}" data-item="${esc(i.id_item)}" style="width:80px;${dif ? 'border-color:var(--ruim)' : ''}">`}${dif ? '<br><small class="c-ruim">diferente da NF</small>' : ''}</td></tr>`; }).join('')}
     </tbody></table></div>
+    ${fechada ? '' : (() => { const semP = its.filter(i => !i.produto_id).length, semC = its.filter(i => i.qtd_conferida === null).length;
+      return semP || semC ? `<div class="alerta med mt"><span class="ic">⏳</span><span>Para lançar falta: ${[semP ? `<b>${semP}</b> item(ns) sem produto ligado` : '', semC ? `<b>${semC}</b> item(ns) sem quantidade conferida (digite a quantidade ou clique em "Chegou tudo igual à nota")` : ''].filter(Boolean).join(' e ')}.</span></div>` : '<div class="alerta mt" style="background:var(--ok-bg)"><span class="ic">✅</span><span>Tudo ligado e conferido: pode lançar o estoque.</span></div>'; })()}
     ${fechada ? (n.status === 'ignorada' ? `<div class="acoes mt"><button class="btn peq" data-a="entReabrir" data-id="${esc(n.id_tiny)}">Reabrir</button></div>` : '') : `<div class="acoes mt">
       <button class="btn" data-a="entConferirTudo" data-id="${esc(n.id_tiny)}">✓ Chegou tudo igual à nota</button>
-      <button class="btn pri" data-a="entLancar" data-id="${esc(n.id_tiny)}" ${pronto ? '' : 'disabled title="Ligue todos os itens e confira as quantidades"'}>📦 Lançar estoque no Tiny</button>
+      <button class="btn ${pronto ? 'pri' : ''}" data-a="entLancar" data-id="${esc(n.id_tiny)}">📦 Lançar estoque no Tiny</button>
       <button class="btn peq" data-a="entIgnorar" data-id="${esc(n.id_tiny)}">Ignorar nota (uso e consumo, serviço…)</button>
       <button class="btn peq" data-a="expOcorrencia">⚠ Registrar avaria/falta</button></div>`}
   </div>`;
@@ -78,6 +80,13 @@ async function entAcao(corpo, msg) {
 }
 async function entLancar(id) {
   const n = ENT.notas.find(x => x.id_tiny === id), its = ENT.itens[id] || [];
+  const semP = its.filter(i => !i.produto_id), semC = its.filter(i => i.qtd_conferida === null);
+  if (semP.length || semC.length) {
+    const nl = '\n', faltas = [];
+    if (semP.length) faltas.push('• Sem produto ligado:' + nl + semP.map(i => '   - ' + i.descricao).join(nl));
+    if (semC.length) faltas.push('• Sem quantidade conferida:' + nl + semC.map(i => '   - ' + i.descricao).join(nl) + nl + nl + 'Digite a quantidade que chegou em cada um, ou clique em "Chegou tudo igual à nota".');
+    return alert(`Ainda não dá para lançar a NF ${n.numero}:` + nl + nl + faltas.join(nl + nl));
+  }
   const linhas = its.map(i => { const p = EXP.prod[String(i.produto_id)]; return `• ${N(Number(i.qtd_conferida) * (Number(i.fator) || 1))} × ${p?.codigo || i.produto_id} ${(p?.nome || '').slice(0, 40)}`; }).join('\n');
   if (!confirm(`Lançar no estoque do Tiny a NF ${n.numero} (${n.fornecedor})?\n\n${linhas}\n\nIsso dá ENTRADA no estoque com o custo da nota. Não dá para desfazer pela Intranet.`)) return;
   try {
