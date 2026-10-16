@@ -20,8 +20,8 @@ const EXP_INICIO = '2026-10-16';
 const SIT_LOJA_ABERTA = ['Em aberto', 'Aprovado', 'Preparando envio', 'Faturado', 'Pronto para envio'];
 /** Retirada no balcão: forma de envio "Retirar Loja" ou em branco. Correios, transportadora etc. = envio. */
 const ehRetirada = p => !p.envio_forma || /retir/i.test(p.envio_forma);
-/** Pix, depósito ou Tray: o pagamento precisa ser aprovado (Vinícius, Marcos, Fefão ou Felipe Menezes) antes de separar. */
-const precisaAprovar = p => !p.numero_ecommerce && /pix|dep[oó]sito|tray/i.test(`${p.pag_forma || ''} ${p.pag_meio || ''} ${p.forma_pagamento || ''}`);
+/** Depósito ou Tray: o pagamento precisa ser aprovado (Vinícius, Marcos, Fefão ou Felipe Menezes) antes de separar. Pix não: é feito na maquininha. */
+const precisaAprovar = p => !p.numero_ecommerce && /dep[oó]sito|tray/i.test(`${p.pag_forma || ''} ${p.pag_meio || ''} ${p.forma_pagamento || ''}`);
 const podeAprovarPag = () => ehDono() || !!EU?.permissoes?.aprovar_pagamento;
 /** 'loja' (retirada no balcão) | 'envio' (loja por correios/transportadora) | 'marketplace' | null (fora da expedição por enquanto) */
 function tipoExp(p, ml) {
@@ -202,7 +202,7 @@ function abaPedidos(todos, modo) {
   const etiquetasLote = lista.filter(x => x.ml && x.ml.envio_status === 'ready_to_ship' && x.ml.envio_substatus === 'ready_to_print').map(x => x.ml.envio_id);
   return `<div class="filtros"><div class="chips">${Object.entries(filtros).map(([k, [n, f]]) => `<button class="chip ${UI.expFiltro === k ? 'on' : ''}" data-a="expFiltro" data-v="${k}">${n}<span class="n">${todos.filter(f).length}</span></button>`).join('')}</div>
       ${etiquetasLote.length > 1 ? `<button class="btn pri peq" data-a="imprimirEtiquetas" data-envios="${etiquetasLote.join(',')}">🖨 Imprimir todas as etiquetas do ML (${etiquetasLote.length})</button>` : ''}</div>
-    ${modo === 'aprovacao' ? '<p class="explica">Pedidos pagos por <b>pix, depósito ou Tray</b> só vão para a separação depois que Vinícius, Marcos, Fefão ou Felipe Menezes conferirem o pagamento e clicarem em "Aprovar pagamento". Aqui também ficam os pedidos de marketplace ainda "Em aberto" no Tiny.</p>'
+    ${modo === 'aprovacao' ? '<p class="explica">Pedidos pagos por <b>depósito ou Tray</b> só vão para a separação depois que Vinícius, Marcos, Fefão ou Felipe Menezes conferirem o pagamento e clicarem em "Aprovar pagamento". Aqui também ficam os pedidos de marketplace ainda "Em aberto" no Tiny.</p>'
       : modo === 'envios' ? '<p class="explica">Pedidos da loja enviados por <b>Correios ou transportadora</b> e os pedidos de marketplace: separar → conferir e embalar → despachar.</p>'
       : '<p class="explica"><b>Balcão:</b> pedidos com retirada na loja (forma de envio "Retirar Loja" ou em branco). Separação imediata: separar → cobrar e entregar. No Tiny: Separado = Aprovado; Cobrado e entregue = Entregue.</p>'}
     ${lista.length ? lista.slice(0, 80).map(linha).join('') : '<div class="card vazio">Nada por aqui. 👏</div>'}`;
