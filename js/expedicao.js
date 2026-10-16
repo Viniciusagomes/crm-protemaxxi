@@ -18,9 +18,14 @@ const ETAPA_EXP = { aguardando: ['Aguardando aprovação', ''], a_separar: ['A s
 // Tray e as outras formas de envio ficam de fora até o Vinícius decidir.
 const EXP_INICIO = '2026-10-16';
 const SIT_LOJA_ABERTA = ['Em aberto', 'Aprovado', 'Preparando envio', 'Faturado', 'Pronto para envio'];
-/** 'loja' | 'marketplace' | null (fora da expedição por enquanto) */
+/** Retirada no balcão: forma de envio "Retirar Loja" ou em branco. Correios, transportadora etc. = envio. */
+const ehRetirada = p => !p.envio_forma || /retir/i.test(p.envio_forma);
+/** Pix, depósito ou Tray: o pagamento precisa ser aprovado (Vinícius, Marcos, Fefão ou Felipe Menezes) antes de separar. */
+const precisaAprovar = p => !p.numero_ecommerce && /pix|dep[oó]sito|tray/i.test(`${p.pag_forma || ''} ${p.pag_meio || ''} ${p.forma_pagamento || ''}`);
+const podeAprovarPag = () => ehDono() || !!EU?.permissoes?.aprovar_pagamento;
+/** 'loja' (retirada no balcão) | 'envio' (loja por correios/transportadora) | 'marketplace' | null (fora da expedição por enquanto) */
 function tipoExp(p, ml) {
-  if (!p.numero_ecommerce) return 'loja';
+  if (!p.numero_ecommerce) return ehRetirada(p) ? 'loja' : 'envio';
   if (/tray/i.test(p.canal || '')) return null;
   if (ml || /ml|mercado|amazon/i.test(p.canal || '')) return 'marketplace';
   return null;   // e-commerce ainda sem canal (o Tiny detalha em minutos)
@@ -36,21 +41,23 @@ const dataSP = d => new Date(d).toLocaleDateString('sv-SE', { timeZone: 'America
 /** Soma horas e empurra sábado/domingo para segunda (mesmo horário). */
 function maisHorasUteis(d, h) { const x = new Date(new Date(d).getTime() + h * 3600e3); while ([0, 6].includes(x.getDay())) x.setDate(x.getDate() + 1); return x; }
 
-async function carregarExp(forcar) {
+/** leve = só pedidos/etapas (a TV recarrega a cada 20 s; contagens, estoque baixo e plano ficam como estavam). */
+async function carregarExp(forcar, leve) {
   if (EXP && !forcar) return EXP;
+  leve = leve && !!EXP;
   const desde = new Date(Date.now() - 100 * 864e5).toISOString();
   const [exp, ocs, evs, cont, mlp, cfg, alertas, plano] = await Promise.all([
     todas(() => sb.from('expedicao').select('*').gte('atualizado_em', desde)),
     todas(() => sb.from('expedicao_ocorrencias').select('*').gte('quando', desde).order('quando', { ascending: false })),
     todas(() => sb.from('pedido_eventos').select('pedido_id,situacao,em').gte('em', desde).order('em')),
-    todas(() => sb.from('contagens').select('*').gte('quando', desde).order('quando', { ascending: false })),
+    leve ? EXP.cont : todas(() => sb.from('contagens').select('*').gte('quando', desde).order('quando', { ascending: false })),
     todas(() => sb.from('ml_pedidos').select('id,pack_id,envio_id,envio_status,envio_substatus,prazo_despacho').gte('data', desde)),
     sb.from('config').select('valor').eq('chave', 'expedicao').maybeSingle().then(r => r.data?.valor || {}),
-    ok(sb.rpc('estoque_alertas')),
-    chamarFuncao('estoque', { acao: 'plano' }).then(r => r.plano || []).catch(() => []),
+    leve ? EXP.alertas : ok(sb.rpc('estoque_alertas')),
+    leve ? EXP.plano : chamarFuncao('estoque', { acao: 'plano' }).then(r => r.plano || []).catch(() => []),
   ]);
   const inicio = cfg.inicio && cfg.inicio > EXP_INICIO ? cfg.inicio : EXP_INICIO;
-  const peds = await todas(() => sb.from('pedidos').select('id,numero,numero_ecommerce,canal,data,cliente_nome,vendedor_nome,valor,situacao,forma_pagamento,frete').gte('data', inicio).neq('situacao', 'Cancelado').order('data', { ascending: false }));
+  const peds = await todas(() => sb.from('pedidos').select('id,numero,numero_ecommerce,canal,data,cliente_nome,vendedor_nome,valor,situacao,forma_pagamento,frete,envio_forma,pag_forma,pag_meio').gte('data', inicio).neq('situacao', 'Cancelado').order('data', { ascending: false }));
   const mlMapa = Object.fromEntries(mlp.flatMap(m => [[String(m.id), m], ...(m.pack_id ? [[String(m.pack_id), m]] : [])]));
   for (const p of peds) p.tipo = tipoExp(p, p.numero_ecommerce ? mlMapa[String(p.numero_ecommerce)] : null);
   const ecom = peds.filter(p => p.tipo);
@@ -75,23 +82,25 @@ async function carregarExp(forcar) {
 /** Situação de um pedido na expedição: etapa, prazo, despacho e atraso. */
 function infoPedido(p) {
   const e = EXP.exp[p.id] || {}, evs = EXP.eventos[p.id] || [];
-  const loja = p.tipo === 'loja';
+  const loja = p.tipo === 'loja', envioLoja = p.tipo === 'envio';
   const ml = p.numero_ecommerce ? EXP.ml[String(p.numero_ecommerce)] || null : null;
-  const evAprov = evs.find(x => (loja ? SIT_LOJA_ABERTA : SIT_ABERTA_EXP).includes(x.situacao));
+  const sitAberta = loja || envioLoja ? SIT_LOJA_ABERTA : SIT_ABERTA_EXP;
+  const evAprov = evs.find(x => sitAberta.includes(x.situacao));
   const evDesp = evs.find(x => SIT_DESPACHADA.includes(x.situacao));
-  const base = evAprov?.em || ((loja ? SIT_LOJA_ABERTA : SIT_ABERTA_EXP).includes(p.situacao) || SIT_DESPACHADA.includes(p.situacao) ? `${p.data}T09:00:00-03:00` : null);
+  const base = (precisaAprovar(p) && e.pagamento_aprovado_em) || evAprov?.em || (sitAberta.includes(p.situacao) || SIT_DESPACHADA.includes(p.situacao) ? `${p.data}T09:00:00-03:00` : null);
   // loja: cliente esperando no balcão (prazo curto); ML: prazo do próprio ML; Amazon: horas úteis
   const prazo = ml?.prazo_despacho ? new Date(ml.prazo_despacho) : base ? (loja ? new Date(new Date(base).getTime() + (+EXP.cfg.sla_loja_horas || 1) * 3600e3) : maisHorasUteis(base, +EXP.cfg.sla_horas || 24)) : null;
   const mlSaiu = ml && ['shipped', 'delivered', 'not_delivered'].includes(ml.envio_status);
   const tempos = [e.despachado_em, evDesp?.em].filter(Boolean).sort();
   const despachado = tempos.length > 0 || mlSaiu || SIT_DESPACHADA.includes(p.situacao);
   const despachoEm = tempos[0] || null;
-  const etapa = despachado ? 'despachado' : (!loja && p.situacao === 'Em aberto') ? 'aguardando' : e.conferido_em ? 'conferido' : e.separado_em ? 'separado' : 'a_separar';
-  const atrasado = prazo && (despachoEm ? new Date(despachoEm) > prazo : !despachado && Date.now() > prazo);
-  const canal = loja ? 'Loja' : p.canal || (ml ? 'ML - Viny' : 'Marketplace');
-  return { p, e, ml, base, prazo, despachado, despachoEm, etapa, atrasado, canal, loja };
+  const pagPendente = precisaAprovar(p) && !e.pagamento_aprovado_em;
+  const etapa = despachado ? 'despachado' : (pagPendente || (p.tipo === 'marketplace' && p.situacao === 'Em aberto')) ? 'aguardando' : e.conferido_em ? 'conferido' : e.separado_em ? 'separado' : 'a_separar';
+  const atrasado = !pagPendente && prazo && (despachoEm ? new Date(despachoEm) > prazo : !despachado && Date.now() > prazo);
+  const canal = loja ? 'Loja' : envioLoja ? 'Loja (envio)' : p.canal || (ml ? 'ML - Viny' : 'Marketplace');
+  return { p, e, ml, base, prazo, despachado, despachoEm, etapa, atrasado, canal, loja, envioLoja, pagPendente };
 }
-const nomeCanal = c => c === 'Loja' ? 'Loja (balcão)' : /ml|mercado/i.test(c) ? 'Mercado Livre' : /tray/i.test(c) ? 'Site (Tray)' : /amazon/i.test(c) ? 'Amazon' : c;
+const nomeCanal = c => c === 'Loja' ? 'Balcão (retirada)' : c === 'Loja (envio)' ? 'Loja · envio' : /ml|mercado/i.test(c) ? 'Mercado Livre' : /tray/i.test(c) ? 'Site (Tray)' : /amazon/i.test(c) ? 'Amazon' : c;
 
 // ─── métricas (para a tela e para as metas do Felippe) ───
 function expMetricas(m) {
@@ -137,23 +146,26 @@ function vExpedicao() {
   const aFazer = todos.filter(x => !x.despachado && x.etapa !== 'aguardando');
   const atrasados = aFazer.filter(x => x.atrasado);
   const contHoje = EXP.cont.filter(c => c.data === hojeSP() && c.status !== 'recusado');
-  const abas = [['pedidos', '📦 Pedidos', aFazer.length], ['contagem', '🔢 Contagem do dia', `${contHoje.length}/${EXP.cfg.meta_contagem}`], ['estoque', '📉 Estoque baixo', EXP.alertas.length], ['indicadores', '📊 Indicadores', '']];
+  const abas = [['pedidos', '🏪 Balcão', aFazer.filter(x => x.loja).length], ['envios', '🚚 Envios', aFazer.filter(x => !x.loja).length],
+    ['aprovacao', '💳 Aguardando aprovação', todos.filter(x => x.etapa === 'aguardando').length], ['contagem', '🔢 Contagem do dia', `${contHoje.length}/${EXP.cfg.meta_contagem}`], ['estoque', '📉 Estoque baixo', EXP.alertas.length], ['indicadores', '📊 Indicadores', '']];
   return topo('Expedição e estoque', `Pedidos de loja e de marketplaces desde ${fmtCurta(EXP.cfg.inicio)} · atualizados do Tiny a cada 10 min`,
     `<button class="btn" data-a="expAtualizar" ${EXP_ATUALIZANDO.v ? 'disabled' : ''}>${EXP_ATUALIZANDO.v ? '⏳ Atualizando…' : '↻ Atualizar'}</button><button class="btn" data-a="expOcorrencia">⚠ Registrar ocorrência</button>`)
     + `<div class="grid g4">
-      <div class="card kpi-card"><div class="rot">A fazer</div><div class="val">${aFazer.length}</div><div class="sub">${aFazer.filter(x => x.loja).length} da loja · ${aFazer.filter(x => !x.loja).length} de marketplace · ${aFazer.filter(x => x.etapa === 'a_separar').length} a separar</div></div>
+      <div class="card kpi-card"><div class="rot">A fazer</div><div class="val">${aFazer.length}</div><div class="sub">${aFazer.filter(x => x.loja).length} balcão · ${aFazer.filter(x => !x.loja).length} envios · ${todos.filter(x => x.etapa === 'aguardando').length} aguardando aprovação</div></div>
       <div class="card kpi-card"><div class="rot">Atrasados agora</div><div class="val ${atrasados.length ? 'c-ruim' : 'c-ok'}">${atrasados.length}</div><div class="sub">passaram do prazo de despacho</div></div>
       <div class="card kpi-card"><div class="rot">Contagem de hoje</div><div class="val ${contHoje.length >= EXP.cfg.meta_contagem ? 'c-ok' : 'c-med'}">${contHoje.length} de ${EXP.cfg.meta_contagem}</div><div class="sub">itens conferidos no estoque</div></div>
       <div class="card kpi-card"><div class="rot">Estoque baixo</div><div class="val ${EXP.alertas.length ? 'c-med' : ''}">${EXP.alertas.length}</div><div class="sub">produtos para pedir compra</div></div></div>
     <div class="chips mt">${abas.map(([k, n, b]) => `<button class="chip ${UI.expAba === k ? 'on' : ''}" data-a="expAba" data-v="${k}">${n}${b !== '' ? `<span class="n">${b}</span>` : ''}</button>`).join('')}</div>
-    <div class="mt">${{ pedidos: () => abaPedidos(todos), contagem: abaContagem, estoque: abaEstoque, indicadores: abaIndicadores }[UI.expAba]?.() || ''}</div>`;
+    <div class="mt">${{ pedidos: () => abaPedidos(todos.filter(x => x.loja), 'balcao'), envios: () => abaPedidos(todos.filter(x => !x.loja), 'envios'),
+      aprovacao: () => abaPedidos(todos.filter(x => x.etapa === 'aguardando'), 'aprovacao'), contagem: abaContagem, estoque: abaEstoque, indicadores: abaIndicadores }[UI.expAba]?.() || ''}</div>`;
 }
 
-function abaPedidos(todos) {
+function abaPedidos(todos, modo) {
+  if (modo === 'aprovacao') UI.expFiltro = 'aguardando'; else if (UI.expFiltro === 'aguardando' || UI.expFiltro === 'loja') UI.expFiltro = 'fazer';
   UI.expFiltro ||= 'fazer';
-  const filtros = {
-    fazer: ['A fazer', x => !x.despachado && x.etapa !== 'aguardando'], loja: ['Loja', x => x.loja && !x.despachado], atrasados: ['Atrasados', x => !x.despachado && x.atrasado],
-    aguardando: ['Aguardando aprovação', x => x.etapa === 'aguardando'], hoje: ['Concluídos hoje', x => x.despachoEm && dataSP(x.despachoEm) === hojeSP()],
+  const filtros = modo === 'aprovacao' ? { aguardando: ['Aguardando aprovação', x => x.etapa === 'aguardando'] } : {
+    fazer: ['A fazer', x => !x.despachado && x.etapa !== 'aguardando'], atrasados: ['Atrasados', x => !x.despachado && x.atrasado],
+    hoje: ['Concluídos hoje', x => x.despachoEm && dataSP(x.despachoEm) === hojeSP()],
   };
   // loja primeiro (cliente esperando no balcão), depois pelo prazo
   const lista = todos.filter(filtros[UI.expFiltro][1]).sort((a, b) => (b.loja - a.loja) || ((a.prazo || 9e15) - (b.prazo || 9e15)));
@@ -167,7 +179,7 @@ function abaPedidos(todos) {
       <div class="secao-titulo" style="margin:0;align-items:flex-start"><div>
         <b>Pedido ${esc(p.numero || '')}</b> · <span class="tag ${x.loja ? 'ruim' : 'azul'}">${esc(nomeCanal(x.canal))}</span> · ${esc(p.cliente_nome || '')}
         <br><small class="mut">${p.situacao ? 'Tiny: ' + esc(p.situacao) : ''}${ml?.envio_substatus ? ' · ML: ' + esc(SUBSTATUS_NOME[ml.envio_substatus] || ml.envio_substatus) : ''}${x.loja && p.vendedor_nome ? ' · vendedor ' + esc(p.vendedor_nome) : ''}</small>
-        ${x.loja ? `<br><b>A cobrar: ${R(p.valor)}</b>${p.forma_pagamento ? ` <small>(${esc(p.forma_pagamento)})</small>` : ''}` : ''}</div>
+        ${x.loja || x.envioLoja ? `<br><b>${x.loja ? 'A cobrar' : 'Valor'}: ${R(p.valor)}</b> <small>(${esc(p.pag_forma || p.forma_pagamento || '?')}${p.pag_meio ? ' · ' + esc(p.pag_meio) : ''})</small>${x.envioLoja ? `<br><small>🚚 ${esc(p.envio_forma)}</small>` : ''}` : ''}</div>
         <div style="text-align:right"><span class="tag ${ETAPA_EXP[x.etapa][1]}">${ETAPA_EXP[x.etapa][0]}</span><br>
         <small class="${x.atrasado ? 'c-ruim' : 'mut'}">${prazo ? (x.despachado ? 'prazo era ' : x.loja ? 'entregar até ' : 'despachar até ') + dataHora(prazo) : 'sem prazo'}${x.atrasado ? ' · ATRASADO' : ''}</small></div></div>
       <table class="tabela" style="margin-top:6px"><tbody>${its.map(i => { const pr = EXP.prod[String(i.produto_id)];
@@ -175,19 +187,24 @@ function abaPedidos(todos) {
       ${ocs.map(o => `<div class="alerta med" style="margin-top:6px"><span class="ic">${TIPOS_OC[o.tipo][0]}</span><span>${TIPOS_OC[o.tipo][1]}${o.produto ? ': ' + esc(o.produto) : ''}${o.descricao ? ' — ' + esc(o.descricao) : ''}</span></div>`).join('')}
       ${semNF ? '<div class="alerta med" style="margin-top:6px"><span class="ic">🧾</span><span>Aguardando a nota fiscal. A etiqueta do ML só libera depois da NF.</span></div>' : ''}
       <div class="acoes" style="margin-top:8px">
-        ${x.despachado ? `<small class="mut">${x.loja ? 'Entregue' : 'Despachado'} ${x.despachoEm ? dataHora(x.despachoEm) : ''}${e.despachado_por ? ' por ' + esc(nomeP(e.despachado_por)) : ''}</small>` : x.etapa === 'aguardando' ? '<small class="mut">Ainda não aprovado no Tiny (pagamento ou conferência do pedido).</small>' : `
+        ${x.pagPendente ? (podeAprovarPag() ? `<button class="btn pri peq" data-a="expAprovarPag" data-id="${p.id}">💳 Aprovar pagamento</button> <small class="mut">Confira o ${esc(p.pag_forma || 'pagamento')} antes de aprovar.</small>` : '<small class="mut">💳 Aguardando a aprovação do pagamento (Vinícius, Marcos, Fefão ou Felipe Menezes).</small>') : ''}
+        ${x.pagPendente ? '' : x.despachado ? `<small class="mut">${x.loja ? 'Entregue' : 'Despachado'} ${x.despachoEm ? dataHora(x.despachoEm) : ''}${e.despachado_por ? ' por ' + esc(nomeP(e.despachado_por)) : ''}</small>` : x.etapa === 'aguardando' ? '<small class="mut">Ainda não aprovado no Tiny (pagamento ou conferência do pedido).</small>' : `
+          ${e.pagamento_aprovado_em ? `<small class="c-ok">💳 Pagamento aprovado por ${esc(nomeP(e.pagamento_aprovado_por))}</small>` : ''}
           ${!e.separado_em ? `<button class="btn pri peq" data-a="expEtapa" data-id="${p.id}" data-k="separado">✓ Separado</button>` : `<small class="mut">Separado ${dataHora(e.separado_em)}${e.separado_por ? ' · ' + esc(nomeP(e.separado_por)) : ''}</small>`}
           ${x.loja ? (e.separado_em ? `<button class="btn pri peq" data-a="expEtapa" data-id="${p.id}" data-k="despachado">💰 Cobrado e entregue</button>` : '') : `
           ${e.separado_em && !e.conferido_em ? `<button class="btn pri peq" data-a="expEtapa" data-id="${p.id}" data-k="conferido">✓ Conferido e embalado</button>` : e.conferido_em ? `<small class="mut">· Conferido ${dataHora(e.conferido_em)}</small>` : ''}
           ${e.conferido_em ? `<button class="btn pri peq" data-a="expEtapa" data-id="${p.id}" data-k="despachado">🚚 Despachado</button>` : ''}`}
-          ${e.separado_em ? `<button class="btn peq" data-a="expDesfazer" data-id="${p.id}" title="Desfazer a última etapa">↺</button>` : ''}`}
+          ${e.separado_em ? `<button class="btn peq" data-a="expDesfazer" data-id="${p.id}" title="Desfazer a última etapa">↺</button>` : ''}
+          ${e.tiny_erro ? `<br><small class="c-ruim">⚠ Tiny não atualizou: ${esc(e.tiny_erro)}</small>` : ''}`}
         ${etiqueta ? `<button class="btn peq" data-a="imprimirEtiquetas" data-envios="${esc(String(ml.envio_id))}">🖨 Etiqueta</button>` : ''}
         <button class="btn peq" data-a="expOcorrencia" data-id="${p.id}">⚠ Ocorrência</button></div></div>`;
   };
   const etiquetasLote = lista.filter(x => x.ml && x.ml.envio_status === 'ready_to_ship' && x.ml.envio_substatus === 'ready_to_print').map(x => x.ml.envio_id);
   return `<div class="filtros"><div class="chips">${Object.entries(filtros).map(([k, [n, f]]) => `<button class="chip ${UI.expFiltro === k ? 'on' : ''}" data-a="expFiltro" data-v="${k}">${n}<span class="n">${todos.filter(f).length}</span></button>`).join('')}</div>
       ${etiquetasLote.length > 1 ? `<button class="btn pri peq" data-a="imprimirEtiquetas" data-envios="${etiquetasLote.join(',')}">🖨 Imprimir todas as etiquetas do ML (${etiquetasLote.length})</button>` : ''}</div>
-    ${UI.expFiltro === 'aguardando' ? '<p class="explica">Pedidos de marketplace (Mercado Livre, Amazon) que chegaram mas ainda estão "Em aberto" no Tiny.</p>' : ''}
+    ${modo === 'aprovacao' ? '<p class="explica">Pedidos pagos por <b>pix, depósito ou Tray</b> só vão para a separação depois que Vinícius, Marcos, Fefão ou Felipe Menezes conferirem o pagamento e clicarem em "Aprovar pagamento". Aqui também ficam os pedidos de marketplace ainda "Em aberto" no Tiny.</p>'
+      : modo === 'envios' ? '<p class="explica">Pedidos da loja enviados por <b>Correios ou transportadora</b> e os pedidos de marketplace: separar → conferir e embalar → despachar.</p>'
+      : '<p class="explica"><b>Balcão:</b> pedidos com retirada na loja (forma de envio "Retirar Loja" ou em branco). Separação imediata: separar → cobrar e entregar. No Tiny: Separado = Aprovado; Cobrado e entregue = Entregue.</p>'}
     ${lista.length ? lista.slice(0, 80).map(linha).join('') : '<div class="card vazio">Nada por aqui. 👏</div>'}`;
 }
 
@@ -278,17 +295,24 @@ async function expAtualizar() {
   finally { EXP_ATUALIZANDO.v = false; render(); }
 }
 async function expEtapa(id, etapa) {
-  if (etapa === 'despachado' && !confirm('Confirmar que este pedido saiu (coleta, Correios ou entrega)?')) return;
-  const agora = new Date().toISOString(), atual = EXP.exp[id] || { pedido_id: id };
-  const novo = { ...atual, pedido_id: id, [etapa + '_em']: agora, [etapa + '_por']: EU.id, atualizado_em: agora };
-  try { const r = await ok(sb.from('expedicao').upsert(novo).select().single()); EXP.exp[id] = r; render(); }
+  const p = EXP.ecom.find(x => x.id === id);
+  const msg = etapa === 'despachado' ? (p?.tipo === 'loja' ? `Confirmar que o pedido ${p.numero} foi COBRADO e ENTREGUE ao cliente?\n\nNo Tiny ele vai para "Entregue".` : 'Confirmar que este pedido saiu (coleta, Correios ou transportadora)?')
+    : etapa === 'separado' && p?.numero_ecommerce == null ? `Pedido ${p?.numero} separado?\n\nNo Tiny ele vai para "Aprovado".` : null;
+  if (msg && !confirm(msg)) return;
+  try { const r = await chamarFuncao('expedicao', { acao: 'etapa', pedido_id: id, etapa }); EXP.exp[id] = r.expedicao; if (r.aviso) alert(r.aviso); render(); }
+  catch (e) { alert('Não gravou: ' + e.message); }
+}
+async function expAprovarPag(id) {
+  const p = EXP.ecom.find(x => x.id === id);
+  if (!confirm(`Confirma que o pagamento do pedido ${p?.numero} (${R(p?.valor)} · ${p?.pag_forma || ''}) já caiu?`)) return;
+  try { const r = await chamarFuncao('expedicao', { acao: 'aprovar_pagamento', pedido_id: id }); EXP.exp[id] = r.expedicao; avisar('Pagamento aprovado ✓ O pedido foi para a separação.'); render(); }
   catch (e) { alert('Não gravou: ' + e.message); }
 }
 async function expDesfazer(id) {
   const e = EXP.exp[id]; if (!e) return;
   const etapa = e.despachado_em ? 'despachado' : e.conferido_em ? 'conferido' : 'separado';
-  if (!confirm(`Desfazer "${ETAPA_EXP[etapa][0]}" deste pedido?`)) return;
-  try { EXP.exp[id] = await ok(sb.from('expedicao').update({ [etapa + '_em']: null, [etapa + '_por']: null, atualizado_em: new Date().toISOString() }).eq('pedido_id', id).select().single()); render(); }
+  if (!confirm(`Desfazer "${ETAPA_EXP[etapa][0]}" deste pedido na Intranet?\n\nAtenção: a situação no Tiny não volta sozinha; se precisar, ajuste no Tiny.`)) return;
+  try { const r = await chamarFuncao('expedicao', { acao: 'desfazer', pedido_id: id }); EXP.exp[id] = r.expedicao; render(); }
   catch (er) { alert('Não gravou: ' + er.message); }
 }
 function expFormOcorrencia(pedidoId) {

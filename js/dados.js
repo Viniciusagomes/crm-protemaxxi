@@ -8,7 +8,7 @@ let EU = null;     // pessoa logada
 const UI_PADRAO = { view: 'inicio', pessoa: '', sup: '', remModo: 'projecao', simMeta: 100, simCheck: 95, remPessoa: '', cfgTab: 'pessoas', cfgPessoa: '', fbPessoa: '', metasDet: '', vendSel: '', cliFiltro: 'todos', cliBusca: '', cliVend: '', cliOrdem: 'total', solCaixa: 'para_mim', solStatus: 'abertas', pedBusca: '', pedVend: '', pedSit: '', pedPeriodo: '30', expAba: 'pedidos', expFiltro: 'fazer' };
 const UI = (() => { try { return { ...UI_PADRAO, ...JSON.parse(localStorage.getItem('crm-ui') || '{}') }; } catch { return { ...UI_PADRAO }; } })();
 UI.data = hoje(); UI.mes = mesDe(hoje());
-const guardarUI = () => { try { const { data, mes, ...resto } = UI; localStorage.setItem('crm-ui', JSON.stringify(resto)); } catch { /* sem armazenamento */ } };
+const guardarUI = () => { try { const { data, mes, ...resto } = UI; if (resto.view === 'tvestoque') resto.view = 'expedicao'; localStorage.setItem('crm-ui', JSON.stringify(resto)); } catch { /* sem armazenamento */ } };
 
 function statusSalvo(txt, erro) { const el = $('#salvo'); if (el) { el.textContent = txt; el.classList.toggle('erro', !!erro); } }
 async function ok(q) { const { data, error } = await q; if (error) throw new Error(error.message); return data; }
