@@ -92,22 +92,22 @@ async function entLancar(id) {
 }
 
 // ─── ligar item → produto (sugestões só quando o MODELO bate: E ≠ EG, B ≠ D, kit ≠ unidade) ───
-const modelosDe = s => new Set(String(s || '').toUpperCase().normalize('NFD').replace(/\p{M}/gu, '').split(/[^A-Z0-9-]+/).filter(w => /\d/.test(w) && w.length >= 3 && !/^\d+(V|W|MM|M|MP|GB|VA|DB|DBI|K|P|ML|A|MAH|AH)$/.test(w)));
-async function entVincular(idNota, idItem) {
-  const it = (ENT.itens[idNota] || []).find(i => i.id_item === idItem); if (!it) return;
-  const ms = [...modelosDe(it.descricao)];
-  let sugestoes = [];
-  for (const m of ms.slice(0, 4)) sugestoes.push(...await ok(sb.from('produtos').select('*').eq('situacao', 'A').ilike('nome', `%${m.replace(/[%_]/g, '')}%`).limit(8)));
-  sugestoes = [...new Map(sugestoes.map(p => [p.id, p])).values()].filter(p => [...modelosDe(p.nome)].some(x => ms.includes(x))).slice(0, 8);
-  modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>🔗 Ligar item ao produto do Tiny</h2>
-    <p><b>Na nota:</b> ${esc(it.descricao)}<br><small class="mut">${N(it.quantidade)} ${esc(it.unidade || '')} · custo ${R(it.valor_unit)}</small></p>
-    <p class="explica">Confira o <b>modelo completo</b> (ex.: AMT 2018 <b>E</b> ≠ AMT 2018 <b>EG</b>; kit ≠ unidade). Se o produto não existe no Tiny, feche e use "Pedir cadastro".</p>
-    <div style="display:flex;gap:8px"><input type="search" id="entProdBusca" placeholder="Código ou nome do produto" style="flex:1"><button class="btn" data-a="entProdBuscar">Buscar</button></div>
-    <div id="entProdRes" class="mt">${sugestoes.length ? '<small class="mut">Sugestões pelo modelo:</small>' + listaProdutosEnt(sugestoes) : '<small class="mut">Nenhuma sugestão pelo modelo; busque pelo código ou nome.</small>'}</div>
-    <div class="form-grid mt"><label class="campo">Cada item da nota vira quantas unidades no estoque?<input type="number" id="entFator" min="1" step="1" value="${N(it.fator || 1)}"></label>
-      <label class="campo" style="align-self:end"><span><input type="checkbox" id="entLembrar" checked> Lembrar para as próximas notas deste fornecedor</span></label></div>
-    <input type="hidden" id="entCtx" value="${esc(idNota)}|${esc(idItem)}">`, true);
+/** Modelos do texto: palavras com número (sem medidas como 12V, 2MP) + a letra/sigla curta que vem logo depois
+    ("AMT 2018 E" → 2018E; "AMT 2018 EG" → 2018EG; "VIP 1220 D" → 1220D), para não confundir variações do mesmo modelo. */
+function modelosDe(s) {
+  const PARE = new Set(['DE', 'DO', 'DA', 'COM', 'PARA', 'KIT', 'LED', 'USB', 'POE', 'HD', 'FULL', 'TIPO', 'CABO', 'CM', 'MM', 'COR', 'EM', 'SEM', 'UP']);
+  const t = String(s || '').toUpperCase().normalize('NFD').replace(/\p{M}/gu, '').split(/[^A-Z0-9-]+/).filter(Boolean);
+  const out = new Set();
+  t.forEach((w, i) => {
+    if (!/\d/.test(w) || w.length < 3 || /^\d+(V|W|MM|M|MP|GB|VA|DB|DBI|K|P|ML|A|MAH|AH)$/.test(w)) return;
+    const ant = t[i - 1], prox = t[i + 1];
+    const linha = ant && /^[A-Z]{2,5}$/.test(ant) && !PARE.has(ant) && ant !== 'E' ? ant : '';          // VIP, VHD, AMT, XB, MHDX…
+    const sufixo = prox && /^[A-Z]{1,3}$/.test(prox) && !PARE.has(prox) ? prox : '';   // E, EG, D, B, SD… (depois de um modelo, "E" é sufixo)
+    out.add(linha + w + (sufixo || ''));
+  });
+  return out;
 }
+
 const listaProdutosEnt = ps => `<table class="tabela">${ps.map(p => `<tr><td><b>${esc(p.codigo || '')}</b> ${esc(p.nome || '')}<br><small class="mut">📍 ${esc(p.localizacao || p.unidade || '—')} · estoque ${N(p.saldo)} · ${p.gtin ? 'GTIN ' + esc(p.gtin) : 'sem GTIN'}${p.tipo === 'K' ? ' · KIT' : ''}</small></td>
   <td class="dir"><button class="btn pri peq" data-a="entEscolher" data-p="${esc(p.id)}" ${p.tipo === 'K' ? 'disabled title="Kit não recebe estoque"' : ''}>Usar este</button></td></tr>`).join('')}</table>`;
 async function entProdBuscar() {
