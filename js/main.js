@@ -6,7 +6,7 @@ function menu() {
   const itens = [
     ['', 'inicio', '⌂', 'Início'],
     ['Comercial'], ['', 'vendas', '📈', 'Vendas'], ['', 'pedidos', '🧾', 'Pedidos'], ['', 'clientes', '👤', 'Clientes'],
-    ...(veML() ? [['', 'ml', '🛍', 'Mercado Livre', D.ml ? D.ml.perguntas.filter(q => q.status === 'UNANSWERED').length : 0]] : []),
+    ...(veML() ? [['', 'ml', '🛍', 'Mercado Livre', D.ml ? D.ml.perguntas.filter(perguntaPendente).length : 0]] : []),
     ['Intranet'], ['', 'solicitacoes', '📨', 'Solicitações', minhasPendentes().length], ['', 'suporte', '🔧', 'Suporte e RMA'],
     ['Equipe'], ['', 'checklist', '☑', 'Checklist do dia'],
     ...(temEquipe() ? [['', 'supervisao', '👥', 'Supervisão']] : []),

@@ -11,6 +11,9 @@ const SUBSTATUS_NOME = {
   in_hub: 'No centro de distribuição', picked_up: 'Coletado', waiting_for_withdrawal: 'Aguardando retirada', delayed: 'Atrasado',
 };
 const NIVEL_REP = { '5_green': '🟢 Verde', '4_light_green': '🟢 Verde-claro', '3_yellow': '🟡 Amarelo', '2_orange': '🟠 Laranja', '1_red': '🔴 Vermelho' };
+/** Perguntas que aparecem para responder: só de anúncios ativos e da segunda-feira da semana passada para cá. */
+function inicioSemanaPassada() { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7) - 7); return d; }
+const perguntaPendente = q => q.status === 'UNANSWERED' && q.item_status === 'active' && new Date(q.data) >= inicioSemanaPassada();
 const tempoDesde = d => { const m = Math.round((Date.now() - new Date(d)) / 60000); return m < 60 ? `${m} min` : m < 1440 ? `${Math.round(m / 60)} h` : `${Math.round(m / 1440)} dia(s)`; };
 
 async function carregarML(forcar) {
@@ -40,7 +43,8 @@ function vML() {
   const imprimir = ped.filter(p => p.envio_status === 'ready_to_ship' && p.envio_substatus === 'ready_to_print');
   const atrasados = ped.filter(p => ['handling', 'ready_to_ship'].includes(p.envio_status) && p.prazo_despacho && new Date(p.prazo_despacho) < agora);
   const vencendo = ped.filter(p => ['handling', 'ready_to_ship'].includes(p.envio_status) && p.prazo_despacho && new Date(p.prazo_despacho) >= agora && new Date(p.prazo_despacho) - agora < 24 * 3600e3);
-  const semResp = D.ml.perguntas.filter(q => q.status === 'UNANSWERED').sort((a, b) => new Date(a.data) - new Date(b.data));
+  const semResp = D.ml.perguntas.filter(perguntaPendente).sort((a, b) => new Date(a.data) - new Date(b.data));
+  const ocultas = D.ml.perguntas.filter(q => q.status === 'UNANSWERED' && !perguntaPendente(q)).length;
   const recl = D.ml.reclamacoes.filter(c => c.status === 'opened');
   const rep = st.reputacao || {};
   const hoje0 = new Date(); hoje0.setHours(0, 0, 0, 0);
@@ -66,7 +70,7 @@ function vML() {
       <div class="card kpi-card"><div class="rot">Mensagens não lidas</div><div class="val ${st.mensagens_nao_lidas ? 'c-med' : ''}">${st.mensagens_nao_lidas ?? '—'}</div><div class="sub">pós-venda (responder no ML)</div></div>
       <div class="card kpi-card"><div class="rot">Pedidos (60 dias)</div><div class="val">${ped.length}</div><div class="sub">${R0(soma(ped.filter(p => p.status !== 'cancelled').map(p => +p.total || 0)))}</div></div></div>
 
-    <div class="card mt"><div class="secao-titulo"><h2>Perguntas sem resposta</h2><small>Responda em até 1 hora: a velocidade conta para a venda</small></div>
+    <div class="card mt"><div class="secao-titulo"><h2>Perguntas sem resposta</h2><small>Anúncios ativos, desde ${inicioSemanaPassada().toLocaleDateString('pt-BR')} · responda em até 1 hora${ocultas ? ` · ${ocultas} antiga(s) ou de anúncio pausado ocultada(s)` : ''}</small></div>
       ${semResp.length ? semResp.map(q => `<div class="coment"><div class="meta">${q.item_link ? `<a href="${esc(q.item_link)}" target="_blank" rel="noopener">${esc(q.item_titulo || q.item_id)}</a>` : esc(q.item_titulo || q.item_id)} · há <b class="${(agora - new Date(q.data)) > 3600e3 ? 'c-ruim' : ''}">${tempoDesde(q.data)}</b></div>
         <p style="font-size:15px">❓ ${esc(q.texto)}</p>
         <textarea id="resp_${q.id}" rows="2" maxlength="2000" placeholder="Escreva a resposta… (o cliente vê exatamente este texto)"></textarea>
