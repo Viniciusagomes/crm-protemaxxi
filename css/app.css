@@ -352,26 +352,60 @@ body.tv .so-normal { display: none !important; }
 /* ── TV do estoque (segunda tela) ── */
 body.tvestoque .side { display: none; } body.tvestoque .app { grid-template-columns: 1fr; } body.tvestoque main { max-width: none; padding: 14px 22px; }
 body.tvestoque { background: #0B1F26; color: #F1F5F7; }
-.tv { font-size: 20px; } .tv.pisca .tvvez .tvcard { animation: tvpisca 1s ease-in-out 6; }
-@keyframes tvpisca { 50% { box-shadow: 0 0 0 8px #F5B700; } }
-.tvtopo { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; border-bottom: 2px solid #1E3A44; padding-bottom: 10px; margin-bottom: 12px; }
-.tvtit { font-family: Archivo; font-weight: 800; font-size: 30px; } .tvhora { font-family: Archivo; font-weight: 800; font-size: 40px; }
-.tvcont { display: flex; gap: 22px; font-size: 19px; color: #A9C1CB; } .tvcont b { color: #fff; font-size: 30px; font-family: Archivo; }
-.tvativar { font-size: 22px; padding: 14px 22px; margin: 10px 0; width: 100%; }
-.tvrot { font-family: Archivo; font-weight: 800; letter-spacing: .08em; color: #7FA6B5; font-size: 16px; margin: 14px 0 6px; }
-.tvcard { background: #12313B; border-radius: 14px; padding: 14px 18px; border-left: 10px solid #2B7BB9; }
-.tvcard.b { border-left-color: #E63946; } .tvcard.atr { box-shadow: 0 0 0 3px #E63946; }
-.tvcard.grande { padding: 22px 26px; } .tvcard.grande .tvnum { font-size: 54px; } .tvcard.grande .tvitens { font-size: 30px; } .tvcard.grande .tvcli { font-size: 26px; }
-.tvcab { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-.tvnum { font-family: Archivo; font-weight: 800; font-size: 30px; } .tvtempo { color: #F5B700; font-weight: 700; }
-.tvtag { display: inline-block; padding: 3px 12px; border-radius: 99px; font-weight: 800; font-size: 16px; vertical-align: middle; margin-left: 8px; background: #2B7BB9; }
-.tvtag.balcao { background: #E63946; } .tvtag.envio { background: #6C4AB6; } .tvtag.mkt { background: #F5B700; color: #222; }
-.tvcli { color: #CFE0E6; margin: 4px 0 8px; } .tvcli small { color: #8FB0BC; }
-.tvitens { width: 100%; border-collapse: collapse; } .tvitens td { padding: 5px 8px; border-top: 1px solid #1E3A44; vertical-align: top; }
-.tvitens .q { font-family: Archivo; font-weight: 800; width: 1%; white-space: nowrap; color: #F5B700; } .tvitens .loc { white-space: nowrap; text-align: right; font-weight: 700; color: #8EE3A8; }
-.tvitens .mais { color: #8FB0BC; font-style: italic; }
-.tvcobrar { margin-top: 10px; font-size: 26px; background: #0B1F26; border-radius: 10px; padding: 8px 14px; } .tvcobrar b { color: #8EE3A8; font-size: 34px; }
-.tvfila { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 12px; } .tvfila .tvitens { font-size: 17px; }
-.tvchips { display: flex; flex-wrap: wrap; gap: 8px; } .tvchips span { background: #12313B; border-radius: 99px; padding: 6px 14px; font-size: 18px; }
-.tvvazio { text-align: center; font-size: 34px; padding: 60px 0; color: #8EE3A8; font-family: Archivo; font-weight: 800; }
-.tvrodape { margin-top: 18px; color: #5F8592; font-size: 14px; text-align: center; }
+.tv { font-size: 20px; } .tv.pisca .tvcmd.agora { animation: tvpisca 1s ease-in-out 6; }
+@keyframes tvpisca { 50% { box-shadow: 0 0 0 10px #FFC72C; } }
+.tvtopo { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; background: #DA291C; color: #fff; border-radius: 14px; padding: 10px 22px; margin-bottom: 14px; }
+.tvtit { font-family: Archivo; font-weight: 800; font-size: 34px; letter-spacing: .04em; } .tvhora { font-family: Archivo; font-weight: 800; font-size: 46px; color: #FFC72C; }
+.tvcont { display: flex; gap: 12px; flex-wrap: wrap; } .tvcont > div { background: rgba(0,0,0,.25); border-radius: 12px; padding: 4px 16px; font-size: 18px; font-weight: 700; display: flex; align-items: baseline; gap: 8px; }
+.tvcont b { font-family: Archivo; font-size: 36px; color: #FFC72C; }
+.tvativar { font-size: 24px; padding: 16px 22px; margin: 0 0 12px; width: 100%; }
+.tvcorpo { display: grid; grid-template-columns: 1fr 380px; gap: 16px; align-items: start; }
+.tvkds { display: grid; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: 14px; align-items: start; }
+.tvcmd { background: #fff; color: #111; border-radius: 12px; overflow: hidden; border: 4px solid #2B7BB9; }
+.tvcmd.b { border-color: #DA291C; } .tvcmd.e { border-color: #6C4AB6; } .tvcmd.m { border-color: #F5B700; }
+.tvcmd.agora { grid-column: span 2; border-width: 6px; box-shadow: 0 0 0 4px #FFC72C; }
+.tvagora { background: #FFC72C; color: #111; font-family: Archivo; font-weight: 800; font-size: 26px; text-align: center; padding: 4px; letter-spacing: .1em; }
+.tvcmdtopo { display: flex; align-items: center; gap: 12px; padding: 8px 14px; color: #fff; background: #2B7BB9; }
+.tvcmd.b .tvcmdtopo { background: #DA291C; } .tvcmd.e .tvcmdtopo { background: #6C4AB6; } .tvcmd.m .tvcmdtopo { background: #F5B700; color: #111; }
+.tvnum { font-family: Archivo; font-weight: 800; font-size: 40px; line-height: 1; } .tvcmd.agora .tvnum { font-size: 60px; }
+.tvtipo { font-weight: 800; font-size: 20px; flex: 1; text-transform: uppercase; }
+.tvrel { font-family: Archivo; font-weight: 800; font-size: 24px; padding: 4px 12px; border-radius: 10px; background: #1E9E4A; color: #fff; white-space: nowrap; }
+.tvrel.a { background: #FFC72C; color: #111; } .tvrel.r { background: #111; color: #FF5A4E; animation: tvpulsa 1.2s infinite; }
+@keyframes tvpulsa { 50% { opacity: .55; } }
+.tvcli { font-size: 22px; font-weight: 700; padding: 8px 14px; background: #F2F4F5; border-bottom: 2px solid #C9D1D5; } .tvcli small { color: #555; font-weight: 500; }
+.tvcmd.agora .tvcli { font-size: 28px; }
+.tvtab { width: 100%; border-collapse: collapse; font-size: 22px; } .tvcmd.agora .tvtab { font-size: 30px; }
+.tvtab th { background: #263238; color: #fff; font-size: .7em; text-transform: uppercase; letter-spacing: .06em; padding: 6px 10px; text-align: left; border: 2px solid #263238; }
+.tvtab td { border: 2px solid #9AA6AC; padding: 8px 10px; vertical-align: middle; } .tvtab tbody tr:nth-child(even) td { background: #EEF3F5; }
+.tvtab .sku { font-family: Archivo; font-weight: 800; white-space: nowrap; width: 1%; }
+.tvtab .nome { font-weight: 600; line-height: 1.2; } .tvtab .loc { font-size: .7em; color: #1E7A3E; font-weight: 800; margin-top: 2px; }
+.tvtab .qtd { text-align: center; width: 1%; white-space: nowrap; } .tvtab td.qtd { font-family: Archivo; font-weight: 800; font-size: 1.5em; background: #FFF4CC !important; }
+.tvtab .val { text-align: right; white-space: nowrap; width: 1%; }
+.tvmais { padding: 6px 14px; font-style: italic; color: #555; font-size: 18px; }
+.tvcmdpe { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 8px 14px; background: #F2F4F5; font-size: 18px; font-weight: 600; } .tvcmdpe b { color: #1E7A3E; font-size: 24px; }
+.tvsobra { background: #12313B; border: 3px dashed #4C7584; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: Archivo; font-weight: 800; font-size: 60px; color: #FFC72C; min-height: 160px; }
+.tvsobra small { font-size: 20px; color: #CFE0E6; }
+.tvlado { display: flex; flex-direction: column; gap: 14px; }
+.tvpainel { background: #12313B; border-radius: 12px; overflow: hidden; border: 3px solid #1E3A44; }
+.tvptit { font-family: Archivo; font-weight: 800; font-size: 22px; padding: 8px 14px; background: #1E3A44; letter-spacing: .04em; } .tvpainel.pag .tvptit { background: #6C4AB6; }
+.tvsenhas { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; padding: 10px; }
+.tvsenha { background: #0B1F26; border: 2px solid #3E6170; border-radius: 10px; text-align: center; padding: 6px 4px; } .tvsenha b { display: block; font-family: Archivo; font-size: 32px; color: #8EE3A8; } .tvsenha small { font-size: 15px; color: #A9C1CB; }
+.tvplista { display: flex; flex-direction: column; }
+.tvpitem { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-top: 2px solid #1E3A44; } .tvpitem:first-child { border-top: 0; }
+.tvpinfo { flex: 1; display: flex; flex-direction: column; min-width: 0; } .tvpinfo b { font-family: Archivo; font-size: 30px; color: #FFC72C; line-height: 1; }
+.tvpinfo span { font-size: 19px; font-weight: 700; } .tvpinfo small { font-size: 16px; color: #A9C1CB; }
+.tvmaisbtn { width: 64px; height: 64px; border-radius: 50%; border: 0; background: #FFC72C; color: #111; font-family: Archivo; font-weight: 800; font-size: 44px; line-height: 1; cursor: pointer; flex: none; }
+.tvmaisbtn:hover { background: #fff; }
+.tvnada { padding: 14px; color: #6F909C; font-size: 18px; text-align: center; grid-column: 1 / -1; }
+.tvfundo { position: fixed; inset: 0; background: rgba(0,0,0,.75); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 30px; }
+.tvjanela { background: #fff; color: #111; border-radius: 14px; width: min(1100px, 100%); max-height: 100%; overflow: auto; border: 6px solid #6C4AB6; }
+.tvjtopo { display: flex; justify-content: space-between; align-items: center; background: #6C4AB6; color: #fff; padding: 10px 18px; }
+.tvx { font-size: 24px; font-weight: 800; background: #fff; color: #111; border: 0; border-radius: 10px; padding: 10px 18px; cursor: pointer; }
+.tvjcampos { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); border-bottom: 2px solid #9AA6AC; }
+.tvjcampos > div { padding: 10px 18px; border: 1px solid #DDE3E6; display: flex; flex-direction: column; } .tvjcampos span { font-size: 15px; color: #555; text-transform: uppercase; letter-spacing: .05em; } .tvjcampos b { font-size: 26px; }
+.tvjaviso { padding: 12px 18px; background: #F3EEFF; font-size: 20px; font-weight: 600; }
+.tvvazio { text-align: center; font-size: 36px; padding: 60px 0; color: #8EE3A8; font-family: Archivo; font-weight: 800; grid-column: 1 / -1; }
+.tvrodape { margin-top: 16px; color: #7FA6B5; font-size: 16px; text-align: center; } .tvrodape span { margin: 0 8px; font-weight: 700; }
+.tvrodape .v { color: #3CCB6E; } .tvrodape .a { color: #FFC72C; } .tvrodape .r { color: #FF5A4E; }
+@media (max-width: 1300px) { .tvcorpo { grid-template-columns: 1fr; } .tvcmd.agora { grid-column: 1 / -1; } }
+@media (max-width: 700px) { .tvkds { grid-template-columns: 1fr; } .tvcmd.agora { grid-column: auto; } }
