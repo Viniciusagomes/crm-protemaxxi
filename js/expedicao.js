@@ -147,7 +147,7 @@ function vExpedicao() {
   const atrasados = aFazer.filter(x => x.atrasado);
   const contHoje = EXP.cont.filter(c => c.data === hojeSP() && c.status !== 'recusado');
   const abas = [['pedidos', '🏪 Balcão', aFazer.filter(x => x.loja).length], ['envios', '🚚 Envios', aFazer.filter(x => !x.loja).length],
-    ['aprovacao', '💳 Aguardando aprovação', todos.filter(x => x.etapa === 'aguardando').length], ['contagem', '🔢 Contagem do dia', `${contHoje.length}/${EXP.cfg.meta_contagem}`], ['estoque', '📉 Estoque baixo', EXP.alertas.length], ['indicadores', '📊 Indicadores', '']];
+    ['aprovacao', '💳 Aguardando aprovação', todos.filter(x => x.etapa === 'aguardando').length], ['entrada', '📥 Entrada de NF', ENT.notas ? ENT.notas.filter(n => ['a_receber', 'conferindo', 'divergente'].includes(n.status)).length : ''], ['contagem', '🔢 Contagem do dia', `${contHoje.length}/${EXP.cfg.meta_contagem}`], ['estoque', '📉 Estoque baixo', EXP.alertas.length], ['indicadores', '📊 Indicadores', '']];
   return topo('Expedição e estoque', `Pedidos de loja e de marketplaces desde ${fmtCurta(EXP.cfg.inicio)} · atualizados do Tiny a cada 10 min`,
     `<button class="btn" data-a="expAtualizar" ${EXP_ATUALIZANDO.v ? 'disabled' : ''}>${EXP_ATUALIZANDO.v ? '⏳ Atualizando…' : '↻ Atualizar'}</button><button class="btn" data-a="expOcorrencia">⚠ Registrar ocorrência</button>`)
     + `<div class="grid g4">
@@ -157,7 +157,7 @@ function vExpedicao() {
       <div class="card kpi-card"><div class="rot">Estoque baixo</div><div class="val ${EXP.alertas.length ? 'c-med' : ''}">${EXP.alertas.length}</div><div class="sub">produtos para pedir compra</div></div></div>
     <div class="chips mt">${abas.map(([k, n, b]) => `<button class="chip ${UI.expAba === k ? 'on' : ''}" data-a="expAba" data-v="${k}">${n}${b !== '' ? `<span class="n">${b}</span>` : ''}</button>`).join('')}</div>
     <div class="mt">${{ pedidos: () => abaPedidos(todos.filter(x => x.loja), 'balcao'), envios: () => abaPedidos(todos.filter(x => !x.loja), 'envios'),
-      aprovacao: () => abaPedidos(todos.filter(x => x.etapa === 'aguardando'), 'aprovacao'), contagem: abaContagem, estoque: abaEstoque, indicadores: abaIndicadores }[UI.expAba]?.() || ''}</div>`;
+      aprovacao: () => abaPedidos(todos.filter(x => x.etapa === 'aguardando'), 'aprovacao'), entrada: abaEntradaNF, contagem: abaContagem, estoque: abaEstoque, indicadores: abaIndicadores }[UI.expAba]?.() || ''}</div>`;
 }
 
 function abaPedidos(todos, modo) {
@@ -290,7 +290,7 @@ function abaIndicadores() {
 async function expAtualizar() {
   if (EXP_ATUALIZANDO.v) return;
   EXP_ATUALIZANDO.v = true; render();
-  try { await carregarExp(true); avisar('Expedição atualizada ✓'); }
+  try { await carregarExp(true); if (ENT.notas) await carregarEntradas(true); avisar('Expedição atualizada ✓'); }
   catch (e) { avisar('Não atualizou: ' + e.message); }
   finally { EXP_ATUALIZANDO.v = false; render(); }
 }
