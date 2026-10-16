@@ -14,18 +14,18 @@ function menu() {
     ...(ehDono() ? [['', 'geral', '◉', 'Visão da equipe']] : []),
     ['', 'metas', '🎯', 'Metas e números'], ['', 'remuneracao', '💰', ehDono() ? 'Remuneração' : 'Meu ganho'],
     ...(temEquipe() || ehDono() ? [['', 'feedbacks', '💬', 'Feedbacks']] : []),
-    ['Sistema'], ...(ehDono() ? [['', 'config', '⚙', 'Configurações']] : []), ['', 'ajuda', '?', 'Como usar'],
+    ['Sistema'], ...(ehDono() ? [['', 'config', '⚙', 'Configurações'], ['', 'logs', '📜', 'Logs']] : []), ['', 'ajuda', '?', 'Como usar'],
   ];
   return itens.map(([g, k, ic, nome, badge]) => g !== '' && !k ? `<div class="grupo">${g}</div>`
     : `<button class="${UI.view === k ? 'on' : ''}" data-a="nav" data-v="${k}"><span class="ic">${ic}</span>${nome}${badge ? `<span class="badge">${badge}</span>` : ''}</button>`).join('');
 }
 const VIEWS_FN = {
   inicio: () => vInicio(), vendas: () => vVendas(), ml: () => vML(), pedidos: () => vPedidos(), clientes: () => vClientes(),
-  solicitacoes: () => vIntranet(), suporte: () => vSuporte(), expedicao: () => vExpedicao(), tvestoque: () => vTVEstoque(),
+  solicitacoes: () => vIntranet(), suporte: () => vSuporte(), expedicao: () => vExpedicao(), tvestoque: () => vTVEstoque(), logs: () => vLogs(),
   checklist: () => vChecklist(), supervisao: () => vSupervisao(), geral: () => vGeral(), metas: () => vMetas(),
   remuneracao: () => vRemuneracao(), feedbacks: () => vFeedbacks(), config: () => vConfig(), ajuda: () => vAjuda(),
 };
-const SO_DONO = ['config', 'geral'];
+const SO_DONO = ['config', 'geral', 'logs'];
 
 function render() {
   if (!D || !EU) return;
@@ -227,6 +227,10 @@ const A = {
   expEtapa: el => expEtapa(el.dataset.id, el.dataset.k),
   expAprovarPag: el => expAprovarPag(el.dataset.id),
   tvAtivar: () => ativarTV(),
+  logPeriodo: el => { UI.logPeriodo = el.dataset.v; render(); },
+  logAbrir: el => { LOGS.aberto = LOGS.aberto === el.dataset.k ? null : el.dataset.k; render(); },
+  logsAtualizar: async () => { try { await carregarLogs(true); render(); avisar('Logs atualizados.'); } catch (e) { avisar(e.message); } },
+  logsCsv: () => baixarLogsCsv(),
   abrirTV: () => { window.open(location.pathname + '#/tvestoque', 'tv-estoque'); },
   expDesfazer: el => expDesfazer(el.dataset.id),
   expOcorrencia: el => expFormOcorrencia(el.dataset.id),
