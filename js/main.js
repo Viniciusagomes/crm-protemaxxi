@@ -8,7 +8,7 @@ function menu() {
     ['Comercial'], ['', 'vendas', '📈', 'Vendas'], ['', 'pedidos', '🧾', 'Pedidos'], ['', 'clientes', '👤', 'Clientes'],
     ...(veML() ? [['', 'ml', '🛍', 'Mercado Livre', D.ml ? D.ml.perguntas.filter(perguntaPendente).length : 0]] : []),
     ...(veExp() ? [['Operação'], ['', 'expedicao', '📦', 'Expedição e estoque', EXP ? EXP.ecom.map(infoPedido).filter(x => !x.despachado && x.atrasado).length : 0]] : []),
-    ['Intranet'], ['', 'solicitacoes', '📨', 'Solicitações', minhasPendentes().length], ['', 'suporte', '🔧', 'Suporte e RMA'],
+    ['Comunicação'], ['', 'solicitacoes', '📨', 'Solicitações', minhasPendentes().length], ['', 'suporte', '🔧', 'Suporte e RMA'],
     ['Equipe'], ['', 'checklist', '☑', 'Checklist do dia'],
     ...(temEquipe() ? [['', 'supervisao', '👥', 'Supervisão']] : []),
     ...(ehDono() ? [['', 'geral', '◉', 'Visão da equipe']] : []),
@@ -127,7 +127,7 @@ function vConfigExtra(tab) {
         <tr><td>Pedidos aguardando detalhe (itens e CPF/CNPJ)</td><td>${fila ?? '—'}</td></tr>
         <tr><td>Pedidos carregados neste navegador</td><td>${D.pedidos.length}</td></tr>
       </tbody></table>
-      <p class="explica">Como funciona: a cada 2 minutos o servidor confere o Tiny. Pedidos e clientes alterados são puxados <b>de hora em hora</b>, e os detalhes dos pedidos vão sendo baixados aos poucos, porque o Tiny limita a 1 chamada por segundo. É tudo <b>só leitura</b>: o CRM nunca altera nada no Tiny.</p>
+      <p class="explica">Como funciona: a cada 2 minutos o servidor confere o Tiny. Pedidos e clientes alterados são puxados <b>a cada 10 minutos</b>, e os detalhes dos pedidos vão sendo baixados aos poucos, porque o Tiny limita a 1 chamada por segundo. É tudo <b>só leitura</b>: a Intranet nunca altera nada no Tiny.</p>
       <button class="btn pri" data-a="syncAgora">↻ Atualizar agora</button></div>
     ${cardTinyV3()}
     <div class="card"><h2>Últimas rodadas</h2><table class="tabela"><thead><tr><th>Quando</th><th>Modo</th><th class="dir">Pedidos</th><th class="dir">Detalhes</th><th class="dir">Contatos</th><th></th></tr></thead><tbody>
@@ -138,7 +138,7 @@ let LOG_SYNC = null, AUDITORIA = null;
 
 // ═══════════════════════════ AJUDA ═══════════════════════════
 vAjuda = function () {
-  return topo('Como usar o CRM', 'A rotina de cada um, em poucos minutos por dia.') + `<div class="grid g2">
+  return topo('Como usar a Intranet', 'A rotina de cada um, em poucos minutos por dia.') + `<div class="grid g2">
   <div class="card explica"><h2>Todo mundo</h2><ul>
     <li><b>Início</b>: o que é seu hoje. Solicitações para você resolver, follow-ups de clientes, checklist e quanto vai ganhar no mês.</li>
     <li><b>Solicitações</b>: em vez de pedir no corredor ou no WhatsApp, abra uma solicitação. Pode ser informação, compra, cotação, cadastro de produto ou RMA. Ela fica com dono, prazo e histórico até ser resolvida.</li>
@@ -234,7 +234,7 @@ const A = {
   expPedirCompra: el => expPedirCompra(el.dataset.id),
   alternarNFAuto: () => alternarNFAuto(),
   conectarML: async () => { try { const r = await chamarFuncao('ml-oauth', { acao: 'iniciar' }); location.href = r.url; } catch (e) { avisar(e.message); } },
-  desconectarML: async () => { if (!confirm('Desconectar o Mercado Livre? O CRM para de acompanhar pedidos e perguntas.')) return; try { await chamarFuncao('ml-oauth', { acao: 'desconectar' }); D.sync.ml = { conectado: false }; D.ml = null; render(); } catch (e) { avisar(e.message); } },
+  desconectarML: async () => { if (!confirm('Desconectar o Mercado Livre? A Intranet para de acompanhar pedidos e perguntas.')) return; try { await chamarFuncao('ml-oauth', { acao: 'desconectar' }); D.sync.ml = { conectado: false }; D.ml = null; render(); } catch (e) { avisar(e.message); } },
   recarregarOS: async () => { await carregarOS(true).catch(e => avisar(e.message)); render(); },
   cfgTiny: () => { UI.view = 'config'; UI.cfgTab = 'tiny'; render(); },
   conectarV3: async () => { try { const r = await chamarFuncao('tiny-oauth', { acao: 'iniciar' }); location.href = r.url; } catch (e) { avisar(e.message); } },
@@ -421,7 +421,7 @@ window.addEventListener('hashchange', () => { const v = location.hash.replace('#
 // ═══════════════════════════ login e início ═══════════════════════════
 function telaLogin(msg = '') {
   document.body.innerHTML = `<div class="login"><form class="caixa" id="formLogin">
-    <img src="img/logo.svg" alt="Protemaxxi"><div class="sub">CRM · Intranet</div>
+    <img src="img/logo.svg" alt="Protemaxxi"><div class="sub">Intranet</div>
     <label>E-mail<input type="email" id="lEmail" autocomplete="username" required></label>
     <label>Senha<input type="password" id="lSenha" autocomplete="current-password" required></label>
     <button class="btn pri" type="submit">Entrar</button><div class="erro" id="lErro">${esc(msg)}</div>
@@ -434,7 +434,7 @@ function telaLogin(msg = '') {
   });
 }
 // ─── proteções do navegador ───
-// Não deixa o CRM ser aberto dentro de outro site (clickjacking).
+// Não deixa a Intranet ser aberto dentro de outro site (clickjacking).
 if (window.top !== window.self) { try { window.top.location = window.location.href; } catch { document.documentElement.innerHTML = ''; } }
 // Sai sozinho depois de 8 horas sem uso.
 const LIMITE_OCIOSO = 8 * 3600e3;
@@ -468,7 +468,7 @@ async function telaMFAVerificar() {
   const { data } = await sb.auth.mfa.listFactors();
   const f = data?.totp?.[0];
   if (!f) return telaMFACadastrar();
-  caixaMFA(`<p style="text-align:center;color:#A9B7C4;font-size:14px">Abra o aplicativo autenticador no seu celular e digite o código do <b>CRM Protemaxxi</b>.</p>${campoCodigo('Código de 6 números')}`);
+  caixaMFA(`<p style="text-align:center;color:#A9B7C4;font-size:14px">Abra o aplicativo autenticador no seu celular e digite o código da <b>Intranet Protemaxxi</b> (ou "CRM Protemaxxi", se cadastrou antes).</p>${campoCodigo('Código de 6 números')}`);
   const ir = () => verificarCodigo(f.id);
   $('#mfaOk').addEventListener('click', ir);
   $('#mfaCodigo').addEventListener('keydown', e => { if (e.key === 'Enter') ir(); });
@@ -478,7 +478,7 @@ async function telaMFACadastrar() {
   // apaga tentativas de cadastro que não foram concluídas
   const { data: lista } = await sb.auth.mfa.listFactors();
   for (const f of (lista?.all || []).filter(f => f.status !== 'verified')) await sb.auth.mfa.unenroll({ factorId: f.id });
-  const { data, error } = await sb.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'CRM Protemaxxi ' + new Date().toISOString().slice(0, 16) });
+  const { data, error } = await sb.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Intranet Protemaxxi ' + new Date().toISOString().slice(0, 16) });
   if (error) { caixaMFA(`<p style="color:#FF8A80">Não deu para iniciar o cadastro do 2FA: ${esc(error.message)}</p>`); return; }
   caixaMFA(`<p style="color:#A9B7C4;font-size:14px;margin-top:0">Por segurança, o seu acesso precisa de um <b>código do celular</b> além da senha. É só na primeira vez:</p>
     <ol style="color:#C9D3DC;font-size:13.5px;padding-left:18px;margin:0 0 12px">

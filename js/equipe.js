@@ -701,7 +701,7 @@ function vConfig() {
       <label class="campo mt">Encargos estimados sobre salário e comissões (CLT), em %<input type="number" step="any" value="${D.config.encargos}" data-c="set" data-t="num" data-path="config.encargos"><small class="mut">Simples Nacional (comércio): ~35–40% (FGTS, férias + 1/3, 13º e provisões). Confirme com o contador.</small></label>
       <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" ${D.config.dsr ? 'checked' : ''} data-c="set" data-t="bool" data-path="config.dsr"> Calcular DSR sobre as comissões (obrigatório para CLT)</label>
       <label class="campo mt">Feriados (um por linha, AAAA-MM-DD): não contam no checklist e entram no DSR<textarea data-c="feriados" rows="5">${esc(D.config.feriados.join('\n'))}</textarea></label></div>
-    <div class="card"><h2>Backup</h2><p class="explica">Os dados ficam no banco do CRM (Supabase, em São Paulo). Dá para baixar uma cópia de tudo o que está carregado agora, em JSON.</p>
+    <div class="card"><h2>Backup</h2><p class="explica">Os dados ficam no banco da Intranet (Supabase, em São Paulo). Dá para baixar uma cópia de tudo o que está carregado agora, em JSON.</p>
       <div class="acoes"><button class="btn" data-a="exportar">⬇ Baixar cópia</button></div></div></div>`;
   }
   return topo('Configurações', 'Pessoas, logins, tarefas, metas, regras de ganho, solicitações e integração com o Tiny.') + `<div class="cfg-tabs">${tabs.map(([k, n]) => `<button class="btn ${UI.cfgTab === k ? 'on' : ''}" data-a="cfgTab" data-v="${k}">${n}</button>`).join('')}</div>` + corpo;

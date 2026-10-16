@@ -38,7 +38,7 @@ function vML() {
   const st = D.sync.ml || {};
   if (!st.conectado) {
     return topo('Mercado Livre', '') + `<div class="card em-breve"><h2>Mercado Livre não conectado</h2>
-      <p class="explica">${st.erro ? `⚠ ${esc(st.erro)}<br><br>` : ''}Conectando, o CRM passa a acompanhar os pedidos, as etiquetas e notas fiscais, as perguntas (com resposta direto daqui), as reclamações, as mensagens e a reputação da conta.</p>
+      <p class="explica">${st.erro ? `⚠ ${esc(st.erro)}<br><br>` : ''}Conectando, a Intranet passa a acompanhar os pedidos, as etiquetas e notas fiscais, as perguntas (com resposta direto daqui), as reclamações, as mensagens e a reputação da conta.</p>
       ${ehDono() ? '<button class="btn pri" data-a="conectarML">🔗 Conectar ao Mercado Livre</button>' : '<p class="mut">Peça ao administrador para conectar.</p>'}</div>`;
   }
   if (!D.ml) { carregarML().then(render).catch(e => avisar(e.message)); return topo('Mercado Livre', '') + '<div class="card vazio">Carregando o Mercado Livre…</div>'; }
@@ -124,15 +124,15 @@ function blocoFaturamento(semNF) {
   const borda = { ok: 'var(--ok)', aviso: 'var(--med)', erro: 'var(--ruim)', ja_tem_nf: 'var(--ok)', nf_pendente: 'var(--med)', xml_pendente: 'var(--med)' };
   return `<div class="card mt"><div class="secao-titulo"><h2>🧾 Faturamento (NF pelo Tiny)</h2>
       <div class="acoes">${ehDono() ? `<button class="btn ${D.ml.fiscal?.automatico ? 'pri' : ''}" data-a="alternarNFAuto">${D.ml.fiscal?.automatico ? '⚡ Automático: LIGADO' : '⚡ Automático: desligado'}</button>` : `<span class="tag ${D.ml.fiscal?.automatico ? 'ok' : ''}">${D.ml.fiscal?.automatico ? '⚡ Automático ligado' : 'Manual'}</span>`}<button class="btn" data-a="conferirNF">🔍 Conferir pedidos</button>${prontos.length > 1 ? `<button class="btn pri" data-a="emitirTodasNF">Emitir todas as liberadas (${prontos.length})</button>` : ''}</div></div>
-    <p class="explica" style="margin-top:0">O CRM confere cada pedido (produto, NCM, GTIN, origem, CFOP, endereço, CPF/CNPJ, unidade, peso e valor). Se estiver tudo certo, <b>Emitir NF</b> gera a nota no Tiny, confere o CFOP, transmite à SEFAZ e <b>importa o XML autorizado no envio do Mercado Livre</b>, o que libera a etiqueta. Depois é só imprimir.
-      ${D.ml.fiscal?.automatico ? '<br><b>⚡ Automático ligado:</b> a cada 5 minutos o CRM confere os pedidos novos e emite sozinho os que passaram em tudo (verde), já enviando o XML ao ML. Os que tiverem aviso ou erro ficam aqui esperando uma pessoa.' : ''}</p>
+    <p class="explica" style="margin-top:0">A Intranet confere cada pedido (produto, NCM, GTIN, origem, CFOP, endereço, CPF/CNPJ, unidade, peso e valor). Se estiver tudo certo, <b>Emitir NF</b> gera a nota no Tiny, confere o CFOP, transmite à SEFAZ e <b>importa o XML autorizado no envio do Mercado Livre</b>, o que libera a etiqueta. Depois é só imprimir.
+      ${D.ml.fiscal?.automatico ? '<br><b>⚡ Automático ligado:</b> a cada 5 minutos a Intranet confere os pedidos novos e emite sozinha os que passaram em tudo (verde), já enviando o XML ao ML. Os que tiverem aviso ou erro ficam aqui esperando uma pessoa.' : ''}</p>
     ${semConf.length ? `<div class="alerta med"><span class="ic">⚠</span><span>${semConf.length} pedido(s) aguardando NF ainda não conferido(s). Clique em "Conferir pedidos".</span></div>` : ''}
     ${confs.length ? confs.map(c => `<div class="coment" style="border-left-color:${borda[c.status] || 'var(--borda-forte)'}">
         <div class="secao-titulo" style="margin:0"><div><b>Pedido ${esc(c.pedido_numero || '')}</b> · ${esc(c.cliente || '')} · ${esc(c.uf || '')} · CFOP ${esc(c.cfop_previsto || '—')} · ${R(c.total)}</div>
         <div class="acoes"><span class="tag ${COR_CONF[c.status] || ''}">${NOME_CONF[c.status] || esc(c.status)}</span>${['ok', 'aviso', 'nf_pendente'].includes(c.status) ? `<button class="btn pri peq" data-a="emitirNF" data-id="${esc(c.tiny_pedido_id)}" data-num="${esc(c.pedido_numero || '')}" data-st="${c.status}">${c.status === 'nf_pendente' ? 'Transmitir NF' : 'Emitir NF'}</button>` : ''}${c.status === 'xml_pendente' ? `<button class="btn pri peq" data-a="enviarXmlNF" data-id="${esc(c.tiny_pedido_id)}" data-num="${esc(c.pedido_numero || '')}">Enviar XML ao ML</button>` : ''}</div></div>
         <ul class="pend" style="margin-top:6px">${(c.checagens || []).filter(x => x.nivel !== 'ok' || c.status === 'ok' || c.status === 'ja_tem_nf').map(x => `<li class="c-${x.nivel === 'erro' ? 'ruim' : x.nivel === 'aviso' ? 'med' : 'ok'}">${x.nivel === 'erro' ? '✖' : x.nivel === 'aviso' ? '⚠' : '✓'} ${esc(x.texto)}</li>`).join('')}</ul>
         <small class="mut">Conferido ${new Date(c.conferido_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}${c.conferido_por ? ' por ' + esc(nomeP(c.conferido_por)) : ''}</small></div>`).join('') : '<div class="vazio">Nada conferido ainda.</div>'}
-    ${(D.ml.emissoes || []).length ? `<h3 class="mt">Últimas emissões pelo CRM</h3><table class="tabela"><tbody>${D.ml.emissoes.slice(0, 10).map(e => `<tr><td><small>${new Date(e.quando).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</small></td><td>${e.numero ? 'NF ' + esc(e.numero) : '—'}<br><small>${esc(nomeP(e.pessoa_id))}</small></td><td>${e.erro ? `<span class="c-ruim">${esc(e.erro)}</span>` : `<span class="tag ok">${esc(e.situacao || 'emitida')}</span>`}</td></tr>`).join('')}</tbody></table>` : ''}
+    ${(D.ml.emissoes || []).length ? `<h3 class="mt">Últimas emissões pela Intranet</h3><table class="tabela"><tbody>${D.ml.emissoes.slice(0, 10).map(e => `<tr><td><small>${new Date(e.quando).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</small></td><td>${e.numero ? 'NF ' + esc(e.numero) : '—'}<br><small>${esc(nomeP(e.pessoa_id))}</small></td><td>${e.erro ? `<span class="c-ruim">${esc(e.erro)}</span>` : `<span class="tag ok">${esc(e.situacao || 'emitida')}</span>`}</td></tr>`).join('')}</tbody></table>` : ''}
   </div>`;
 }
 async function conferirNF() {
@@ -206,7 +206,7 @@ async function imprimirEtiquetas(envios) {
 
 async function alternarNFAuto() {
   const lig = !D.ml.fiscal?.automatico;
-  if (lig && !confirm('Ligar o faturamento automático?\n\nA cada 5 minutos o CRM vai conferir os pedidos do Mercado Livre e EMITIR SOZINHO a NF dos que passarem em todas as checagens (100% verde), já enviando o XML ao ML.\n\nPedidos com aviso ou erro continuam esperando uma pessoa.')) return;
+  if (lig && !confirm('Ligar o faturamento automático?\n\nA cada 5 minutos a Intranet vai conferir os pedidos do Mercado Livre e EMITIR SOZINHA a NF dos que passarem em todas as checagens (100% verde), já enviando o XML ao ML.\n\nPedidos com aviso ou erro continuam esperando uma pessoa.')) return;
   try {
     const { data } = await sb.from('config').select('valor').eq('chave', 'fiscal').single();
     await ok(sb.from('config').update({ valor: { ...data.valor, automatico: lig } }).eq('chave', 'fiscal'));
