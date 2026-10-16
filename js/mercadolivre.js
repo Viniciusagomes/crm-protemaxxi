@@ -106,21 +106,21 @@ async function responderML(id) {
 }
 
 // ─── Faturamento: conferência fiscal + emissão da NF pelo Tiny ───
-const COR_CONF = { ok: 'ok', aviso: 'med', erro: 'ruim', ja_tem_nf: 'azul', nf_pendente: 'med' };
-const NOME_CONF = { ok: 'Pronto para emitir', aviso: 'Emitir com atenção', erro: 'Bloqueado', ja_tem_nf: 'Já tem NF', nf_pendente: 'NF gerada, falta transmitir' };
+const COR_CONF = { ok: 'ok', aviso: 'med', erro: 'ruim', ja_tem_nf: 'azul', nf_pendente: 'med', xml_pendente: 'med' };
+const NOME_CONF = { ok: 'Pronto para emitir', aviso: 'Emitir com atenção', erro: 'Bloqueado', ja_tem_nf: 'Concluído', nf_pendente: 'NF gerada, falta transmitir', xml_pendente: 'NF autorizada, falta enviar ao ML' };
 function blocoFaturamento(semNF) {
   const pend = new Set(semNF.map(p => String(p.id)));
   const confs = (D.ml.conferencias || []).filter(c => pend.has(String(c.ml_pedido_id)) || (c.status === 'ja_tem_nf' && new Date(c.conferido_em) > Date.now() - 864e5));
   const prontos = confs.filter(c => ['ok', 'aviso', 'nf_pendente'].includes(c.status));
   const semConf = semNF.filter(p => !confs.some(c => String(c.ml_pedido_id) === String(p.id)));
-  const borda = { ok: 'var(--ok)', aviso: 'var(--med)', erro: 'var(--ruim)', ja_tem_nf: 'var(--borda-forte)', nf_pendente: 'var(--med)' };
+  const borda = { ok: 'var(--ok)', aviso: 'var(--med)', erro: 'var(--ruim)', ja_tem_nf: 'var(--ok)', nf_pendente: 'var(--med)', xml_pendente: 'var(--med)' };
   return `<div class="card mt"><div class="secao-titulo"><h2>🧾 Faturamento (NF pelo Tiny)</h2>
       <div class="acoes"><button class="btn" data-a="conferirNF">🔍 Conferir pedidos</button>${prontos.length > 1 ? `<button class="btn pri" data-a="emitirTodasNF">Emitir todas as liberadas (${prontos.length})</button>` : ''}</div></div>
-    <p class="explica" style="margin-top:0">O CRM confere cada pedido (produto, NCM, GTIN, origem, CFOP, endereço, CPF/CNPJ, unidade, peso e valor). Se estiver tudo certo, <b>Emitir NF</b> gera a nota no Tiny, confere o CFOP da nota e transmite à SEFAZ. Autorizada, o próprio Tiny envia a nota ao Mercado Livre: depois é só imprimir a etiqueta.</p>
+    <p class="explica" style="margin-top:0">O CRM confere cada pedido (produto, NCM, GTIN, origem, CFOP, endereço, CPF/CNPJ, unidade, peso e valor). Se estiver tudo certo, <b>Emitir NF</b> gera a nota no Tiny, confere o CFOP, transmite à SEFAZ e <b>importa o XML autorizado no envio do Mercado Livre</b>, o que libera a etiqueta. Depois é só imprimir.</p>
     ${semConf.length ? `<div class="alerta med"><span class="ic">⚠</span><span>${semConf.length} pedido(s) aguardando NF ainda não conferido(s). Clique em "Conferir pedidos".</span></div>` : ''}
     ${confs.length ? confs.map(c => `<div class="coment" style="border-left-color:${borda[c.status] || 'var(--borda-forte)'}">
         <div class="secao-titulo" style="margin:0"><div><b>Pedido ${esc(c.pedido_numero || '')}</b> · ${esc(c.cliente || '')} · ${esc(c.uf || '')} · CFOP ${esc(c.cfop_previsto || '—')} · ${R(c.total)}</div>
-        <div class="acoes"><span class="tag ${COR_CONF[c.status] || ''}">${NOME_CONF[c.status] || esc(c.status)}</span>${['ok', 'aviso', 'nf_pendente'].includes(c.status) ? `<button class="btn pri peq" data-a="emitirNF" data-id="${esc(c.tiny_pedido_id)}" data-num="${esc(c.pedido_numero || '')}" data-st="${c.status}">${c.status === 'nf_pendente' ? 'Transmitir NF' : 'Emitir NF'}</button>` : ''}</div></div>
+        <div class="acoes"><span class="tag ${COR_CONF[c.status] || ''}">${NOME_CONF[c.status] || esc(c.status)}</span>${['ok', 'aviso', 'nf_pendente'].includes(c.status) ? `<button class="btn pri peq" data-a="emitirNF" data-id="${esc(c.tiny_pedido_id)}" data-num="${esc(c.pedido_numero || '')}" data-st="${c.status}">${c.status === 'nf_pendente' ? 'Transmitir NF' : 'Emitir NF'}</button>` : ''}${c.status === 'xml_pendente' ? `<button class="btn pri peq" data-a="enviarXmlNF" data-id="${esc(c.tiny_pedido_id)}" data-num="${esc(c.pedido_numero || '')}">Enviar XML ao ML</button>` : ''}</div></div>
         <ul class="pend" style="margin-top:6px">${(c.checagens || []).filter(x => x.nivel !== 'ok' || c.status === 'ok' || c.status === 'ja_tem_nf').map(x => `<li class="c-${x.nivel === 'erro' ? 'ruim' : x.nivel === 'aviso' ? 'med' : 'ok'}">${x.nivel === 'erro' ? '✖' : x.nivel === 'aviso' ? '⚠' : '✓'} ${esc(x.texto)}</li>`).join('')}</ul>
         <small class="mut">Conferido ${new Date(c.conferido_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}${c.conferido_por ? ' por ' + esc(nomeP(c.conferido_por)) : ''}</small></div>`).join('') : '<div class="vazio">Nada conferido ainda.</div>'}
     ${(D.ml.emissoes || []).length ? `<h3 class="mt">Últimas emissões pelo CRM</h3><table class="tabela"><tbody>${D.ml.emissoes.slice(0, 10).map(e => `<tr><td><small>${new Date(e.quando).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</small></td><td>${e.numero ? 'NF ' + esc(e.numero) : '—'}<br><small>${esc(nomeP(e.pessoa_id))}</small></td><td>${e.erro ? `<span class="c-ruim">${esc(e.erro)}</span>` : `<span class="tag ok">${esc(e.situacao || 'emitida')}</span>`}</td></tr>`).join('')}</tbody></table>` : ''}
@@ -135,7 +135,8 @@ async function emitirNF(id, numero, status, semPerguntar) {
   if (!semPerguntar && !confirm(`Emitir a nota fiscal do pedido ${numero}?${status === 'aviso' ? '\n\nHá avisos na conferência (ex.: peso ou GTIN). A nota pode sair mesmo assim.' : ''}\n\nA nota será transmitida à SEFAZ e enviada ao Mercado Livre. Não dá para desfazer (só cancelar a nota no Tiny).`)) return false;
   try {
     const r = await chamarFuncao('tiny-nf', { acao: 'emitir', tiny_pedido_id: id });
-    avisar(`NF ${r.numero} ${r.situacao || 'emitida'} ✓`);
+    if (r.xml_ok) avisar(`NF ${r.numero} autorizada e enviada ao Mercado Livre ✓ Já pode imprimir a etiqueta.`);
+    else alert(`NF ${r.numero} autorizada, mas o XML não foi para o Mercado Livre:\n${r.ml_xml || ''}\n\nUse "Enviar XML ao ML" depois de resolver.`);
     return true;
   } catch (e) { alert('Não emitida: ' + e.message); return false; }
   finally { await carregarML(true).catch(() => {}); render(); }
@@ -148,4 +149,11 @@ async function emitirTodasNF() {
   let ok = 0;
   for (const c of lista) if (await emitirNF(c.tiny_pedido_id, c.pedido_numero, c.status, true)) ok++;
   avisar(`${ok} de ${lista.length} nota(s) emitida(s).`);
+}
+
+async function enviarXmlNF(id, numero) {
+  if (!confirm(`Enviar ao Mercado Livre o XML da nota do pedido ${numero}?\n\nIsso libera a etiqueta da venda.`)) return;
+  try { await chamarFuncao('tiny-nf', { acao: 'enviar_xml', tiny_pedido_id: id }); avisar('XML importado no Mercado Livre ✓ Já pode imprimir a etiqueta.'); }
+  catch (e) { alert('Não enviado: ' + e.message); }
+  finally { await carregarML(true).catch(() => {}); render(); }
 }

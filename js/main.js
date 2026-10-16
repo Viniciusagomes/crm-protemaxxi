@@ -216,6 +216,7 @@ const A = {
   conferirNF: () => conferirNF(),
   emitirNF: el => emitirNF(el.dataset.id, el.dataset.num, el.dataset.st),
   emitirTodasNF: () => emitirTodasNF(),
+  enviarXmlNF: el => enviarXmlNF(el.dataset.id, el.dataset.num),
   recarregarML: async () => { await carregarML(true).catch(e => avisar(e.message)); render(); },
   sincronizarML: async () => { avisar('Buscando no Mercado Livre… pode levar até 2 minutos.'); try { await chamarFuncao('ml-sync', { acao: 'sincronizar' }); await carregarML(true); render(); avisar('Mercado Livre atualizado.'); } catch (e) { avisar(e.message); } },
   conectarML: async () => { try { const r = await chamarFuncao('ml-oauth', { acao: 'iniciar' }); location.href = r.url; } catch (e) { avisar(e.message); } },
