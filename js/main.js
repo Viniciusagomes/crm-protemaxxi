@@ -6,6 +6,7 @@ function menu() {
   const itens = [
     ['', 'inicio', '⌂', 'Início'],
     ['Comercial'], ['', 'vendas', '📈', 'Vendas'], ['', 'pedidos', '🧾', 'Pedidos'], ['', 'clientes', '👤', 'Clientes'],
+    ...(veML() ? [['', 'ml', '🛍', 'Mercado Livre', D.ml ? D.ml.perguntas.filter(q => q.status === 'UNANSWERED').length : 0]] : []),
     ['Intranet'], ['', 'solicitacoes', '📨', 'Solicitações', minhasPendentes().length], ['', 'suporte', '🔧', 'Suporte e RMA'],
     ['Equipe'], ['', 'checklist', '☑', 'Checklist do dia'],
     ...(temEquipe() ? [['', 'supervisao', '👥', 'Supervisão']] : []),
@@ -18,7 +19,7 @@ function menu() {
     : `<button class="${UI.view === k ? 'on' : ''}" data-a="nav" data-v="${k}"><span class="ic">${ic}</span>${nome}${badge ? `<span class="badge">${badge}</span>` : ''}</button>`).join('');
 }
 const VIEWS_FN = {
-  inicio: () => vInicio(), vendas: () => vVendas(), pedidos: () => vPedidos(), clientes: () => vClientes(),
+  inicio: () => vInicio(), vendas: () => vVendas(), ml: () => vML(), pedidos: () => vPedidos(), clientes: () => vClientes(),
   solicitacoes: () => vIntranet(), suporte: () => vSuporte(),
   checklist: () => vChecklist(), supervisao: () => vSupervisao(), geral: () => vGeral(), metas: () => vMetas(),
   remuneracao: () => vRemuneracao(), feedbacks: () => vFeedbacks(), config: () => vConfig(), ajuda: () => vAjuda(),
@@ -27,7 +28,7 @@ const SO_DONO = ['config', 'geral'];
 
 function render() {
   if (!D || !EU) return;
-  if (SO_DONO.includes(UI.view) && !ehDono()) UI.view = 'inicio';
+  if ((SO_DONO.includes(UI.view) && !ehDono()) || (UI.view === 'ml' && !veML())) UI.view = 'inicio';
   if (UI.view === 'checklist' && !D.pessoas.find(p => p.id === UI.pessoa && p.ativo && pessoasQueVejo().includes(p.id))) UI.pessoa = EU.id;
   const fid = document.activeElement?.dataset?.fid;
   const pos = document.activeElement?.selectionStart;
@@ -211,6 +212,11 @@ const A = {
   },
   verPedido: el => abrirPedido(el.dataset.id),
   verOS: el => abrirOS(el.dataset.id),
+  responderML: el => responderML(el.dataset.id),
+  recarregarML: async () => { await carregarML(true).catch(e => avisar(e.message)); render(); },
+  sincronizarML: async () => { avisar('Buscando no Mercado Livre… pode levar até 2 minutos.'); try { await chamarFuncao('ml-sync', { acao: 'sincronizar' }); await carregarML(true); render(); avisar('Mercado Livre atualizado.'); } catch (e) { avisar(e.message); } },
+  conectarML: async () => { try { const r = await chamarFuncao('ml-oauth', { acao: 'iniciar' }); location.href = r.url; } catch (e) { avisar(e.message); } },
+  desconectarML: async () => { if (!confirm('Desconectar o Mercado Livre? O CRM para de acompanhar pedidos e perguntas.')) return; try { await chamarFuncao('ml-oauth', { acao: 'desconectar' }); D.sync.ml = { conectado: false }; D.ml = null; render(); } catch (e) { avisar(e.message); } },
   recarregarOS: async () => { await carregarOS(true).catch(e => avisar(e.message)); render(); },
   cfgTiny: () => { UI.view = 'config'; UI.cfgTab = 'tiny'; render(); },
   conectarV3: async () => { try { const r = await chamarFuncao('tiny-oauth', { acao: 'iniciar' }); location.href = r.url; } catch (e) { avisar(e.message); } },
@@ -485,6 +491,13 @@ async function iniciar() {
   try { await carregarTudo(); } catch (e) { console.error(e); return telaLogin('Erro ao carregar: ' + e.message); }
   if (!EU) { await sb.auth.signOut(); return telaLogin('Seu login ainda não está ligado a uma pessoa do sistema. Fale com o administrador.'); }
   const v = location.hash.replace('#/', ''); if (VIEWS_FN[v]) UI.view = v;
+  const retornoML = new URLSearchParams(location.search).get('ml');
+  if (retornoML) {
+    history.replaceState(null, '', location.pathname + '#/ml'); UI.view = 'ml';
+    const msg = { ok: '✓ Mercado Livre conectado! Os pedidos e as perguntas começam a chegar em poucos minutos.', negado: 'Você não autorizou o acesso no Mercado Livre.', expirado: 'O pedido de conexão expirou. Clique em Conectar de novo.', erro_token: 'O Mercado Livre recusou a conexão. Confira as chaves e a URL de redirect no app do ML.' }[retornoML] || 'Não foi possível conectar: ' + retornoML;
+    setTimeout(() => avisar(msg), 400);
+    if (retornoML === 'ok') D.sync.ml = { ...(D.sync.ml || {}), conectado: true };
+  }
   const retornoV3 = new URLSearchParams(location.search).get('tinyv3');
   if (retornoV3) {
     history.replaceState(null, '', location.pathname + location.hash);
@@ -497,7 +510,7 @@ async function iniciar() {
   statusSalvo('✓ Conectado');
   render();
   // mantém atualizado: a cada 10 min recarrega pedidos e solicitações; ao voltar para a aba também
-  const atualizar = async () => { try { await Promise.all([carregarPedidos(`${addMes(mesDe(hoje()), -13)}-01`), carregarSolicitacoes(), carregarInteracoes(), carregarBonif(mesDe(hoje())), ok(sb.from('sync_estado').select('*')).then(est => { D.sync = Object.fromEntries(est.map(x => [x.chave, { ...x.valor, em_db: x.atualizado_em }])); })]); if (!$('#modal')) render(); } catch { /* offline */ } };
+  const atualizar = async () => { try { await Promise.all([carregarPedidos(`${addMes(mesDe(hoje()), -13)}-01`), carregarSolicitacoes(), carregarInteracoes(), carregarBonif(mesDe(hoje())), veML() && D.ml ? carregarML(true) : null, ok(sb.from('sync_estado').select('*')).then(est => { D.sync = Object.fromEntries(est.map(x => [x.chave, { ...x.valor, em_db: x.atualizado_em }])); })]); if (!$('#modal')) render(); } catch { /* offline */ } };
   setInterval(atualizar, 10 * 60e3);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !document.activeElement?.matches('input,textarea,select')) atualizar(); });
   let diaAtual = hoje();
