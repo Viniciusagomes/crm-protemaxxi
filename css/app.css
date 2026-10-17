@@ -507,3 +507,23 @@ body.tvestoque .faixa-ml-in small { font-size: 16px; }
 .passos-ml > div { background: var(--card2); border: 1px solid var(--borda); border-radius: 12px; padding: 8px 10px; font-size: 13px; }
 .passos-ml > div > b:first-child { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--verde); color: #fff; font-family: Archivo; margin-right: 6px; }
 @media (max-width: 860px) { .passos-ml { grid-template-columns: 1fr 1fr; } }
+
+/* melhores clientes (segmentos RFM) */
+.segs { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.card.seg-card { padding: 14px; cursor: pointer; display: block; } .card.seg-card.on { border-color: var(--verde); box-shadow: 0 0 0 2px var(--verde); }
+.seg-n { font-family: Archivo; font-weight: 800; font-size: 14px; } .seg-v { font-family: "Archivo Expanded", Archivo, sans-serif; font-weight: 900; font-size: 28px; line-height: 1.1; margin: 4px 0; }
+.seg-acao { font-size: 12px; color: var(--txt2); margin-top: 6px; border-top: 1px dashed var(--borda); padding-top: 6px; }
+.tag.seg-campeoes { background: #FFF1C9; color: #8A5A00; } .tag.seg-fieis { background: var(--ok-bg); color: var(--ok); } .tag.seg-promissores { background: #E8F1F8; color: #2B7BB9; }
+.tag.seg-novos { background: #E6F7EE; color: #178B47; } .tag.seg-em_risco { background: var(--ruim-bg); color: var(--ruim); } .tag.seg-hibernando { background: var(--nulo); color: var(--txt3); }
+.tag.seg-atencao { background: var(--med-bg); color: var(--med); }
+/* prospecção */
+.pro-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
+.pro-card { background: var(--card); border: 1px solid var(--borda); border-radius: var(--raio); padding: 14px; box-shadow: var(--sombra); display: flex; flex-direction: column; gap: 8px; }
+.pro-card.feito { opacity: .6; } .pro-card.feito:hover { opacity: 1; }
+.pro-topo { display: flex; gap: 6px; flex-wrap: wrap; } .pro-nome { font-family: Archivo; font-weight: 800; font-size: 16px; } .pro-nome a { color: var(--txt); text-decoration: none; }
+.pro-motivo { font-size: 13px; color: var(--txt2); } .pro-fone { font-weight: 700; } .pro-fone.sem { display: flex; gap: 6px; } .pro-fone.sem input { flex: 1; border: 1px dashed var(--med); border-radius: 10px; padding: 6px 10px; background: var(--card2); }
+.pro-msg { font-size: 13px; background: var(--card2); min-height: 70px; }
+.pro-res { display: flex; flex-wrap: wrap; gap: 4px; } .pro-res .chip { font-size: 11.5px; padding: 4px 9px; }
+.ficha-crm { margin-top: 12px; padding: 12px; border: 1px solid var(--borda); border-radius: var(--raio); background: var(--card2); }
+.ficha-selos { display: flex; gap: 6px; flex-wrap: wrap; }
+.campo input[type=checkbox] { width: auto; margin-right: 6px; vertical-align: middle; }

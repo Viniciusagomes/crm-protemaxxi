@@ -21,10 +21,16 @@ function filtrarClientes() {
 }
 function vClientes() {
   if (!D.clientes) { carregarClientes().then(render).catch(e => avisar(e.message)); return topo('Clientes', '') + '<div class="card vazio">Carregando a carteira de clientes…</div>'; }
+  UI.cliAba ||= 'carteira';
+  const abasCli = [['carteira', '👤 Carteira'], ['melhores', '🏆 Melhores clientes'], ['prospeccao', '📞 Prospecção de hoje']];
+  const cab = topo('Clientes', `${D.clientes.length} clientes com compra nos últimos 12 meses · ${infoSync()}`, '<button class="btn" data-a="recarregarClientes">↻ Recarregar</button>')
+    + `<div class="chips" style="margin-bottom:14px">${abasCli.map(([k, n]) => `<button class="chip ${UI.cliAba === k ? 'on' : ''}" data-a="cliAba" data-v="${k}">${n}</button>`).join('')}</div>`;
+  if (UI.cliAba === 'melhores') return cab + abaMelhores();
+  if (UI.cliAba === 'prospeccao') return cab + abaProspeccao();
   const lista = filtrarClientes();
   const vendIds = [...new Set(D.clientes.map(c => c.vendedor_id).filter(Boolean))];
   const reativar = D.clientes.filter(c => c.dias_sem_comprar > 90 && c.meses >= 2);
-  return topo('Clientes', `${D.clientes.length} clientes com compra nos últimos 12 meses · ${infoSync()}`, '<button class="btn" data-a="recarregarClientes">↻ Recarregar</button>')
+  return cab
     + `<div class="grid g4"><div class="card kpi-card"><div class="rot">Clientes ativos (90 dias)</div><div class="val">${D.clientes.filter(c => c.dias_sem_comprar <= 90).length}</div></div>
       <div class="card kpi-card"><div class="rot">Para reativar</div><div class="val c-med">${reativar.length}</div><div class="sub">${R0(soma(reativar.map(c => c.total)))} comprados nos 12 meses</div></div>
       <div class="card kpi-card"><div class="rot">Compraram 1 vez só</div><div class="val">${D.clientes.filter(c => c.pedidos === 1).length}</div></div>
@@ -56,6 +62,7 @@ async function abrirCliente(chave) {
     <h2 style="margin-bottom:2px">${esc(nome)}</h2>
     <p class="mut" style="margin-top:0">${[docFmt(c?.doc), c?.cidade && `${c.cidade}/${c.uf || ''}`, c?.fone, c?.email].filter(Boolean).map(esc).join(' · ')} ${wa ? ` · <a class="wa" href="${wa}" target="_blank" rel="noopener">abrir WhatsApp</a>` : ''}</p>
     ${c ? `<div class="grid g4" style="gap:10px"><div class="card kpi-card"><div class="rot">12 meses</div><div class="val" style="font-size:20px">${R0(c.total)}</div></div><div class="card kpi-card"><div class="rot">Pedidos</div><div class="val" style="font-size:20px">${c.pedidos}</div></div><div class="card kpi-card"><div class="rot">Ticket médio</div><div class="val" style="font-size:20px">${R0(c.total / c.pedidos)}</div></div><div class="card kpi-card"><div class="rot">Sem comprar</div><div class="val c-${c.dias_sem_comprar > 90 ? 'med' : 'ok'}" style="font-size:20px">${c.dias_sem_comprar} dias</div></div></div>` : ''}
+    ${blocoFichaCRM(c)}
     <div class="acoes mt"><button class="btn pri" data-a="novaInteracao" data-chave="${esc(chave)}" data-nome="${esc(nome)}">+ Registrar contato</button><button class="btn" data-a="novaSolicitacao" data-chave="${esc(chave)}" data-nome="${esc(nome)}">+ Solicitação sobre este cliente</button></div>
     <div class="grid g2 mt"><div><h3>Histórico de contatos</h3>${ints.length ? ints.map(i => `<div class="coment"><div class="meta">${TIPOS_INT[i.tipo] || i.tipo} · ${esc(pessoa(i.autor_id)?.nome || '')} · ${new Date(i.criado_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}${i.proximo_contato ? ` · <b>próximo contato ${fmtCurta(i.proximo_contato)}</b>${i.feito ? ' ✓' : ''}` : ''}</div><p>${esc(i.texto)}</p></div>`).join('') : '<p class="mut">Nenhum contato registrado ainda.</p>'}
       ${oss.length ? `<h3 class="mt">Ordens de serviço</h3>${oss.slice(0, 10).map(o => `<div class="coment" data-a="verOS" data-id="${o.id}" style="cursor:pointer"><div class="meta">OS ${esc(o.numero || o.id)} · ${o.data ? fmtCurta(o.data) : ''} · <span class="st ${COR_OS[o.situacao] || ''}">${esc(o.situacao || '')}</span></div><p>${esc(o.equipamento || o.descricao_problema || '')}</p></div>`).join('')}` : ''}
