@@ -6,6 +6,7 @@ function menu() {
   const itens = [
     ['', 'inicio', '⌂', 'Início'],
     ['Comercial'], ['', 'vendas', '📈', 'Vendas'], ['', 'pedidos', '🧾', 'Pedidos'], ['', 'clientes', '👤', 'Clientes'],
+    ...(veMonitoria() ? [['', 'monitoria', '🏷', 'Monitoria de preços']] : []),
     ...(veML() ? [['', 'ml', '🛍', 'Mercado Livre', D.ml ? D.ml.perguntas.filter(perguntaPendente).length : 0]] : []),
     ...(veExp() ? [['Operação'], ['', 'expedicao', '📦', 'Expedição e estoque', EXP ? EXP.ecom.map(infoPedido).filter(x => !x.despachado && x.atrasado).length : 0], ['', 'abrirTV', '📺', 'TV do estoque']] : []),
     ['Comunicação'], ['', 'solicitacoes', '📨', 'Solicitações', minhasPendentes().length], ['', 'suporte', '🔧', 'Suporte e RMA'],
@@ -21,7 +22,7 @@ function menu() {
 }
 const VIEWS_FN = {
   inicio: () => vInicio(), vendas: () => vVendas(), ml: () => vML(), pedidos: () => vPedidos(), clientes: () => vClientes(),
-  solicitacoes: () => vIntranet(), suporte: () => vSuporte(), expedicao: () => vExpedicao(), tvestoque: () => vTVEstoque(), logs: () => vLogs(),
+  solicitacoes: () => vIntranet(), suporte: () => vSuporte(), expedicao: () => vExpedicao(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(),
   checklist: () => vChecklist(), supervisao: () => vSupervisao(), geral: () => vGeral(), metas: () => vMetas(),
   remuneracao: () => vRemuneracao(), feedbacks: () => vFeedbacks(), config: () => vConfig(), ajuda: () => vAjuda(),
 };
@@ -29,7 +30,7 @@ const SO_DONO = ['config', 'geral', 'logs'];
 
 function render() {
   if (!D || !EU) return;
-  if ((SO_DONO.includes(UI.view) && !ehDono()) || (UI.view === 'ml' && !veML()) || ((UI.view === 'expedicao' || UI.view === 'tvestoque') && !veExp())) UI.view = 'inicio';
+  if ((SO_DONO.includes(UI.view) && !ehDono()) || (UI.view === 'ml' && !veML()) || (UI.view === 'monitoria' && !veMonitoria()) || ((UI.view === 'expedicao' || UI.view === 'tvestoque') && !veExp())) UI.view = 'inicio';
   document.body.classList.toggle('tvestoque', UI.view === 'tvestoque');
   if (UI.view === 'checklist' && !D.pessoas.find(p => p.id === UI.pessoa && p.ativo && pessoasQueVejo().includes(p.id))) UI.pessoa = EU.id;
   const fid = document.activeElement?.dataset?.fid;
@@ -116,7 +117,7 @@ function vConfigExtra(tab) {
   }
   if (tab === 'solicitacoes') {
     return `<div class="card"><h2>Responsável padrão por tipo</h2><p class="explica" style="margin-top:0">Quando alguém abre uma solicitação, este nome já vem escolhido (dá para trocar na hora).</p>
-      <div class="form-grid">${Object.entries(TIPOS_SOL).filter(([k]) => k !== 'outro').map(([k, t]) => `<label class="campo">${t.ic} ${t.nome}<select data-c="solPadrao" data-k="${k}">${optPessoas(D.config.solicitacoes?.[k] || '', D.pessoas.filter(p => p.ativo), '— a pessoa escolhe —')}</select></label>`).join('')}</div></div>`;
+      <div class="form-grid">${Object.entries(TIPOS_SOL).filter(([k]) => k !== 'outro').map(([k, t]) => `<label class="campo">${t.ic} ${t.nome}${Array.isArray(D.config.solicitacoes?.[k]) ? ` <small class="mut">hoje: ${esc(D.config.solicitacoes[k].map(nomeP).join(' + '))}</small>` : ''}<select data-c="solPadrao" data-k="${k}">${optPessoas(Array.isArray(D.config.solicitacoes?.[k]) ? '' : D.config.solicitacoes?.[k] || '', D.pessoas.filter(p => p.ativo), Array.isArray(D.config.solicitacoes?.[k]) ? '— manter os de hoje —' : '— a pessoa escolhe —')}</select></label>`).join('')}</div></div>`;
   }
   // tiny
   const bf = D.sync.backfill, ult = D.sync.ultimo_incremental?.em, fila = D.sync.fila_detalhe?.pendentes;
@@ -203,6 +204,13 @@ const A = {
     } else { if (document.fullscreenElement) document.exitFullscreen?.(); render(); }
   },
   vendSel: el => { UI.vendSel = el.dataset.v; render(); },
+  vPer: el => { UI.vPer = el.dataset.v; render(); },
+  solPegar: el => solPegar(el.dataset.id).catch(e => avisar(e.message)),
+  monPer: el => { UI.monPer = el.dataset.v; render(); },
+  monSelo: el => { UI.monSelo = el.dataset.v; render(); },
+  monVend: el => { UI.monVend = el.dataset.v; UI.monSelo = 'todos'; render(); },
+  monAtualizar: () => carregarMonitoria(true).then(render).catch(e => avisar(e.message)),
+  monRever: el => monRever(el.dataset.k, el.dataset.s).catch(e => avisar(e.message)),
   syncAgora: async () => {
     avisar('Buscando no Tiny… pode levar até 2 minutos.');
     try {
@@ -400,6 +408,7 @@ const numOuVazio = v => v === '' ? '' : Number(v);
 
 let timerBusca = null;
 const C = {
+  monRevTodos: el => { UI.monRev = el.checked ? 'todos' : ''; render(); },
   ui: el => { UI[el.dataset.k] = el.value; if (el.type === 'search') { clearTimeout(timerBusca); timerBusca = setTimeout(render, 150); } else render(); },
   chk: el => { const r = reg(el.dataset.p, el.dataset.d, true); if (el.checked) r.checks[el.dataset.t] = true; else delete r.checks[el.dataset.t]; marcar('dia', el.dataset.p, el.dataset.d); render(); },
   chkS: el => { const s = semReg(el.dataset.p, el.dataset.s, true); if (el.checked) s[el.dataset.t] = true; else delete s[el.dataset.t]; marcar('sem', el.dataset.p, el.dataset.s); render(); },
@@ -427,9 +436,11 @@ const C = {
   codigos: el => { setPath(el.dataset.path, parseCodigos(el.value)); marcarPath(el.dataset.path); D.bonif = {}; carregarBonif(mesDe(hoje())).then(render); render(); },
   perm: el => { const p = D.pessoas[+el.dataset.i]; p.permissoes = { ...(p.permissoes || {}), [el.dataset.k]: el.checked }; marcar('pessoa', p.id); render(); },
   feriados: el => { D.config.feriados = el.value.split(/\s+/).map(s => s.trim()).filter(s => /^\d{4}-\d{2}-\d{2}$/.test(s)); marcar('config'); render(); },
-  solPadrao: el => { D.config.solicitacoes = { ...(D.config.solicitacoes || {}), [el.dataset.k]: el.value }; marcar('config'); },
+  solPadrao: el => { if (!el.value && Array.isArray(D.config.solicitacoes?.[el.dataset.k])) return; D.config.solicitacoes = { ...(D.config.solicitacoes || {}), [el.dataset.k]: el.value }; marcar('config'); },
   entQtd: el => { if (el.value !== '') entAcao({ acao: 'conferir', id_nota: el.dataset.nota, id_item: el.dataset.item, qtd: Number(el.value) }); },
   solCampo: el => mudarSolicitacao(el.dataset.id, el.dataset.k, el.value).catch(e => avisar(e.message)),
+  solResp: el => solResp(el.dataset.id, el.value, el.checked).catch(e => avisar(e.message)),
+  solFotos: el => { const arqs = [...el.files]; if (arqs.length) solFotos(el.dataset.id, arqs).catch(e => avisar(e.message)); },
   solEtapa: el => mudarEtapa(el.dataset.id, el.value).catch(e => avisar(e.message)),
 };
 
@@ -439,7 +450,22 @@ document.addEventListener('input', e => {
   const el = e.target;
   if (el.dataset.live) { const lb = document.getElementById(el.dataset.live); if (lb) lb.textContent = el.value + '%'; }
   if (el.type === 'search' && el.dataset.c === 'ui') C.ui(el);
+  if (el.dataset.filtro) filtrarLista(el);
 });
+/** Busca instantânea numa lista já desenhada (sem redesenhar a tela): esconde as linhas que não batem. */
+function filtrarLista(el) {
+  const alvo = document.getElementById(el.dataset.filtro); if (!alvo) return;
+  const termos = semAcento(el.value).toLowerCase().split(/\s+/).filter(Boolean);
+  let n = 0;
+  alvo.querySelectorAll('tbody tr, .item-lista').forEach(tr => {
+    const okL = !termos.length || termos.every(t => (tr._txt ||= semAcento(tr.textContent).toLowerCase()).includes(t));
+    tr.hidden = !okL; if (okL) n++;
+  });
+  const cont = document.getElementById(el.dataset.filtro + '_n'); if (cont) cont.textContent = termos.length ? `${n} encontrado(s)` : '';
+}
+const semAcento = s => String(s || '').normalize('NFD').replace(/\p{M}/gu, '');
+/** Caixa de busca + lista com altura máxima e rolagem. */
+const listaCurta = (id, conteudo, ph = 'Buscar…', alta) => `<input type="search" class="busca-lista" data-filtro="${id}" placeholder="${esc(ph)}" autocomplete="off"><div class="conta-lista" id="${id}_n"></div><div class="lista-curta ${alta ? 'alta' : ''}" id="${id}">${conteudo}</div>`;
 window.addEventListener('hashchange', () => { const v = location.hash.replace('#/', ''); if (v && v !== UI.view && VIEWS_FN[v]) { UI.view = v; render(); } });
 
 // ═══════════════════════════ login e início ═══════════════════════════

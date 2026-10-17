@@ -87,7 +87,7 @@ function vVendas() {
       <div class="mini-grid"><div><small>Hoje</small><b>${R0(r.hoje)}</b></div><div><small>Ontem</small><b>${R0(r.ontem)}</b></div><div><small>Pedidos</small><b>${r.pedidos}</b></div>
       <div><small>Ticket médio</small><b>${R0(r.ticket)}</b></div><div><small>Clientes (novos)</small><b>${r.clientes} (${r.novos})</b></div><div><small>${verLoja ? 'Da loja' : 'Mês anterior'}</small><b>${verLoja ? P(r.part) : R0(r.ant)}</b></div></div>
       ${r.aberto > 0.3 ? `<div class="alerta med mt" style="padding:6px 10px"><span class="ic">⚠</span><span>${P(r.aberto)} dos pedidos do mês estão "Em aberto" no Tiny</span></div>` : ''}</div>`; }).join('');
-  const feed = D.pedidos.filter(p => vids.includes(p.vendedor_id) || verLoja).slice(0, 25);
+  const feed = D.pedidos.filter(p => vids.includes(p.vendedor_id) || verLoja).slice(0, 300);
   const sel = UI.vendSel, selRes = res.find(r => r.vid === sel);
   const doSel = D.pedidos.filter(p => p.vendedor_id === sel && valido(p));
   const top = Object.values(doSel.filter(p => p.data.startsWith(m)).reduce((a, p) => { const c = chaveCli(p); (a[c] ||= { chave: c, nome: p.cliente_nome, v: 0, n: 0 }); a[c].v += p.valor; a[c].n++; return a; }, {})).sort((a, b) => b.v - a.v).slice(0, 8);
@@ -95,6 +95,8 @@ function vVendas() {
   const parados = Object.values(porCli).filter(c => c.meses.size >= 2 && (pd(h) - pd(c.ult)) / 864e5 > 90).sort((a, b) => b.v - a.v).slice(0, 10);
   const sits = Object.entries(D.pedidos.filter(p => p.vendedor_id === sel && p.data.startsWith(m)).reduce((a, p) => { a[p.situacao] = (a[p.situacao] || 0) + 1; return a; }, {})).sort((a, b) => b[1] - a[1]);
   return topo('Vendas', `${fmtData(h)} · ${infoSync()}`, `<button class="btn so-normal" data-a="tv">📺 Modo TV</button>${ehDono() ? '<button class="btn so-normal" data-a="syncAgora">↻ Atualizar do Tiny</button>' : ''}<button class="btn so-tv" data-a="tv">Sair do Modo TV</button>`)
+    + blocoPeriodo(vids, verLoja)
+    + `<div class="secao-titulo mt2"><div><div class="eyebrow">Acompanhamento</div><h2 style="margin:2px 0 10px">Mês atual</h2></div></div>`
     + (verLoja ? `<div class="grid g4"><div class="card kpi-card"><div class="rot">Loja no mês</div><div class="val">${R0(somaV(lojaVal))}</div><div class="sub">${lojaAnt ? `${somaV(lojaVal) >= lojaAnt ? '▲' : '▼'} ${P(Math.abs(somaV(lojaVal) / lojaAnt - 1))} vs. mesmo período` : ''}</div></div>
       <div class="card kpi-card"><div class="rot">Projeção da loja</div><div class="val">${R0(du ? somaV(lojaVal) / du * duT : 0)}</div><div class="sub">${du} de ${duT} dias úteis</div></div>
       <div class="card kpi-card"><div class="rot">Hoje</div><div class="val">${R0(somaV(lojaVal.filter(p => p.data === h)))}</div><div class="sub">${lojaVal.filter(p => p.data === h).length} pedido(s)</div></div>
@@ -102,9 +104,9 @@ function vVendas() {
     + `<div class="vcards mt">${cards || '<div class="card vazio">Nenhum vendedor ligado ao Tiny. Configure em Configurações › Logins e acessos.</div>'}</div>
     ${vids.length ? `<div class="card mt"><div class="secao-titulo"><h2>Corrida do mês</h2><small>Venda acumulada dia a dia</small></div>${graficoCorrida(vids, h)}</div>` : ''}
     <div class="grid g2 mt">
-      <div class="card"><div class="secao-titulo"><h2>Últimos pedidos</h2><a href="#/pedidos" class="so-normal">ver todos</a></div><div class="rolagem"><table class="tabela"><tbody>
-        ${feed.map(p => `<tr class="clic" data-a="verPedido" data-id="${p.id}"><td><small>${fmtCurta(p.data)}</small></td><td><b>${esc(p.cliente_nome)}</b><br><small style="color:${corVendedor(p.vendedor_id)}">● ${esc(nomeVendedor(p.vendedor_id))}</small></td><td><span class="tag">${esc(p.situacao)}</span></td><td class="dir num">${R0(p.valor)}</td></tr>`).join('') || '<tr><td class="vazio">Sem pedidos ainda.</td></tr>'}
-      </tbody></table></div></div>
+      <div class="card"><div class="secao-titulo"><h2>Últimos pedidos</h2><a href="#/pedidos" class="so-normal">ver todos</a></div>${listaCurta('vendUltimos', `<table class="tabela"><tbody>
+        ${feed.map(p => `<tr class="clic" data-a="verPedido" data-id="${p.id}"><td><small>${fmtCurta(p.data)}</small><br><small class="mut">#${esc(p.numero || '')}</small></td><td><b>${esc(p.cliente_nome)}</b><br><small style="color:${corVendedor(p.vendedor_id)}">● ${esc(nomeVendedor(p.vendedor_id))}</small></td><td><span class="tag">${esc(p.situacao)}</span></td><td class="dir num">${R0(p.valor)}</td></tr>`).join('') || '<tr><td class="vazio">Sem pedidos ainda.</td></tr>'}
+      </tbody></table>`, 'Buscar cliente, nº do pedido, vendedor…')}</div>
       <div class="card"><div class="secao-titulo"><h2>Últimos 12 meses</h2></div>${grafico12Meses(vids, verLoja)}</div>
     </div>
     ${selRes ? `<div class="card mt"><div class="secao-titulo"><h2>Detalhe: ${esc(nomeVendedor(sel))}</h2><div class="chips so-normal">${vids.map(v => `<button class="chip ${v === sel ? 'on' : ''}" data-a="vendSel" data-v="${v}">${esc(nomeVendedor(v))}</button>`).join('')}</div></div>

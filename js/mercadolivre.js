@@ -95,7 +95,8 @@ function vML() {
       <div class="card"><h2>Reclamações abertas</h2>${recl.length ? `<table class="tabela"><tbody>${recl.map(c => `<tr><td>Pedido ${esc(String(c.pedido_id || ''))}<br><small>${esc(c.motivo || '')} · ${esc(c.etapa || '')}</small></td><td><small>há ${tempoDesde(c.data)}</small></td></tr>`).join('')}</tbody></table>` : '<div class="vazio">Nenhuma reclamação aberta. 👏</div>'}</div>
     </div>
     ${blocoFaturamento(semNF)}
-    <div class="card mt"><div class="secao-titulo"><h2>Últimos pedidos</h2></div>${tabelaPed(ped, 'Os pedidos aparecem aqui depois da primeira sincronização.')}</div>
+    <div class="card mt"><div class="secao-titulo"><h2>Últimos pedidos</h2><small>${ped.length} pedido(s) em 60 dias</small></div>
+      ${ped.length ? listaCurta('mlUltimos', `<table class="tabela"><thead><tr><th>Comprador / itens</th><th>Data</th><th>Envio</th><th>Despachar até</th><th class="dir">Total</th></tr></thead><tbody>${ped.map(linhaPed).join('')}</tbody></table>`, 'Buscar cliente, produto, data…') : '<div class="vazio">Os pedidos aparecem aqui depois da primeira sincronização.</div>'}</div>
     <div class="card mt"><div class="secao-titulo"><h2>Perguntas respondidas recentemente</h2></div>
       ${D.ml.perguntas.filter(q => q.resposta).slice(0, 15).map(q => `<div class="coment"><div class="meta">${esc(q.item_titulo || '')} · ${new Date(q.data).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}${q.respondido_por ? ` · respondida por ${esc(nomeP(q.respondido_por))}` : ''}</div><p>❓ ${esc(q.texto)}</p><p class="mut">↳ ${esc(q.resposta)}</p></div>`).join('') || '<div class="vazio">—</div>'}</div>
     ${ehDono() ? `<div class="mt"><button class="btn perigo peq" data-a="desconectarML">Desconectar o Mercado Livre</button></div>` : ''}`;
