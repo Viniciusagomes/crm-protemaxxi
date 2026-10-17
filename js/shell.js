@@ -84,6 +84,8 @@ function notificacoes() {
   if (ehDono() && bp.length) add('bri:' + bp.length, '🎁', `${bp.length} pedido(s) de brinde aguardando sua aprovação`, 'nav', { v: 'brindes' }, 'med');
   const bAprov = (CRE.bped || []).filter(b => b.status === 'aprovado');
   if (veExp() && bAprov.length) add('brie:' + bAprov.length, '🎁', `${bAprov.length} brinde(s) aprovado(s) para separar`, 'nav', { v: 'brindes' });
+  const ruins = (AVA.lista || []).filter(a => a.nota && a.nota <= 3 && !a.tratado);
+  if (ehDono() && ruins.length) add('ava:' + ruins.length, '⭐', `${ruins.length} cliente(s) insatisfeito(s) na avaliação`, 'nav', { v: 'avaliacoes' }, 'ruim');
   const sols = minhasPendentes();
   if (sols.length) add('sol:' + sols.map(s => s.id).join(','), '📨', `${sols.length} solicitação(ões) para você`, 'nav', { v: 'solicitacoes' });
   const atv = (CRM.atv || []).filter(a => a.pessoa_id === EU.id && !a.feito);
@@ -120,7 +122,7 @@ function checarSino() {
   const s = document.getElementById('sinoLugar'); if (s) s.innerHTML = botaoSino();
   const b = document.getElementById('barraInf'); if (b) b.innerHTML = conteudoBarraInf();
 }
-setInterval(() => { if (D && EU) { carregarCreditos().catch(() => {}); if (EU.tiny || ehDono()) carregarCRM().catch(() => {}); checarSino(); } }, 60e3);
+setInterval(() => { if (D && EU) { carregarCreditos().catch(() => {}); if (ehDono()) carregarAva().catch(() => {}); if (EU.tiny || ehDono()) carregarCRM().catch(() => {}); checarSino(); } }, 60e3);
 
 // ─── barra inferior (celular) ───
 function atalhosBarra() {

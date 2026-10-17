@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://qeacyyccxgytqrwmddyl.supabase.co; object-src 'none'; base-uri 'self'; form-action 'none'">
+<title>Avalie nosso atendimento</title>
+<link rel="icon" href="img/icone.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0E1A2B">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Archivo+Expanded:wght@800;900&family=Figtree:wght@400;500;600&display=swap">
+<style>
+  :root { --noite: #0E1A2B; --papel: #F5F2EC; --verde: #1FAE5A; --txt: #11202F; --txt2: #4D5B69; --borda: #E8DFD3; --estrela: #F5B700; }
+  * { box-sizing: border-box; } body { margin: 0; background: var(--papel); color: var(--txt); font: 16px/1.55 Figtree, system-ui, sans-serif; }
+  header { background: linear-gradient(135deg, var(--noite), #15263B); color: #fff; padding: 22px 18px 64px; } header .in, main { max-width: 560px; margin: 0 auto; } header img { height: 30px; }
+  .eyebrow { font-family: Archivo; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; font-size: 11px; color: var(--verde); margin-top: 18px; }
+  h1 { font-family: "Archivo Expanded", Archivo, sans-serif; font-weight: 900; font-size: clamp(24px, 6.4vw, 32px); margin: 4px 0 0; line-height: 1.08; }
+  main { padding: 0 14px 40px; margin-top: -44px; }
+  .card { background: #fff; border: 1px solid var(--borda); border-radius: 20px; padding: 22px; box-shadow: 0 2px 8px rgba(14,26,43,.07); text-align: center; }
+  .estrelas { display: flex; justify-content: center; gap: 6px; margin: 16px 0 6px; }
+  .estrelas button { background: none; border: 0; font-size: 46px; line-height: 1; color: #D9D2C5; cursor: pointer; padding: 2px; transition: transform .12s, color .12s; }
+  .estrelas button.on { color: var(--estrela); } .estrelas button:active { transform: scale(.9); }
+  .rot { color: var(--txt2); font-size: 14px; min-height: 22px; }
+  textarea { width: 100%; min-height: 110px; border: 1px solid var(--borda); border-radius: 14px; padding: 12px; font: inherit; margin-top: 12px; resize: vertical; }
+  .btn { display: block; width: 100%; border: 0; border-radius: 14px; padding: 15px; font-family: Archivo; font-weight: 800; font-size: 16px; cursor: pointer; margin-top: 12px; text-decoration: none; text-align: center; }
+  .pri { background: var(--verde); color: #fff; box-shadow: 0 8px 20px -8px rgba(31,174,90,.7); } .google { background: #fff; color: var(--txt); border: 2px solid var(--txt); }
+  .discreto { display: inline-block; margin-top: 16px; color: var(--txt2); font-size: 13px; } .oculto { display: none; } p { margin: 8px 0; }
+</style>
+</head>
+<body>
+<header><div class="in"><img src="img/logo.svg" alt="Logo"><div class="eyebrow">Avaliação do atendimento</div><h1 id="titulo">Como foi sua experiência?</h1></div></header>
+<main><div class="card" id="caixa"><p>Carregando…</p></div></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" integrity="sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug" crossorigin="anonymous"></script>
+<script src="js/config.js?v=20261017p"></script>
+<script src="js/avaliar.js?v=20261017p"></script>
+</body>
+</html>

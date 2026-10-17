@@ -611,3 +611,5 @@ body.tvestoque .barra-inf { display: none !important; }
 .os-campos > div { padding: 8px 12px; border: 1px solid var(--borda); display: flex; flex-direction: column; } .os-campos span { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--txt3); font-family: Archivo; font-weight: 700; } .os-campos b { font-weight: 600; white-space: pre-wrap; }
 .os-proximo { margin-top: 12px; padding: 12px; border-radius: 12px; background: var(--verde-claro); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .tl { border-left: 3px solid var(--verde); padding: 4px 0 10px 12px; margin-left: 4px; display: flex; flex-direction: column; } .tl small { color: var(--txt3); } .tl.interno { border-left-color: var(--borda-forte); opacity: .8; }
+
+.ava-est { color: #F5B700; letter-spacing: 1px; white-space: nowrap; } .ava-est i { color: var(--borda-forte); font-style: normal; }

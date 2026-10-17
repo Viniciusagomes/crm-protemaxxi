@@ -8,7 +8,7 @@ function menu() {
     ...(EU.tiny || ehDono() ? [['', 'meudia', '☀', 'Meu dia', CRM.atv ? CRM.atv.filter(a => a.pessoa_id === EU.id && !a.feito && a.quando <= hoje()).length : 0]] : []),
     ['Comercial'], ['', 'crm', '🎯', 'Funil (CRM)'], ['', 'vendas', '📈', 'Vendas'], ['', 'pedidos', '🧾', 'Pedidos'], ['', 'clientes', '👤', 'Clientes'],
     ...(veMonitoria() ? [['', 'monitoria', '🏷', 'Monitoria de preços']] : []),
-    ['', 'creditos', '💳', 'Créditos e vales', ehDono() && CRE.pend ? CRE.pend.length : 0], ['', 'brindes', '🎁', 'Brindes', ehDono() && CRE.bped ? CRE.bped.filter(b => b.status === 'pendente').length : 0],
+    ...(veTudoVendas() || EU.tiny ? [['', 'avaliacoes', '⭐', 'Avaliações', ehDono() && AVA.lista ? AVA.lista.filter(a => a.nota && a.nota <= 3 && !a.tratado).length : 0]] : []), ['', 'creditos', '💳', 'Créditos e vales', ehDono() && CRE.pend ? CRE.pend.length : 0], ['', 'brindes', '🎁', 'Brindes', ehDono() && CRE.bped ? CRE.bped.filter(b => b.status === 'pendente').length : 0],
     ...(veML() ? [['', 'ml', '🛍', 'Mercado Livre', D.ml ? D.ml.perguntas.filter(perguntaPendente).length : 0]] : []),
     ...(veExp() ? [['Operação'], ['', 'expedicao', '📦', 'Expedição e estoque', EXP ? EXP.ecom.map(infoPedido).filter(x => !x.despachado && x.atrasado).length : 0], ['', 'abrirTV', '📺', 'TV do estoque']] : []),
     ['Comunicação'], ['', 'solicitacoes', '📨', 'Solicitações', minhasPendentes().length], ['', 'suporte', '🔧', 'Assistência (OS e RMA)', AT.os ? AT.os.filter(o => o.status === 'pronto' || (o.previsao && o.previsao < hoje() && !['entregue', 'cancelado'].includes(o.status))).length : 0],
@@ -24,7 +24,7 @@ function menu() {
 }
 const VIEWS_FN = {
   inicio: () => vInicio(), vendas: () => vVendas(), ml: () => vML(), pedidos: () => vPedidos(), clientes: () => vClientes(),
-  solicitacoes: () => vIntranet(), suporte: () => vAssistencia(), expedicao: () => vExpedicao(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(), creditos: () => vCreditos(), brindes: () => vBrindes(), crm: () => vCRM(), meudia: () => vMeuDia(),
+  solicitacoes: () => vIntranet(), suporte: () => vAssistencia(), expedicao: () => vExpedicao(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(), creditos: () => vCreditos(), brindes: () => vBrindes(), crm: () => vCRM(), meudia: () => vMeuDia(), avaliacoes: () => vAvaliacoes(),
   checklist: () => vChecklist(), supervisao: () => vSupervisao(), geral: () => vGeral(), metas: () => vMetas(),
   remuneracao: () => vRemuneracao(), feedbacks: () => vFeedbacks(), config: () => vConfig(), ajuda: () => vAjuda(),
 };
@@ -241,6 +241,11 @@ const A = {
   expEtapa: el => expEtapa(el.dataset.id, el.dataset.k),
   expAprovarPag: el => expAprovarPag(el.dataset.id),
   tvAtivar: () => ativarTV(),
+  avaAtualizar: () => carregarAva(true).then(render).catch(e => avisar(e.message)),
+  avaTratar: el => avaTratar(el.dataset.id).catch(e => avisar(e.message)),
+  avaWa: el => avaWa(el.dataset.id).catch(e => avisar(e.message)),
+  avaPular: el => avaPular(el.dataset.id).catch(e => avisar(e.message)),
+  avaConfig: () => avaConfig().catch(e => avisar(e.message)),
   atAtualizar: () => carregarAT(true).then(render).catch(e => avisar(e.message)),
   atNova: () => formOS(),
   atSalvar: () => atSalvar().catch(e => avisar(e.message)),
