@@ -565,3 +565,42 @@ body.tvestoque .faixa-ml-in small { font-size: 16px; }
 .atv-check:hover { border-color: var(--verde); } .atv.feita .atv-check { background: var(--verde); border-color: var(--verde); }
 .nova-atv { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; } .nova-atv input[type=text] { flex: 1; min-width: 180px; }
 .barra-rot { display: flex; justify-content: space-between; font-size: 13px; margin: 8px 0 3px; }
+
+/* ═══ casca: busca global, sino, barra inferior, letra grande ═══ */
+.marca { position: relative; }
+.sino-lugar { margin-left: auto; }
+.sino, .busca-btn { background: rgba(255,255,255,.06); border: 0; color: #fff; border-radius: 10px; width: 34px; height: 34px; cursor: pointer; position: relative; font-size: 15px; flex: none; }
+.sino.tem { background: rgba(31,174,90,.2); } .sino .badge { position: absolute; top: -5px; right: -5px; }
+.sino:hover, .busca-btn:hover { background: rgba(255,255,255,.14); }
+.busca-fundo, .sino-fundo { position: fixed; inset: 0; background: rgba(5,12,20,.55); z-index: 40; display: flex; justify-content: center; align-items: flex-start; padding: 8vh 14px 14px; }
+.busca-caixa { width: min(680px, 100%); background: var(--card); border-radius: 18px; box-shadow: 0 30px 60px -20px rgba(0,0,0,.6); overflow: hidden; border: 1px solid var(--borda); }
+.busca-caixa input { width: 100%; border: 0; border-bottom: 1px solid var(--borda); padding: 18px 20px; font-size: 18px; background: var(--card); outline: none; }
+.busca-res { max-height: 60vh; overflow-y: auto; padding: 6px; }
+.busca-grupo { font-family: Archivo; font-weight: 700; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--txt3); padding: 10px 12px 4px; }
+.busca-item { display: flex; gap: 12px; align-items: center; width: 100%; text-align: left; border: 0; background: none; padding: 9px 12px; border-radius: 12px; cursor: pointer; }
+.busca-item .ic { font-size: 18px; width: 24px; text-align: center; } .busca-item b { display: block; font-weight: 700; } .busca-item small { display: block; color: var(--txt3); font-size: 12.5px; }
+.busca-item:hover, .busca-item.sel { background: var(--verde-claro); }
+.busca-dica { padding: 16px; color: var(--txt3); font-size: 13.5px; text-align: center; } kbd { font-family: Archivo; font-size: 11px; border: 1px solid var(--borda-forte); border-bottom-width: 2px; border-radius: 5px; padding: 1px 5px; margin: 0 2px; }
+.sino-fundo { justify-content: flex-start; padding-left: 250px; } 
+.sino-painel { width: min(400px, 100%); background: var(--card); border-radius: 18px; box-shadow: 0 30px 60px -20px rgba(0,0,0,.6); border: 1px solid var(--borda); padding: 8px; }
+.sino-cab { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; font-family: Archivo; }
+.sino-item { display: flex; gap: 10px; align-items: center; width: 100%; text-align: left; border: 0; background: var(--card2); padding: 11px 12px; border-radius: 12px; cursor: pointer; margin-top: 6px; font-weight: 600; border-left: 4px solid var(--borda-forte); }
+.sino-item.med { border-left-color: var(--med); } .sino-item.ruim { border-left-color: var(--ruim); } .sino-item:hover { background: var(--verde-claro); } .sino-item .ic { font-size: 18px; }
+.barra-inf { display: none; }
+html.letra-grande body { font-size: 17px; } html.letra-grande .tabela { font-size: 16px; } html.letra-grande small, html.letra-grande .mut { font-size: 14.5px; }
+html.letra-grande .btn { font-size: 16px; } html.letra-grande nav button { font-size: 16px; } html.letra-grande .kpi-card .sub { font-size: 14.5px; }
+@media (max-width: 860px) {
+  .side { display: none; }
+  body.menu-aberto .side { display: flex; position: fixed; inset: 0 0 64px 0; z-index: 30; height: auto; overflow-y: auto; }
+  body.menu-aberto nav { flex-direction: column; flex-wrap: nowrap; }
+  main { padding-bottom: 90px; }
+  .barra-inf { display: grid; grid-template-columns: repeat(6, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 35; background: var(--noite); padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); box-shadow: 0 -6px 20px rgba(0,0,0,.25); }
+  .barra-inf button { background: none; border: 0; color: #9fb1c4; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 10.5px; font-weight: 600; cursor: pointer; padding: 4px 0; border-radius: 10px; }
+  .barra-inf button span { font-size: 19px; position: relative; } .barra-inf button.on { color: #fff; background: rgba(31,174,90,.18); }
+  .barra-inf button i { position: absolute; top: -4px; right: -10px; background: var(--ruim); color: #fff; font-style: normal; font-size: 10px; border-radius: 99px; padding: 0 5px; font-weight: 800; }
+  .sino-fundo { padding: 10vh 10px 70px; justify-content: center; }
+  .busca-fundo { padding-top: 4vh; }
+}
+body.tvestoque .barra-inf { display: none !important; }
+.side .marca .sino-lugar { position: absolute; top: 0; right: 4px; } .side .marca .busca-btn { position: absolute; top: 0; right: 44px; }
+.side .marca img { max-width: 120px; object-fit: contain; object-position: left center; }

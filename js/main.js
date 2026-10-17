@@ -48,6 +48,7 @@ function render() {
   if (fid) { const el = document.querySelector(`[data-fid="${CSS.escape(fid)}"]`); if (el) { el.focus(); if (pos != null && el.setSelectionRange) try { el.setSelectionRange(pos, pos); } catch { /* tipo sem seleção */ } } }
   if (location.hash !== '#/' + UI.view) history.replaceState(null, '', '#/' + UI.view);
   guardarUI();
+  atualizarShell();
 }
 const pessoasQueVejo = () => ehDono() ? D.pessoas.map(p => p.id) : [EU.id, ...descendentes(EU.id)];
 function descendentes(id) { const out = []; for (const p of D.pessoas.filter(x => x.supervisor === id)) out.push(p.id, ...descendentes(p.id)); return out; }
@@ -240,6 +241,16 @@ const A = {
   expEtapa: el => expEtapa(el.dataset.id, el.dataset.k),
   expAprovarPag: el => expAprovarPag(el.dataset.id),
   tvAtivar: () => ativarTV(),
+  abrirBusca: () => abrirBusca(),
+  fecharBusca: () => fecharBusca(),
+  nadaBusca: () => {},
+  buscaProduto: el => abrirProduto(el.dataset.id).catch(e => avisar(e.message)),
+  sinoAbrir: () => { $('.sino-fundo')?.remove(); document.body.insertAdjacentHTML('beforeend', painelSino()); },
+  sinoFechar: () => $('.sino-fundo')?.remove(),
+  sinoPermitir: async () => { try { await Notification.requestPermission(); } catch { /* ok */ } $('.sino-fundo')?.remove(); checarSino(); },
+  menuCel: () => document.body.classList.toggle('menu-aberto'),
+  alternarLetra: () => alternarLetra(),
+  instalarApp: () => instalarApp(),
   crmAtualizar: () => carregarCRM(true).then(render).catch(e => avisar(e.message)),
   crmNovo: el => formNegocio(null, el.dataset.chave, el.dataset.nome),
   crmEditar: el => formNegocio(el.dataset.id),

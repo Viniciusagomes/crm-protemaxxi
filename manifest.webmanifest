@@ -1,0 +1,17 @@
+{
+  "name": "Intranet Protemaxxi",
+  "short_name": "Protemaxxi",
+  "description": "Intranet da Protemaxxi: vendas, clientes, CRM, expedição e equipe.",
+  "start_url": "./#/inicio",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0E1A2B",
+  "theme_color": "#0E1A2B",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "img/icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "img/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "img/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
