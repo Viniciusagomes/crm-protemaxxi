@@ -190,7 +190,8 @@ function blocoFichaCRM(c) {
       <label class="campo inteiro">Observações do cliente<textarea id="fcObs" rows="2" placeholder="Ex.: síndico é o Sr. Carlos; prefere WhatsApp à tarde">${esc(c.obs || '')}</textarea></label>
       <label class="campo"><span><input type="checkbox" id="fcNao" ${c.nao_contatar ? 'checked' : ''}> Não incluir em campanhas de prospecção</span></label>
     </div>
-    <div class="acoes"><button class="btn peq pri" data-a="fichaSalvar" data-chave="${esc(c.chave)}">Salvar dados do cliente</button>
+    ${(CRM.neg || []).filter(n => n.cliente_chave === c.chave).map(n => `<div class="atv"><div style="flex:1"><b>🎯 ${esc(n.titulo)}</b><br><small>${NOME_ETAPA[n.etapa]} · ${R0(n.valor)} · ${esc(nomeP(n.pessoa_id))}</small></div><button class="btn peq" data-a="crmAbrir" data-id="${n.id}">Abrir</button></div>`).join('')}
+    <div class="acoes"><button class="btn peq pri" data-a="fichaSalvar" data-chave="${esc(c.chave)}">Salvar dados do cliente</button><button class="btn peq" data-a="crmNovo" data-chave="${esc(c.chave)}" data-nome="${esc(c.nome)}">🎯 Novo negócio</button>
       ${hist.length ? `<small class="mut">Prospecção: ${hist.map(h => `${fmtCurta(h.data)} ${LISTAS_PRO[h.lista]?.[0] || h.lista}${h.resultado ? ' → ' + RES_PRO[h.resultado] : ''}`).join(' · ')}</small>` : ''}</div></div>`;
 }
 async function fichaSalvar(chave) {

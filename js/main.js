@@ -5,7 +5,8 @@
 function menu() {
   const itens = [
     ['', 'inicio', '⌂', 'Início'],
-    ['Comercial'], ['', 'vendas', '📈', 'Vendas'], ['', 'pedidos', '🧾', 'Pedidos'], ['', 'clientes', '👤', 'Clientes'],
+    ...(EU.tiny || ehDono() ? [['', 'meudia', '☀', 'Meu dia', CRM.atv ? CRM.atv.filter(a => a.pessoa_id === EU.id && !a.feito && a.quando <= hoje()).length : 0]] : []),
+    ['Comercial'], ['', 'crm', '🎯', 'Funil (CRM)'], ['', 'vendas', '📈', 'Vendas'], ['', 'pedidos', '🧾', 'Pedidos'], ['', 'clientes', '👤', 'Clientes'],
     ...(veMonitoria() ? [['', 'monitoria', '🏷', 'Monitoria de preços']] : []),
     ['', 'creditos', '💳', 'Créditos e vales', ehDono() && CRE.pend ? CRE.pend.length : 0], ['', 'brindes', '🎁', 'Brindes', ehDono() && CRE.bped ? CRE.bped.filter(b => b.status === 'pendente').length : 0],
     ...(veML() ? [['', 'ml', '🛍', 'Mercado Livre', D.ml ? D.ml.perguntas.filter(perguntaPendente).length : 0]] : []),
@@ -23,7 +24,7 @@ function menu() {
 }
 const VIEWS_FN = {
   inicio: () => vInicio(), vendas: () => vVendas(), ml: () => vML(), pedidos: () => vPedidos(), clientes: () => vClientes(),
-  solicitacoes: () => vIntranet(), suporte: () => vSuporte(), expedicao: () => vExpedicao(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(), creditos: () => vCreditos(), brindes: () => vBrindes(),
+  solicitacoes: () => vIntranet(), suporte: () => vSuporte(), expedicao: () => vExpedicao(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(), creditos: () => vCreditos(), brindes: () => vBrindes(), crm: () => vCRM(), meudia: () => vMeuDia(),
   checklist: () => vChecklist(), supervisao: () => vSupervisao(), geral: () => vGeral(), metas: () => vMetas(),
   remuneracao: () => vRemuneracao(), feedbacks: () => vFeedbacks(), config: () => vConfig(), ajuda: () => vAjuda(),
 };
@@ -37,6 +38,7 @@ function render() {
   const fid = document.activeElement?.dataset?.fid;
   const pos = document.activeElement?.selectionStart;
   const y = window.scrollY;
+  if (!CRM.em && !CRM.carregando && (EU.tiny || ehDono())) { CRM.em = 1; carregarCRM(true).then(render).catch(() => {}); }
   if (!CRE.em && !CRE.carregando) { CRE.em = 1; carregarCreditos(true).then(render).catch(() => {}); }   // saldos e pendências em segundo plano
   $('#nav').innerHTML = menu();
   $('#usuario').innerHTML = `${av(EU)}<div><b>${esc(EU.nome)}</b><small>${esc(EU.cargo)}</small></div>`;
@@ -238,6 +240,17 @@ const A = {
   expEtapa: el => expEtapa(el.dataset.id, el.dataset.k),
   expAprovarPag: el => expAprovarPag(el.dataset.id),
   tvAtivar: () => ativarTV(),
+  crmAtualizar: () => carregarCRM(true).then(render).catch(e => avisar(e.message)),
+  crmNovo: el => formNegocio(null, el.dataset.chave, el.dataset.nome),
+  crmEditar: el => formNegocio(el.dataset.id),
+  crmAba: el => { UI.crmAba = el.dataset.v; render(); },
+  crmAbrir: (el, e) => { if (e?.target?.closest?.('.kcard') && document.querySelector('.kcard.arrastando')) return; crmAbrir(el.dataset.id); },
+  crmSalvar: el => crmSalvar(el.dataset.id).catch(e => avisar(e.message)),
+  crmMover: el => crmMover(el.dataset.id, el.dataset.v).then(() => crmAbrir(el.dataset.id)).catch(e => avisar(e.message)),
+  atvNova: el => atvNova(el.dataset.negocio, { chave: el.dataset.chave, nome: el.dataset.nome }).catch(e => avisar(e.message)),
+  atvFeita: el => atvFeita(el.dataset.id).catch(e => avisar(e.message)),
+  diaPessoa: el => { UI.diaPessoa = el.dataset.v; render(); },
+  irProspeccao: () => { UI.view = 'clientes'; UI.cliAba = 'prospeccao'; render(); },
   creAtualizar: () => carregarCreditos(true).then(render).catch(e => avisar(e.message)),
   creNovo: el => formCredito(el.dataset.chave, el.dataset.nome),
   creSalvar: () => creSalvar().catch(e => avisar(e.message)),
@@ -433,6 +446,7 @@ const numOuVazio = v => v === '' ? '' : Number(v);
 
 let timerBusca = null;
 const C = {
+  crmEtapa: el => crmMover(el.dataset.id, el.value).then(() => crmAbrir(el.dataset.id)).catch(e => avisar(e.message)),
   monRevTodos: el => { UI.monRev = el.checked ? 'todos' : ''; render(); },
   ui: el => { UI[el.dataset.k] = el.value; if (el.type === 'search') { clearTimeout(timerBusca); timerBusca = setTimeout(render, 150); } else render(); },
   chk: el => { const r = reg(el.dataset.p, el.dataset.d, true); if (el.checked) r.checks[el.dataset.t] = true; else delete r.checks[el.dataset.t]; marcar('dia', el.dataset.p, el.dataset.d); render(); },

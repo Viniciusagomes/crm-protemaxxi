@@ -540,3 +540,28 @@ body.tvestoque .faixa-ml-in small { font-size: 16px; }
 .brinde-num { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--txt2); margin-top: 4px; }
 .brinde .acoes { padding: 0 12px 12px; }
 .tvbrinde { background: #E3F5EA; color: #11202F; font-family: Archivo; font-weight: 800; font-size: 22px; padding: 8px 14px; border-top: 2px solid #1FAE5A; }
+
+/* CRM: funil (kanban) e atividades */
+.kanban-crm { display: grid; grid-template-columns: repeat(6, minmax(220px, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 6px; align-items: start; }
+.kcol { background: var(--card2); border: 1px solid var(--borda); border-radius: var(--raio); min-height: 200px; display: flex; flex-direction: column; transition: background .15s; }
+.kcol.sobre { background: var(--verde-claro); border-color: var(--verde); }
+.kcol-cab { padding: 10px 12px; border-bottom: 3px solid var(--borda-forte); display: flex; flex-direction: column; gap: 2px; }
+.kcol-cab b { font-family: Archivo; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; } .kcol-cab span { font-size: 12px; color: var(--txt2); }
+.kcol.etp-qualificado .kcol-cab { border-color: #2B7BB9; } .kcol.etp-orcamento .kcol-cab { border-color: var(--med); } .kcol.etp-negociacao .kcol-cab { border-color: #6C4AB6; }
+.kcol.etp-ganho .kcol-cab { border-color: var(--verde); } .kcol.etp-perdido .kcol-cab { border-color: var(--ruim); }
+.kcol-lista { padding: 8px; display: flex; flex-direction: column; gap: 8px; max-height: 70vh; overflow-y: auto; }
+.kcard { background: var(--card); border: 1px solid var(--borda); border-radius: 12px; padding: 10px; cursor: grab; box-shadow: var(--sombra); font-size: 13px; }
+.kcard:hover { border-color: var(--verde); } .kcard.arrastando { opacity: .4; }
+.kcard.sem { border-left: 4px solid var(--ruim); } .kcard.atrasada { border-left: 4px solid var(--med); }
+.kcard-nome { font-family: Archivo; font-weight: 800; } .kcard-tit { color: var(--txt2); font-size: 12.5px; margin: 2px 0 6px; }
+.kcard-pe { display: flex; justify-content: space-between; } .kcard-pe span { color: var(--txt3); font-size: 12px; }
+.kcard-atv { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--borda); font-size: 11.5px; color: var(--txt2); }
+.kcard.sem .kcard-atv { color: var(--ruim); font-weight: 700; }
+.kvazio { text-align: center; color: var(--txt3); padding: 14px; }
+.tag.etp-ganho { background: var(--ok-bg); color: var(--ok); } .tag.etp-perdido { background: var(--ruim-bg); color: var(--ruim); } .tag.etp-orcamento { background: var(--med-bg); color: var(--med); } .tag.etp-negociacao { background: #EEE8FA; color: #6C4AB6; }
+.atv { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--borda); }
+.atv.feita { opacity: .55; } .atv.atrasada b { color: var(--ruim); }
+.atv-check { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--borda-forte); background: var(--card); cursor: pointer; flex: none; color: #fff; font-weight: 900; }
+.atv-check:hover { border-color: var(--verde); } .atv.feita .atv-check { background: var(--verde); border-color: var(--verde); }
+.nova-atv { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; } .nova-atv input[type=text] { flex: 1; min-width: 180px; }
+.barra-rot { display: flex; justify-content: space-between; font-size: 13px; margin: 8px 0 3px; }
