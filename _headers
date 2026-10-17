@@ -1,0 +1,11 @@
+# Cabeçalhos de segurança aplicados pela Cloudflare Pages em todas as páginas (o GitHub Pages ignora este arquivo).
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+
+# o service worker precisa sempre da versão mais nova
+/sw.js
+  Cache-Control: no-cache
