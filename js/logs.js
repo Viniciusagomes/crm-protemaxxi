@@ -4,7 +4,7 @@
    as notas emitidas, as contagens de estoque e as entradas no sistema. */
 
 const LOGS = { dados: null, chave: '', aberto: null, carregando: false };
-const CAT_IC = { 'expedição': '📦', 'nota fiscal': '🧾', estoque: '🔢', acesso: '🔑', equipe: '👥', 'remuneração': '💰', 'configuração': '⚙', 'solicitação': '📨', 'mercado livre': '🛍', cadastro: '🏷' };
+const CAT_IC = { 'expedição': '📦', 'nota fiscal': '🧾', estoque: '🔢', acesso: '🔑', equipe: '👥', 'remuneração': '💰', 'configuração': '⚙', 'solicitação': '📨', 'mercado livre': '🛍', cadastro: '🏷', 'crédito': '💳', brinde: '🎁' };
 
 function periodoLogs() {
   const h = hoje(), p = UI.logPeriodo || 'hoje';

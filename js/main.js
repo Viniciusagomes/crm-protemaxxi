@@ -7,6 +7,7 @@ function menu() {
     ['', 'inicio', '⌂', 'Início'],
     ['Comercial'], ['', 'vendas', '📈', 'Vendas'], ['', 'pedidos', '🧾', 'Pedidos'], ['', 'clientes', '👤', 'Clientes'],
     ...(veMonitoria() ? [['', 'monitoria', '🏷', 'Monitoria de preços']] : []),
+    ['', 'creditos', '💳', 'Créditos e vales', ehDono() && CRE.pend ? CRE.pend.length : 0], ['', 'brindes', '🎁', 'Brindes', ehDono() && CRE.bped ? CRE.bped.filter(b => b.status === 'pendente').length : 0],
     ...(veML() ? [['', 'ml', '🛍', 'Mercado Livre', D.ml ? D.ml.perguntas.filter(perguntaPendente).length : 0]] : []),
     ...(veExp() ? [['Operação'], ['', 'expedicao', '📦', 'Expedição e estoque', EXP ? EXP.ecom.map(infoPedido).filter(x => !x.despachado && x.atrasado).length : 0], ['', 'abrirTV', '📺', 'TV do estoque']] : []),
     ['Comunicação'], ['', 'solicitacoes', '📨', 'Solicitações', minhasPendentes().length], ['', 'suporte', '🔧', 'Suporte e RMA'],
@@ -22,7 +23,7 @@ function menu() {
 }
 const VIEWS_FN = {
   inicio: () => vInicio(), vendas: () => vVendas(), ml: () => vML(), pedidos: () => vPedidos(), clientes: () => vClientes(),
-  solicitacoes: () => vIntranet(), suporte: () => vSuporte(), expedicao: () => vExpedicao(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(),
+  solicitacoes: () => vIntranet(), suporte: () => vSuporte(), expedicao: () => vExpedicao(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(), creditos: () => vCreditos(), brindes: () => vBrindes(),
   checklist: () => vChecklist(), supervisao: () => vSupervisao(), geral: () => vGeral(), metas: () => vMetas(),
   remuneracao: () => vRemuneracao(), feedbacks: () => vFeedbacks(), config: () => vConfig(), ajuda: () => vAjuda(),
 };
@@ -36,10 +37,12 @@ function render() {
   const fid = document.activeElement?.dataset?.fid;
   const pos = document.activeElement?.selectionStart;
   const y = window.scrollY;
+  if (!CRE.em && !CRE.carregando) { CRE.em = 1; carregarCreditos(true).then(render).catch(() => {}); }   // saldos e pendências em segundo plano
   $('#nav').innerHTML = menu();
   $('#usuario').innerHTML = `${av(EU)}<div><b>${esc(EU.nome)}</b><small>${esc(EU.cargo)}</small></div>`;
   $('#main').innerHTML = (VIEWS_FN[UI.view] || vInicio)();
   window.scrollTo(0, y);
+  if (UI.view === 'brindes') fotosBrindes().catch(() => {});
   if (fid) { const el = document.querySelector(`[data-fid="${CSS.escape(fid)}"]`); if (el) { el.focus(); if (pos != null && el.setSelectionRange) try { el.setSelectionRange(pos, pos); } catch { /* tipo sem seleção */ } } }
   if (location.hash !== '#/' + UI.view) history.replaceState(null, '', '#/' + UI.view);
   guardarUI();
@@ -235,6 +238,17 @@ const A = {
   expEtapa: el => expEtapa(el.dataset.id, el.dataset.k),
   expAprovarPag: el => expAprovarPag(el.dataset.id),
   tvAtivar: () => ativarTV(),
+  creAtualizar: () => carregarCreditos(true).then(render).catch(e => avisar(e.message)),
+  creNovo: el => formCredito(el.dataset.chave, el.dataset.nome),
+  creSalvar: () => creSalvar().catch(e => avisar(e.message)),
+  creAprovar: el => creAprovar(el.dataset.id, el.dataset.v).catch(e => avisar(e.message)),
+  creExtrato: el => creExtrato(el.dataset.chave).catch(e => avisar(e.message)),
+  briNovo: () => formBrinde(),
+  briEditar: el => formBrinde(el.dataset.id),
+  briSalvar: el => briSalvar(el.dataset.id).catch(e => avisar(e.message)),
+  briPedir: el => formPedirBrinde(el.dataset.id, el.dataset.chave, el.dataset.nome),
+  briPedirSalvar: el => briPedirSalvar(el.dataset.id).catch(e => avisar(e.message)),
+  briAprovar: el => briAprovar(el.dataset.id, el.dataset.v).catch(e => avisar(e.message)),
   cliAba: el => { UI.cliAba = el.dataset.v; render(); },
   melTipo: el => { UI.melTipo = el.dataset.v; render(); },
   melSeg: el => { UI.melSeg = UI.melSeg === el.dataset.v ? '' : el.dataset.v; render(); },

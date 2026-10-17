@@ -527,3 +527,16 @@ body.tvestoque .faixa-ml-in small { font-size: 16px; }
 .ficha-crm { margin-top: 12px; padding: 12px; border: 1px solid var(--borda); border-radius: var(--raio); background: var(--card2); }
 .ficha-selos { display: flex; gap: 6px; flex-wrap: wrap; }
 .campo input[type=checkbox] { width: auto; margin-right: 6px; vertical-align: middle; }
+
+/* créditos e brindes */
+.ficha-credito { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; padding: 10px 14px; border-radius: 12px; background: var(--card2); border: 1px solid var(--borda); }
+.ficha-credito.tem { background: var(--ok-bg); border-color: var(--verde); } .ficha-credito b { font-family: Archivo; font-size: 17px; }
+.alerta.ok { background: var(--ok-bg); border-color: transparent; align-items: center; } .alerta.ok span:nth-child(2) { flex: 1; }
+.brindes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.brinde { background: var(--card); border: 1px solid var(--borda); border-radius: var(--raio); overflow: hidden; box-shadow: var(--sombra); display: flex; flex-direction: column; }
+.brinde.inativo { opacity: .5; }
+.brinde-foto { aspect-ratio: 4/3; background: var(--card2) center/cover no-repeat; display: grid; place-items: center; font-size: 46px; }
+.brinde-info { padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; flex: 1; } .brinde-info b { font-family: Archivo; font-size: 15px; }
+.brinde-num { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--txt2); margin-top: 4px; }
+.brinde .acoes { padding: 0 12px 12px; }
+.tvbrinde { background: #E3F5EA; color: #11202F; font-family: Archivo; font-weight: 800; font-size: 22px; padding: 8px 14px; border-top: 2px solid #1FAE5A; }

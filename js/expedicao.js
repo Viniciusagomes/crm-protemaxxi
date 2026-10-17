@@ -57,7 +57,7 @@ async function carregarExp(forcar, leve) {
     leve ? EXP.plano : chamarFuncao('estoque', { acao: 'plano' }).then(r => r.plano || []).catch(() => []),
   ]);
   const inicio = cfg.inicio && cfg.inicio > EXP_INICIO ? cfg.inicio : EXP_INICIO;
-  const peds = await todas(() => sb.from('pedidos').select('id,numero,numero_ecommerce,canal,data,cliente_nome,vendedor_nome,valor,situacao,forma_pagamento,frete,envio_forma,pag_forma,pag_meio').gte('data', inicio).neq('situacao', 'Cancelado').order('data', { ascending: false }));
+  const peds = await todas(() => sb.from('pedidos').select('id,numero,numero_ecommerce,canal,data,cliente_nome,cliente_chave,vendedor_nome,valor,situacao,forma_pagamento,frete,envio_forma,pag_forma,pag_meio').gte('data', inicio).neq('situacao', 'Cancelado').order('data', { ascending: false }));
   const mlMapa = Object.fromEntries(mlp.flatMap(m => [[String(m.id), m], ...(m.pack_id ? [[String(m.pack_id), m]] : [])]));
   for (const p of peds) p.tipo = tipoExp(p, p.numero_ecommerce ? mlMapa[String(p.numero_ecommerce)] : null);
   const ecom = peds.filter(p => p.tipo);
@@ -177,13 +177,14 @@ function abaPedidos(todos, modo) {
     const ocs = EXP.ocs.filter(o => o.pedido_id === p.id && !o.resolvido);
     return `<div class="coment" style="border-left-color:var(--${x.atrasado ? 'ruim' : x.etapa === 'a_separar' ? 'med' : 'ok'})">
       <div class="secao-titulo" style="margin:0;align-items:flex-start"><div>
-        <b>Pedido ${esc(p.numero || '')}</b> · <span class="tag ${x.loja ? 'ruim' : 'azul'}">${esc(nomeCanal(x.canal))}</span> · ${esc(p.cliente_nome || '')}
+        <b>Pedido ${esc(p.numero || '')}</b> · <span class="tag ${x.loja ? 'ruim' : 'azul'}">${esc(nomeCanal(x.canal))}</span> · ${esc(p.cliente_nome || '')} ${x.loja ? seloCredito(p.cliente_chave) : ''}
         <br><small class="mut">${p.situacao ? 'Tiny: ' + esc(p.situacao) : ''}${ml?.envio_substatus ? ' · ML: ' + esc(SUBSTATUS_NOME[ml.envio_substatus] || ml.envio_substatus) : ''}${x.loja && p.vendedor_nome ? ' · vendedor ' + esc(p.vendedor_nome) : ''}</small>
         ${x.loja || x.envioLoja ? `<br><b>${x.loja ? 'A cobrar' : 'Valor'}: ${R(p.valor)}</b> <small>(${esc(p.pag_forma || p.forma_pagamento || '?')}${p.pag_meio ? ' · ' + esc(p.pag_meio) : ''})</small>${x.envioLoja ? `<br><small>🚚 ${esc(p.envio_forma)}</small>` : ''}` : ''}</div>
         <div style="text-align:right"><span class="tag ${ETAPA_EXP[x.etapa][1]}">${ETAPA_EXP[x.etapa][0]}</span><br>
         <small class="${x.atrasado ? 'c-ruim' : 'mut'}">${prazo ? (x.despachado ? 'prazo era ' : x.loja ? 'entregar até ' : 'despachar até ') + dataHora(prazo) : 'sem prazo'}${x.atrasado ? ' · ATRASADO' : ''}</small></div></div>
       <table class="tabela" style="margin-top:6px"><tbody>${its.map(i => { const pr = EXP.prod[String(i.produto_id)];
         return `<tr><td style="width:60px" class="num"><b>${N(i.quantidade)}×</b></td><td><b>${esc(i.codigo || '')}</b> ${esc(i.descricao || '')}</td><td><small>${pr ? '📍 ' + esc(pr.localizacao || pr.unidade || '—') : ''}</small></td><td class="dir"><small>${pr?.saldo != null ? 'estoque ' + N(pr.saldo) : ''}</small></td></tr>`; }).join('') || '<tr><td class="mut">Itens ainda não carregados do Tiny.</td></tr>'}</tbody></table>
+      ${brindesDoPedido(p.numero).map(b => `<div class="alerta ok" style="margin-top:6px"><span class="ic">🎁</span><span><b>Brinde aprovado: ${b.qtd}× ${esc(CRE.brindes?.find(x => x.id === b.brinde_id)?.nome || 'brinde')}</b>, separar junto com o pedido.</span><button class="btn peq" data-a="briAprovar" data-id="${b.id}" data-v="entregue">Entregue</button></div>`).join('')}
       ${ocs.map(o => `<div class="alerta med" style="margin-top:6px"><span class="ic">${TIPOS_OC[o.tipo][0]}</span><span>${TIPOS_OC[o.tipo][1]}${o.produto ? ': ' + esc(o.produto) : ''}${o.descricao ? ' — ' + esc(o.descricao) : ''}</span></div>`).join('')}
       ${semNF ? '<div class="alerta med" style="margin-top:6px"><span class="ic">🧾</span><span>Aguardando a nota fiscal. A etiqueta do ML só libera depois da NF.</span></div>' : ''}
       <div class="acoes" style="margin-top:8px">

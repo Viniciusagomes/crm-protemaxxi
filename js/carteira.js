@@ -125,7 +125,7 @@ function abaProspeccao() {
     return { v, n: h.length, resp: h.filter(x => ['respondeu', 'orcamento', 'comprou'].includes(x.resultado)).length, orc: h.filter(x => x.resultado === 'orcamento').length, vendas: vend.length, fat }; });
   const card = x => { const c = cli[x.cliente_chave] || {}, l = LISTAS_PRO[x.lista] || [x.lista, ''], fone = c.fone || '', msg = mensagemPro(x, quem?.nome?.split(' ')[0] || ''), wa = linkWa(fone);
     return `<div class="pro-card ${x.resultado ? 'feito' : ''}" id="pro_${x.id}">
-      <div class="pro-topo"><span class="tag ${l[1]}">${l[0]}</span>${seloSeg(mapa[x.cliente_chave]?.seg)}${x.resultado ? `<span class="tag ok">${RES_PRO[x.resultado]}</span>` : ''}</div>
+      <div class="pro-topo"><span class="tag ${l[1]}">${l[0]}</span>${seloSeg(mapa[x.cliente_chave]?.seg)}${seloCredito(x.cliente_chave)}${x.resultado ? `<span class="tag ok">${RES_PRO[x.resultado]}</span>` : ''}</div>
       <div class="pro-nome"><a href="#" data-a="verCliente" data-chave="${esc(x.cliente_chave)}">${esc(x.cliente_nome || c.nome || '')}</a> <small class="mut">${esc(c.cidade || '')}</small></div>
       <div class="pro-motivo">${esc(x.motivo || '')}</div>
       ${fone ? `<div class="pro-fone">📱 ${esc(fone)}</div>` : `<div class="pro-fone sem"><input type="tel" placeholder="Sem telefone: digite com DDD" id="proFone_${x.id}"><button class="btn peq" data-a="proFone" data-id="${x.id}" data-chave="${esc(x.cliente_chave)}">Salvar</button></div>`}
