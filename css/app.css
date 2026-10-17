@@ -486,3 +486,24 @@ input[type=text], input[type=number], input[type=date], input[type=month], input
 /* listas de página inteira e tabelas dentro de cartões: altura máxima com rolagem e cabeçalho fixo */
 .card.rolagem, .card .rolagem { max-height: 560px; overflow: auto; scrollbar-width: thin; }
 .card.rolagem .tabela thead th, .card .rolagem .tabela thead th { position: sticky; top: 0; background: var(--card); z-index: 1; }
+
+/* faixa do horário de envio do Mercado Livre */
+.faixa-ml { margin-bottom: 12px; }
+.faixa-ml-in { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; border-radius: var(--raio); padding: 12px 16px; border: 1px solid var(--borda); background: var(--card); box-shadow: var(--sombra); }
+.faixa-ml-in > div:first-of-type { flex: 1; min-width: 220px; }
+.faixa-ml-in .ic { font-size: 26px; }
+.faixa-ml-in.ok { background: var(--ok-bg); border-color: transparent; }
+.faixa-ml-in.a { background: var(--med-bg); border-color: var(--med); }
+.faixa-ml-in.l { background: #FDE7D2; border-color: #E07A1F; color: #5A2E05; }
+.faixa-ml-in.r, .faixa-ml-in.atrasado { background: var(--ruim); border-color: var(--ruim); color: #fff; animation: faixapulsa 1.4s ease-in-out infinite; }
+.faixa-ml-in.r small, .faixa-ml-in.atrasado small { color: #fff; opacity: .9; }
+@keyframes faixapulsa { 50% { box-shadow: 0 0 0 6px rgba(210,70,60,.35); } }
+.faixa-ml-tempo { font-family: "Archivo Expanded", Archivo, sans-serif; font-weight: 900; font-size: 30px; line-height: 1; text-align: center; }
+.faixa-ml-tempo small { display: block; font-family: Archivo; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; font-weight: 700; margin-top: 4px; }
+.faixa-ml.grande .faixa-ml-in { padding: 16px 20px; } .faixa-ml.grande .faixa-ml-tempo { font-size: 40px; } .faixa-ml.grande b { font-size: 18px; }
+body.tvestoque .faixa-ml-in { font-size: 20px; } body.tvestoque .faixa-ml-in.neutro, body.tvestoque .faixa-ml-in.ok { background: #11202F; color: #F1F5F7; border-color: #22374B; }
+body.tvestoque .faixa-ml-in small { font-size: 16px; }
+.passos-ml { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 4px 0 6px; }
+.passos-ml > div { background: var(--card2); border: 1px solid var(--borda); border-radius: 12px; padding: 8px 10px; font-size: 13px; }
+.passos-ml > div > b:first-child { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--verde); color: #fff; font-family: Archivo; margin-right: 6px; }
+@media (max-width: 860px) { .passos-ml { grid-template-columns: 1fr 1fr; } }

@@ -67,7 +67,7 @@ function vML() {
   const tabelaPed = (lista, vazio) => lista.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Comprador / itens</th><th>Data</th><th>Envio</th><th>Despachar até</th><th class="dir">Total</th></tr></thead><tbody>${lista.slice(0, 50).map(linhaPed).join('')}</tbody></table></div>` : `<div class="vazio">${vazio}</div>`;
   return topo('Mercado Livre', `Conta <b>${esc(st.apelido || '')}</b> · ${D.sync.ml_varredura?.em ? 'atualizado há ' + tempoDesde(D.sync.ml_varredura.em) : 'sincronizando…'}`,
     `<button class="btn" data-a="recarregarML" ${ML_ATUALIZANDO.v ? 'disabled' : ''}>${ML_ATUALIZANDO.v ? '⏳ Atualizando…' : '↻ Atualizar agora'}</button>`)
-    + `<div class="grid g4">
+    + faixaEnvioML() + `<div class="grid g4">
       <div class="card kpi-card"><div class="rot">Perguntas sem resposta</div><div class="val ${semResp.length ? 'c-ruim' : 'c-ok'}">${semResp.length}</div><div class="sub">${semResp[0] ? 'mais antiga há ' + tempoDesde(semResp[0].data) : 'tudo respondido'}${tempoMed != null ? ` · resposta média hoje ${tempoMed} min` : ''}</div></div>
       <div class="card kpi-card"><div class="rot">Envios atrasados</div><div class="val ${atrasados.length ? 'c-ruim' : 'c-ok'}">${atrasados.length}</div><div class="sub">${vencendo.length} vencem nas próximas 24 h</div></div>
       <div class="card kpi-card"><div class="rot">Aguardando NF · Etiquetas</div><div class="val ${semNF.length ? 'c-med' : ''}">${semNF.length} · ${imprimir.length}</div><div class="sub">sem nota · para imprimir</div></div>
@@ -202,7 +202,11 @@ async function imprimirEtiquetas(envios) {
     setTimeout(() => URL.revokeObjectURL(url), 120000);
     avisar(`${r.envios.length} etiqueta(s) aberta(s) — use Ctrl+P para imprimir.`);
   } catch (e) { if (janela) janela.close(); alert('Etiqueta não saiu: ' + e.message); }
-  finally { await carregarML(true).catch(() => {}); render(); }
+  finally {
+    if (UI.view === 'expedicao') await Promise.all([carregarExp(true, true), carregarEnvioML(true)]).catch(() => {});
+    else await carregarML(true).catch(() => {});
+    render();
+  }
 }
 
 async function alternarNFAuto() {

@@ -126,6 +126,7 @@ function vTVEstoque() {
       <div class="tvhora">${agora}</div></div>
     ${TV.som ? '' : '<button class="btn pri tvativar" data-a="tvAtivar">🔔 Clique aqui para ativar o som e a tela cheia</button>'}
     ${TV.erro ? `<div class="alerta ruim">Sem conexão: ${esc(TV.erro)} · tentando de novo…</div>` : ''}
+    ${faixaEnvioML(true)}
     <div class="tvcorpo">
       <div class="tvkds">${mostrar.length ? mostrar.map((x, i) => comandaTV(x, i === 0)).join('') + (sobra > 0 ? `<div class="tvsobra">+ ${sobra}<small>pedido(s) na fila</small></div>` : '')
         : '<div class="tvvazio">✅ Nenhum pedido para separar agora.</div>'}</div>

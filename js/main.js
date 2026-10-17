@@ -235,6 +235,7 @@ const A = {
   expEtapa: el => expEtapa(el.dataset.id, el.dataset.k),
   expAprovarPag: el => expAprovarPag(el.dataset.id),
   tvAtivar: () => ativarTV(),
+  alarmeMLAtivar: () => alarmeMLAtivar(),
   tvDetalhe: el => { TV.detalhe = el.dataset.id; render(); },
   tvFechar: () => { TV.detalhe = null; render(); },
   tvNada: () => {},

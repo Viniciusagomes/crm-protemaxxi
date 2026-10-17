@@ -90,7 +90,7 @@ function infoPedido(p) {
   const base = (precisaAprovar(p) && e.pagamento_aprovado_em) || evAprov?.em || (sitAberta.includes(p.situacao) || SIT_DESPACHADA.includes(p.situacao) ? `${p.data}T09:00:00-03:00` : null);
   // loja: cliente esperando no balcão (prazo curto); ML: prazo do próprio ML; Amazon: horas úteis
   const prazo = ml?.prazo_despacho ? new Date(ml.prazo_despacho) : base ? (loja ? new Date(new Date(base).getTime() + (+EXP.cfg.sla_loja_horas || 1) * 3600e3) : maisHorasUteis(base, +EXP.cfg.sla_horas || 24)) : null;
-  const mlSaiu = ml && ['shipped', 'delivered', 'not_delivered'].includes(ml.envio_status);
+  const mlSaiu = ml && (['shipped', 'delivered', 'not_delivered'].includes(ml.envio_status) || ['dropped_off', 'in_hub', 'picked_up', 'in_packing_list', 'in_warehouse', 'authorized_by_carrier', 'in_transit'].includes(ml.envio_substatus));
   const tempos = [e.despachado_em, evDesp?.em].filter(Boolean).sort();
   const despachado = tempos.length > 0 || mlSaiu || SIT_DESPACHADA.includes(p.situacao);
   const despachoEm = tempos[0] || null;
@@ -146,7 +146,7 @@ function vExpedicao() {
   const aFazer = todos.filter(x => !x.despachado && x.etapa !== 'aguardando');
   const atrasados = aFazer.filter(x => x.atrasado);
   const contHoje = EXP.cont.filter(c => c.data === hojeSP() && c.status !== 'recusado');
-  const abas = [['pedidos', '🏪 Balcão', aFazer.filter(x => x.loja).length], ['envios', '🚚 Envios', aFazer.filter(x => !x.loja).length],
+  const abas = [['pedidos', '🏪 Balcão', aFazer.filter(x => x.loja).length], ['envios', '🚚 Envios', aFazer.filter(x => !x.loja).length], ['ml', '🛍 Mercado Livre', aFazer.filter(x => x.ml).length],
     ['aprovacao', '💳 Aguardando aprovação', todos.filter(x => x.etapa === 'aguardando').length], ['entrada', '📥 Entrada de NF', ENT.notas ? ENT.notas.filter(n => ['a_receber', 'conferindo', 'divergente'].includes(n.status)).length : ''], ['contagem', '🔢 Contagem do dia', `${contHoje.length}/${EXP.cfg.meta_contagem}`], ['estoque', '📉 Estoque baixo', EXP.alertas.length], ['indicadores', '📊 Indicadores', '']];
   return topo('Expedição e estoque', `Pedidos de loja e de marketplaces desde ${fmtCurta(EXP.cfg.inicio)} · atualizados do Tiny a cada 10 min`,
     `<button class="btn" data-a="expAtualizar" ${EXP_ATUALIZANDO.v ? 'disabled' : ''}>${EXP_ATUALIZANDO.v ? '⏳ Atualizando…' : '↻ Atualizar'}</button><button class="btn" data-a="expOcorrencia">⚠ Registrar ocorrência</button>`)
@@ -156,7 +156,7 @@ function vExpedicao() {
       <div class="card kpi-card"><div class="rot">Contagem de hoje</div><div class="val ${contHoje.length >= EXP.cfg.meta_contagem ? 'c-ok' : 'c-med'}">${contHoje.length} de ${EXP.cfg.meta_contagem}</div><div class="sub">itens conferidos no estoque</div></div>
       <div class="card kpi-card"><div class="rot">Estoque baixo</div><div class="val ${EXP.alertas.length ? 'c-med' : ''}">${EXP.alertas.length}</div><div class="sub">produtos para pedir compra</div></div></div>
     <div class="chips mt">${abas.map(([k, n, b]) => `<button class="chip ${UI.expAba === k ? 'on' : ''}" data-a="expAba" data-v="${k}">${n}${b !== '' ? `<span class="n">${b}</span>` : ''}</button>`).join('')}</div>
-    <div class="mt">${{ pedidos: () => abaPedidos(todos.filter(x => x.loja), 'balcao'), envios: () => abaPedidos(todos.filter(x => !x.loja), 'envios'),
+    <div class="mt">${{ pedidos: () => abaPedidos(todos.filter(x => x.loja), 'balcao'), envios: () => faixaEnvioML() + abaPedidos(todos.filter(x => !x.loja), 'envios'), ml: () => abaMLExp(todos),
       aprovacao: () => abaPedidos(todos.filter(x => x.etapa === 'aguardando'), 'aprovacao'), entrada: abaEntradaNF, contagem: abaContagem, estoque: abaEstoque, indicadores: abaIndicadores }[UI.expAba]?.() || ''}</div>`;
 }
 
@@ -203,6 +203,7 @@ function abaPedidos(todos, modo) {
   return `<div class="filtros"><div class="chips">${Object.entries(filtros).map(([k, [n, f]]) => `<button class="chip ${UI.expFiltro === k ? 'on' : ''}" data-a="expFiltro" data-v="${k}">${n}<span class="n">${todos.filter(f).length}</span></button>`).join('')}</div>
       ${etiquetasLote.length > 1 ? `<button class="btn pri peq" data-a="imprimirEtiquetas" data-envios="${etiquetasLote.join(',')}">🖨 Imprimir todas as etiquetas do ML (${etiquetasLote.length})</button>` : ''}</div>
     ${modo === 'aprovacao' ? '<p class="explica">Pedidos pagos por <b>depósito ou Tray</b> só vão para a separação depois que Vinícius, Marcos, Fefão ou Felipe Menezes conferirem o pagamento e clicarem em "Aprovar pagamento". Aqui também ficam os pedidos de marketplace ainda "Em aberto" no Tiny.</p>'
+      : modo === 'ml' ? '<p class="explica"><b>Mercado Livre:</b> a NF sai sozinha, a etiqueta é impressa aqui e o pedido segue separar → conferir e embalar → despachar (postar na agência). O Mercado Livre fica só com Vinícius, Marcos e Diana.</p>'
       : modo === 'envios' ? '<p class="explica">Pedidos da loja enviados por <b>Correios ou transportadora</b> e os pedidos de marketplace: separar → conferir e embalar → despachar.</p>'
       : '<p class="explica"><b>Balcão:</b> pedidos com retirada na loja (forma de envio "Retirar Loja" ou em branco). Separação imediata: separar → cobrar e entregar. No Tiny: Separado = Aprovado; Cobrado e entregue = Entregue.</p>'}
     ${lista.length ? lista.slice(0, 80).map(linha).join('') : '<div class="card vazio">Nada por aqui. 👏</div>'}`;
