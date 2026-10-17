@@ -11,7 +11,7 @@ function menu() {
     ['', 'creditos', '💳', 'Créditos e vales', ehDono() && CRE.pend ? CRE.pend.length : 0], ['', 'brindes', '🎁', 'Brindes', ehDono() && CRE.bped ? CRE.bped.filter(b => b.status === 'pendente').length : 0],
     ...(veML() ? [['', 'ml', '🛍', 'Mercado Livre', D.ml ? D.ml.perguntas.filter(perguntaPendente).length : 0]] : []),
     ...(veExp() ? [['Operação'], ['', 'expedicao', '📦', 'Expedição e estoque', EXP ? EXP.ecom.map(infoPedido).filter(x => !x.despachado && x.atrasado).length : 0], ['', 'abrirTV', '📺', 'TV do estoque']] : []),
-    ['Comunicação'], ['', 'solicitacoes', '📨', 'Solicitações', minhasPendentes().length], ['', 'suporte', '🔧', 'Suporte e RMA'],
+    ['Comunicação'], ['', 'solicitacoes', '📨', 'Solicitações', minhasPendentes().length], ['', 'suporte', '🔧', 'Assistência (OS e RMA)', AT.os ? AT.os.filter(o => o.status === 'pronto' || (o.previsao && o.previsao < hoje() && !['entregue', 'cancelado'].includes(o.status))).length : 0],
     ['Equipe'], ['', 'checklist', '☑', 'Checklist do dia'],
     ...(temEquipe() ? [['', 'supervisao', '👥', 'Supervisão']] : []),
     ...(ehDono() ? [['', 'geral', '◉', 'Visão da equipe']] : []),
@@ -24,7 +24,7 @@ function menu() {
 }
 const VIEWS_FN = {
   inicio: () => vInicio(), vendas: () => vVendas(), ml: () => vML(), pedidos: () => vPedidos(), clientes: () => vClientes(),
-  solicitacoes: () => vIntranet(), suporte: () => vSuporte(), expedicao: () => vExpedicao(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(), creditos: () => vCreditos(), brindes: () => vBrindes(), crm: () => vCRM(), meudia: () => vMeuDia(),
+  solicitacoes: () => vIntranet(), suporte: () => vAssistencia(), expedicao: () => vExpedicao(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(), creditos: () => vCreditos(), brindes: () => vBrindes(), crm: () => vCRM(), meudia: () => vMeuDia(),
   checklist: () => vChecklist(), supervisao: () => vSupervisao(), geral: () => vGeral(), metas: () => vMetas(),
   remuneracao: () => vRemuneracao(), feedbacks: () => vFeedbacks(), config: () => vConfig(), ajuda: () => vAjuda(),
 };
@@ -241,6 +241,20 @@ const A = {
   expEtapa: el => expEtapa(el.dataset.id, el.dataset.k),
   expAprovarPag: el => expAprovarPag(el.dataset.id),
   tvAtivar: () => ativarTV(),
+  atAtualizar: () => carregarAT(true).then(render).catch(e => avisar(e.message)),
+  atNova: () => formOS(),
+  atSalvar: () => atSalvar().catch(e => avisar(e.message)),
+  atAba: el => { UI.atAba = el.dataset.v; render(); },
+  atAbrir: el => atAbrir(el.dataset.id).catch(e => avisar(e.message)),
+  atAbrirVolta: el => atAbrir(el.dataset.id).catch(e => avisar(e.message)),
+  atMudar: el => atMudarForm(el.dataset.id, el.dataset.v),
+  atConfirmar: el => atConfirmar(el.dataset.id, el.dataset.v).catch(e => avisar(e.message)),
+  atEditar: el => atEditarForm(el.dataset.id),
+  atEditarSalvar: el => atEditarSalvar(el.dataset.id).catch(e => avisar(e.message)),
+  atWa: el => atWa(el.dataset.id).catch(e => avisar(e.message)),
+  atNota: el => atNota(el.dataset.id).catch(e => avisar(e.message)),
+  atCopiarLink: el => atCopiarLink(el.dataset.id),
+  atTermo: el => atTermo(el.dataset.id).catch(e => avisar(e.message)),
   abrirBusca: () => abrirBusca(),
   fecharBusca: () => fecharBusca(),
   nadaBusca: () => {},
@@ -457,6 +471,7 @@ const numOuVazio = v => v === '' ? '' : Number(v);
 
 let timerBusca = null;
 const C = {
+  atFotos: el => { const arqs = [...el.files]; if (arqs.length) atFotos(el.dataset.id, arqs).catch(e => avisar(e.message)); },
   crmEtapa: el => crmMover(el.dataset.id, el.value).then(() => crmAbrir(el.dataset.id)).catch(e => avisar(e.message)),
   monRevTodos: el => { UI.monRev = el.checked ? 'todos' : ''; render(); },
   ui: el => { UI[el.dataset.k] = el.value; if (el.type === 'search') { clearTimeout(timerBusca); timerBusca = setTimeout(render, 150); } else render(); },

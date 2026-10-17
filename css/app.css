@@ -604,3 +604,10 @@ html.letra-grande .btn { font-size: 16px; } html.letra-grande nav button { font-
 body.tvestoque .barra-inf { display: none !important; }
 .side .marca .sino-lugar { position: absolute; top: 0; right: 4px; } .side .marca .busca-btn { position: absolute; top: 0; right: 44px; }
 .side .marca img { max-width: 120px; object-fit: contain; object-position: left center; }
+
+/* assistência técnica (OS e RMA) */
+.kanban-os { grid-template-columns: repeat(7, minmax(190px, 1fr)); }
+.os-campos { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); border: 1px solid var(--borda); border-radius: 12px; overflow: hidden; margin-top: 10px; }
+.os-campos > div { padding: 8px 12px; border: 1px solid var(--borda); display: flex; flex-direction: column; } .os-campos span { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--txt3); font-family: Archivo; font-weight: 700; } .os-campos b { font-weight: 600; white-space: pre-wrap; }
+.os-proximo { margin-top: 12px; padding: 12px; border-radius: 12px; background: var(--verde-claro); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.tl { border-left: 3px solid var(--verde); padding: 4px 0 10px 12px; margin-left: 4px; display: flex; flex-direction: column; } .tl small { color: var(--txt3); } .tl.interno { border-left-color: var(--borda-forte); opacity: .8; }

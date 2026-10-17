@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://qeacyyccxgytqrwmddyl.supabase.co; object-src 'none'; base-uri 'self'; form-action 'none'">
+<title>Acompanhe sua OS</title>
+<link rel="icon" href="img/icone.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0E1A2B">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Archivo+Expanded:wght@800;900&family=Figtree:wght@400;500;600&display=swap">
+<style>
+  :root { --noite: #0E1A2B; --papel: #F5F2EC; --verde: #1FAE5A; --txt: #11202F; --txt2: #4D5B69; --borda: #E8DFD3; }
+  * { box-sizing: border-box; } body { margin: 0; background: var(--papel); color: var(--txt); font: 15px/1.55 Figtree, system-ui, sans-serif; }
+  header { background: linear-gradient(135deg, var(--noite), #15263B); color: #fff; padding: 22px 18px 60px; }
+  header .in, main { max-width: 640px; margin: 0 auto; } header img { height: 30px; }
+  .eyebrow { font-family: Archivo; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; font-size: 11px; color: var(--verde); margin-top: 18px; }
+  h1 { font-family: "Archivo Expanded", Archivo, sans-serif; font-weight: 900; font-size: clamp(24px, 6vw, 32px); margin: 4px 0 0; line-height: 1.05; }
+  main { padding: 0 14px 40px; margin-top: -40px; }
+  .card { background: #fff; border: 1px solid var(--borda); border-radius: 18px; padding: 18px; box-shadow: 0 2px 8px rgba(14,26,43,.07); margin-bottom: 14px; }
+  .status { display: inline-block; background: rgba(31,174,90,.14); color: #178B47; font-family: Archivo; font-weight: 800; border-radius: 99px; padding: 6px 14px; font-size: 15px; }
+  .linha { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--borda); } .linha:last-child { border: 0; } .linha span { color: var(--txt2); }
+  .passos { list-style: none; padding: 0; margin: 0; } .passos li { position: relative; padding: 0 0 16px 28px; } .passos li::before { content: ""; position: absolute; left: 6px; top: 6px; width: 12px; height: 12px; border-radius: 50%; background: var(--verde); box-shadow: 0 0 0 4px rgba(31,174,90,.2); }
+  .passos li::after { content: ""; position: absolute; left: 11px; top: 20px; bottom: 0; width: 2px; background: var(--borda); } .passos li:last-child::after { display: none; }
+  .passos b { display: block; } .passos small { color: var(--txt2); }
+  .barra { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 14px 0 4px; } .barra i { height: 8px; border-radius: 99px; background: var(--borda); } .barra i.on { background: var(--verde); }
+  .rotulos { display: grid; grid-template-columns: repeat(5, 1fr); font-size: 11px; color: var(--txt2); text-align: center; }
+  .contato a { display: block; text-align: center; background: var(--verde); color: #fff; text-decoration: none; font-family: Archivo; font-weight: 800; padding: 14px; border-radius: 14px; box-shadow: 0 8px 20px -8px rgba(31,174,90,.7); }
+  .vazio { text-align: center; padding: 30px 10px; color: var(--txt2); } footer { text-align: center; color: var(--txt2); font-size: 12.5px; padding-bottom: 30px; }
+</style>
+</head>
+<body>
+<header><div class="in"><img src="img/logo.svg" alt="Logo"><div class="eyebrow">Assistência técnica</div><h1 id="titulo">Acompanhe sua OS</h1></div></header>
+<main id="conteudo"><div class="card vazio">Carregando…</div></main>
+<footer id="rodape"></footer>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" integrity="sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug" crossorigin="anonymous"></script>
+<script src="js/config.js"></script>
+<script src="js/os-publica.js"></script>
+</body>
+</html>
