@@ -86,6 +86,7 @@ function notificacoes() {
   if (veExp() && bAprov.length) add('brie:' + bAprov.length, '🎁', `${bAprov.length} brinde(s) aprovado(s) para separar`, 'nav', { v: 'brindes' });
   const ruins = (AVA.lista || []).filter(a => a.nota && a.nota <= 3 && !a.tratado);
   if (ehDono() && ruins.length) add('ava:' + ruins.length, '⭐', `${ruins.length} cliente(s) insatisfeito(s) na avaliação`, 'nav', { v: 'avaliacoes' }, 'ruim');
+  if (typeof BOL !== 'undefined' && BOL.lista) { const mb = ehDono() ? bolAbertos() : meusBoletos(); if (mb.length) add('bol:' + mb.map(b => b.id).join(','), '🧾', `${mb.length} boleto(s) em atraso${ehDono() ? '' : ' de clientes seus'} · ${R(soma(mb.map(b => +b.valor)))}`, 'nav', { v: 'boletos' }, 'ruim'); }
   const sols = minhasPendentes();
   if (sols.length) add('sol:' + sols.map(s => s.id).join(','), '📨', `${sols.length} solicitação(ões) para você`, 'nav', { v: 'solicitacoes' });
   const atv = (CRM.atv || []).filter(a => a.pessoa_id === EU.id && !a.feito);

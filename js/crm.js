@@ -230,7 +230,7 @@ function vMeuDia() {
     ${a.negocio_id || a.cliente_chave || a.cliente_nome ? `<button class="btn peq" data-a="atvContato" data-id="${a.id}" title="Contato do cliente: celular e e-mail">+</button>` : ''}
     ${a.negocio_id ? `<button class="btn peq" data-a="crmAbrir" data-id="${a.negocio_id}">Negócio</button>` : a.cliente_chave ? `<button class="btn peq" data-a="verCliente" data-chave="${esc(a.cliente_chave)}">Cliente</button>` : ''}</div>`;
   return topo('Meu dia', `${fmtData(h)} · tudo o que precisa ser feito hoje, num lugar só`, `<button class="btn" data-a="crmAtualizar">↻ Atualizar</button><button class="btn pri" data-a="crmNovo">+ Novo negócio</button>`)
-    + `${vends.length > 1 || ehDono() ? `<div class="chips" style="margin-bottom:12px">${[...new Map([[EU.id, EU], ...vends.map(v => [v.id, v])]).values()].map(v => `<button class="chip ${quem === v.id ? 'on' : ''}" data-a="diaPessoa" data-v="${v.id}">${esc(v.nome)}</button>`).join('')}</div>` : ''}
+    + avisoBoletos() + `${vends.length > 1 || ehDono() ? `<div class="chips" style="margin-bottom:12px">${[...new Map([[EU.id, EU], ...vends.map(v => [v.id, v])]).values()].map(v => `<button class="chip ${quem === v.id ? 'on' : ''}" data-a="diaPessoa" data-v="${v.id}">${esc(v.nome)}</button>`).join('')}</div>` : ''}
     <div class="grid g4">
       <div class="card kpi-card ${atrasadas.length ? '' : 'destaque'}"><div class="rot">Atrasadas</div><div class="val ${atrasadas.length ? 'c-ruim' : 'verde'}">${atrasadas.length}</div><div class="sub">atividades vencidas</div></div>
       <div class="card kpi-card"><div class="rot">Para hoje</div><div class="val">${deHoje.length + fups.length}</div><div class="sub">${feitasHoje} feita(s) hoje</div></div>

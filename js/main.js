@@ -6,7 +6,7 @@ function menu() {
   const itens = [
     ['', 'inicio', '⌂', 'Início'],
     ['', 'meudia', '☀', 'Meu dia', CRM.atv ? CRM.atv.filter(a => a.pessoa_id === EU.id && !a.feito && a.quando <= hoje()).length : 0],
-    ['Comercial'], ['', 'crm', '🎯', 'Funil (CRM)'], ['', 'vendas', '📈', 'Vendas'], ['', 'pedidos', '🧾', 'Pedidos'], ['', 'situacao', '🚦', 'Situação dos pedidos', SIT.lista ? SIT.lista.filter(p => passosPedido(p).estado === 'problema').length : 0], ['', 'clientes', '👤', 'Clientes'],
+    ['Comercial'], ['', 'crm', '🎯', 'Funil (CRM)'], ['', 'vendas', '📈', 'Vendas'], ['', 'pedidos', '🧾', 'Pedidos'], ['', 'situacao', '🚦', 'Situação dos pedidos', SIT.lista ? SIT.lista.filter(p => passosPedido(p).estado === 'problema').length : 0], ['', 'boletos', '🧾', 'Boletos em atraso', BOL.lista ? (ehDono() ? bolAbertos() : meusBoletos()).length : 0], ['', 'clientes', '👤', 'Clientes'],
     ...(veMonitoria() ? [['', 'monitoria', '🏷', 'Monitoria de preços']] : []),
     ...(veTudoVendas() || EU.tiny ? [['', 'avaliacoes', '⭐', 'Avaliações', ehDono() && AVA.lista ? AVA.lista.filter(a => a.nota && a.nota <= 3 && !a.tratado).length : 0]] : []), ['', 'creditos', '💳', 'Créditos e vales', ehDono() && CRE.pend ? CRE.pend.length : 0], ['', 'brindes', '🎁', 'Brindes', ehDono() && CRE.bped ? CRE.bped.filter(b => b.status === 'pendente').length : 0],
     ...(veML() ? [['', 'ml', '🛍', 'Mercado Livre', D.ml ? D.ml.perguntas.filter(perguntaPendente).length : 0]] : []),
@@ -27,7 +27,7 @@ function menu() {
 }
 const VIEWS_FN = {
   inicio: () => vInicio(), vendas: () => vVendas(), ml: () => vML(), pedidos: () => vPedidos(), clientes: () => vClientes(),
-  solicitacoes: () => vIntranet(), suporte: () => vAssistencia(), expedicao: () => vExpedicao(), estoque: () => vEstoque(), visaoestoque: () => vVisaoEstoque(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(), creditos: () => vCreditos(), brindes: () => vBrindes(), crm: () => vCRM(), meudia: () => vMeuDia(), situacao: () => vSituacao(), avaliacoes: () => vAvaliacoes(), compras: () => vCompras(),
+  solicitacoes: () => vIntranet(), suporte: () => vAssistencia(), expedicao: () => vExpedicao(), estoque: () => vEstoque(), visaoestoque: () => vVisaoEstoque(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(), creditos: () => vCreditos(), brindes: () => vBrindes(), crm: () => vCRM(), meudia: () => vMeuDia(), situacao: () => vSituacao(), boletos: () => vBoletos(), avaliacoes: () => vAvaliacoes(), compras: () => vCompras(),
   checklist: () => vChecklist(), supervisao: () => vSupervisao(), geral: () => vGeral(), metas: () => vMetas(),
   remuneracao: () => vRemuneracao(), feedbacks: () => vFeedbacks(), config: () => vConfig(), ajuda: () => vAjuda(),
 };
@@ -40,7 +40,7 @@ function abasDoPerfil() {
   const P = EU.permissoes || {}, s = new Set(['inicio', 'meudia', 'pedidos', 'clientes', 'solicitacoes', 'feedbacks', 'ajuda']);
   const add = (...ks) => ks.forEach(k => s.add(k));
   const comercial = !!EU.tiny || !!P.vendas_todas;
-  if (comercial) add('crm', 'vendas', 'situacao');
+  if (comercial) add('crm', 'vendas', 'situacao', 'boletos');
   if (P.ecommerce) add('vendas');
   if (veML()) add('ml');
   if (veExp()) add('visaoestoque', 'expedicao', 'estoque', 'abrirTV', 'tvestoque');
@@ -61,7 +61,8 @@ function render() {
   const pos = document.activeElement?.selectionStart;
   const y = window.scrollY;
   if (!CRM.em && !CRM.carregando && (EU.tiny || ehDono())) { CRM.em = 1; carregarCRM(true).then(render).catch(() => {}); }
-  if (!CRE.em && !CRE.carregando) { CRE.em = 1; carregarCreditos(true).then(render).catch(() => {}); }   // saldos e pendências em segundo plano
+  if (!CRE.em && !CRE.carregando) { CRE.em = 1; carregarCreditos(true).then(render).catch(() => {}); }
+  if (!BOL.em && !BOL.carregando && veBoletos()) { BOL.em = 1; carregarBoletos(true).then(render).catch(() => {}); }   // aviso de boleto em atraso   // saldos e pendências em segundo plano
   if (!COMP.em && !COMP.carregando && veCompras()) { COMP.em = 1; carregarCompras(true).then(render).catch(() => {}); }   // oportunidades para o contador do menu
   $('#nav').innerHTML = menu();
   $('#usuario').innerHTML = `${av(EU)}<div><b>${esc(EU.nome)}</b><small>${esc(EU.cargo)}</small></div>`;
@@ -105,7 +106,7 @@ function vInicio() {
   cards.push(`<div class="card kpi-card clic" style="cursor:pointer" data-a="nav" data-v="solicitacoes"><div class="rot">Solicitações para mim</div><div class="val ${paraMim.length ? 'c-med' : ''}">${paraMim.length}</div><div class="sub">${pedi.length} que eu pedi em aberto</div></div>`);
   const linhaSol = s => `<tr class="clic" data-a="verSolicitacao" data-id="${s.id}"><td>${(TIPOS_SOL[s.tipo] || TIPOS_SOL.outro).ic} <b>${esc(s.titulo)}</b><br><small>de ${esc(nomeP(s.solicitante_id))}${s.prazo ? ` · prazo ${fmtCurta(s.prazo)}` : ''}</small></td><td class="pri-${s.prioridade}">${PRIORIDADES[s.prioridade]}</td><td><span class="st st-${s.status}">${STATUS_SOL[s.status]}</span></td></tr>`;
   return topo(`${saud}, ${esc(primeiroNome(EU))}!`, `${fmtData(h)} · ${infoSync()}`, '<button class="btn pri" data-a="novaSolicitacao">+ Nova solicitação</button>')
-    + `<div class="grid g4">${cards.join('')}</div>
+    + `${avisoBoletos()}<div class="grid g4">${cards.join('')}</div>
     <div class="grid g2 mt">
       <div class="card"><div class="secao-titulo"><h2>Para mim resolver</h2><a href="#/solicitacoes">ver todas</a></div>${paraMim.length ? `<table class="tabela"><tbody>${paraMim.slice(0, 8).map(linhaSol).join('')}</tbody></table>` : '<div class="vazio">Nenhuma solicitação pendente para você. 🎉</div>'}</div>
       <div class="card"><div class="secao-titulo"><h2>Follow-ups de hoje</h2><a href="#/clientes">clientes</a></div>${fus.length ? `<table class="tabela"><tbody>${fus.slice(0, 10).map(i => `<tr><td class="clic" data-a="verCliente" data-chave="${esc(i.cliente_chave)}" style="cursor:pointer"><b>${esc(i.cliente_nome || '')}</b><br><small>${TIPOS_INT[i.tipo] || ''} · ${esc(i.texto.slice(0, 80))}${ehDono() ? ' · ' + esc(nomeP(i.autor_id)) : ''}</small></td><td><span class="tag ${i.proximo_contato < h ? 'ruim' : 'ok'}">${fmtCurta(i.proximo_contato)}</span></td><td><button class="btn peq" data-a="followupFeito" data-id="${i.id}">✓ Feito</button></td></tr>`).join('')}</tbody></table>` : '<div class="vazio">Nenhum retorno marcado para hoje. Registre contatos na ficha do cliente e marque o próximo.</div>'}</div>
@@ -263,6 +264,17 @@ const A = {
   expAba: el => { UI.expAba = el.dataset.v; render(); },
   expFreteAba: el => { UI.expFrete = el.dataset.v; render(); },
   expBuscaLimpar: () => { UI.expBusca = ''; render(); },
+  bolAtualizar: async () => { try { await carregarBoletos(true); } catch (e) { avisar(e.message); } render(); },
+  bolFiltro: el => { UI.bolFiltro = el.dataset.v; render(); },
+  bolNovo: () => bolNovo(),
+  bolBuscar: () => bolBuscar(),
+  bolSalvar: () => bolSalvar().catch(e => alert('Não salvou: ' + e.message)),
+  bolStatus: el => bolStatus(el.dataset.id, el.dataset.v).catch(e => alert(e.message)),
+  bolRenegociar: el => bolRenegociar(el.dataset.id).catch(e => alert(e.message)),
+  bolExcluir: el => bolExcluir(el.dataset.id).catch(e => alert(e.message)),
+  bolNF: el => bolNF(el.dataset.id),
+  bolPedido: el => bolPedido(el.dataset.id).catch(e => alert(e.message)),
+  bolImprimirPedido: () => bolImprimirPedido(),
   estAba: el => { UI.estAba = el.dataset.v; render(); },
   estIr: el => { UI.view = el.dataset.v; if (el.dataset.f) UI.expFiltro = el.dataset.f; if (el.dataset.fr) { UI.expFrete = el.dataset.fr; UI.expFiltro = 'a_separar'; } if (el.dataset.e) UI.estAba = el.dataset.e; render(); window.scrollTo(0, 0); },
   expFiltro: el => { UI.expFiltro = el.dataset.v; render(); },
