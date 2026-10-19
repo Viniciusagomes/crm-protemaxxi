@@ -10,7 +10,7 @@ function menu() {
     ...(veMonitoria() ? [['', 'monitoria', '🏷', 'Monitoria de preços']] : []),
     ...(veTudoVendas() || EU.tiny ? [['', 'avaliacoes', '⭐', 'Avaliações', ehDono() && AVA.lista ? AVA.lista.filter(a => a.nota && a.nota <= 3 && !a.tratado).length : 0]] : []), ['', 'creditos', '💳', 'Créditos e vales', ehDono() && CRE.pend ? CRE.pend.length : 0], ['', 'brindes', '🎁', 'Brindes', ehDono() && CRE.bped ? CRE.bped.filter(b => b.status === 'pendente').length : 0],
     ...(veML() ? [['', 'ml', '🛍', 'Mercado Livre', D.ml ? D.ml.perguntas.filter(perguntaPendente).length : 0]] : []),
-    ...(veExp() ? [['Operação'], ['', 'expedicao', '📦', 'Expedição e estoque', EXP ? EXP.ecom.map(infoPedido).filter(x => !x.despachado && x.atrasado).length : 0], ['', 'abrirTV', '📺', 'TV do estoque']] : []),
+    ...(veExp() ? [['Operação'], ['', 'visaoestoque', '📋', 'Visão geral do estoque'], ['', 'expedicao', '📦', 'Expedição', EXP ? EXP.ecom.map(infoPedido).filter(x => !x.despachado && x.atrasado).length : 0], ['', 'estoque', '🏷', 'Estoque', EXP ? EXP.alertas.length : 0], ['', 'abrirTV', '📺', 'TV do estoque']] : []),
     ...(veCompras() ? [...(veExp() ? [] : [['Operação']]), ['', 'compras', '🤝', 'Compras e fornecedores', COMP.ops ? COMP.ops.filter(o => situacaoOp(o) === 'encerrada').length : 0]] : []),
     ['Comunicação'], ['', 'solicitacoes', '📨', 'Solicitações', minhasPendentes().length], ['', 'suporte', '🔧', 'Assistência (OS e RMA)', AT.os ? AT.os.filter(o => o.status === 'pronto' || (o.previsao && o.previsao < hoje() && !['entregue', 'cancelado'].includes(o.status))).length : 0],
     ['Equipe'], ['', 'checklist', '☑', 'Checklist do dia'],
@@ -27,7 +27,7 @@ function menu() {
 }
 const VIEWS_FN = {
   inicio: () => vInicio(), vendas: () => vVendas(), ml: () => vML(), pedidos: () => vPedidos(), clientes: () => vClientes(),
-  solicitacoes: () => vIntranet(), suporte: () => vAssistencia(), expedicao: () => vExpedicao(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(), creditos: () => vCreditos(), brindes: () => vBrindes(), crm: () => vCRM(), meudia: () => vMeuDia(), situacao: () => vSituacao(), avaliacoes: () => vAvaliacoes(), compras: () => vCompras(),
+  solicitacoes: () => vIntranet(), suporte: () => vAssistencia(), expedicao: () => vExpedicao(), estoque: () => vEstoque(), visaoestoque: () => vVisaoEstoque(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(), creditos: () => vCreditos(), brindes: () => vBrindes(), crm: () => vCRM(), meudia: () => vMeuDia(), situacao: () => vSituacao(), avaliacoes: () => vAvaliacoes(), compras: () => vCompras(),
   checklist: () => vChecklist(), supervisao: () => vSupervisao(), geral: () => vGeral(), metas: () => vMetas(),
   remuneracao: () => vRemuneracao(), feedbacks: () => vFeedbacks(), config: () => vConfig(), ajuda: () => vAjuda(),
 };
@@ -43,7 +43,7 @@ function abasDoPerfil() {
   if (comercial) add('crm', 'vendas', 'situacao');
   if (P.ecommerce) add('vendas');
   if (veML()) add('ml');
-  if (veExp()) add('expedicao', 'abrirTV', 'tvestoque');
+  if (veExp()) add('visaoestoque', 'expedicao', 'estoque', 'abrirTV', 'tvestoque');
   if (veCompras()) add('compras');
   if (P.suporte) add('suporte');
   if (veMonitoria()) add('monitoria');
@@ -54,7 +54,7 @@ const podeAba = k => { const s = abasDoPerfil(); return !s || s.has(k); };
 
 function render() {
   if (!D || !EU) return;
-  if (!podeAba(UI.view) || (SO_DONO.includes(UI.view) && !ehDono()) || (UI.view === 'ml' && !veML()) || (UI.view === 'monitoria' && !veMonitoria()) || ((UI.view === 'expedicao' || UI.view === 'tvestoque') && !veExp()) || (UI.view === 'compras' && !veCompras())) UI.view = 'inicio';
+  if (!podeAba(UI.view) || (SO_DONO.includes(UI.view) && !ehDono()) || (UI.view === 'ml' && !veML()) || (UI.view === 'monitoria' && !veMonitoria()) || (['expedicao', 'tvestoque', 'estoque', 'visaoestoque'].includes(UI.view) && !veExp()) || (UI.view === 'compras' && !veCompras())) UI.view = 'inicio';
   document.body.classList.toggle('tvestoque', UI.view === 'tvestoque');
   if (UI.view === 'checklist' && !D.pessoas.find(p => p.id === UI.pessoa && p.ativo && pessoasQueVejo().includes(p.id))) UI.pessoa = EU.id;
   const fid = document.activeElement?.dataset?.fid;
@@ -261,6 +261,9 @@ const A = {
   recarregarML: () => atualizarML(),
   imprimirEtiquetas: el => imprimirEtiquetas(el.dataset.envios),
   expAba: el => { UI.expAba = el.dataset.v; render(); },
+  expFreteAba: el => { UI.expFrete = el.dataset.v; render(); },
+  estAba: el => { UI.estAba = el.dataset.v; render(); },
+  estIr: el => { UI.view = el.dataset.v; if (el.dataset.f) UI.expFiltro = el.dataset.f; if (el.dataset.fr) { UI.expFrete = el.dataset.fr; UI.expFiltro = 'a_separar'; } if (el.dataset.e) UI.estAba = el.dataset.e; render(); window.scrollTo(0, 0); },
   expFiltro: el => { UI.expFiltro = el.dataset.v; render(); },
   expAtualizar: () => expAtualizar(),
   expEtapa: el => expEtapa(el.dataset.id, el.dataset.k),

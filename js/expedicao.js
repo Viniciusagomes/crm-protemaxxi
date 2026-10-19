@@ -13,7 +13,7 @@ const ST_CONT = {
   ajustado: ['Corrigido no Tiny', 'ok'], sem_diferenca: ['Bateu com o Tiny', 'ok'], aguardando_aprovacao: ['Aguardando aprovação', 'med'],
   recontar: ['Recontar', 'med'], recusado: ['Recusado', 'ruim'], erro: ['Erro ao gravar', 'ruim'],
 };
-const ETAPA_EXP = { aguardando: ['Aguardando aprovação', ''], a_separar: ['A separar', 'ruim'], separado: ['Separado', 'med'], conferido: ['Conferido e embalado', 'azul'], despachado: ['Despachado', 'ok'] };
+const ETAPA_EXP = { aguardando: ['Recebido · aguardando aprovação', ''], a_separar: ['A separar', 'ruim'], separado: ['Separado', 'med'], conferido: ['Conferido e embalado', 'azul'], pago: ['Pago', 'ok'], despachado: ['Despachado', 'ok'] };
 // A expedição começou do zero em 16/10/2026: só entram pedidos de LOJA (balcão) e de MARKETPLACES (ML, Amazon).
 // Tray e as outras formas de envio ficam de fora até o Vinícius decidir.
 const EXP_INICIO = '2026-10-16';
@@ -105,7 +105,8 @@ function infoPedido(p) {
   const atrasado = !pagPendente && prazo && (despachoEm ? new Date(despachoEm) > prazo : !despachado && Date.now() > prazo);
   const canal = loja ? 'Loja' : envioLoja ? 'Loja (envio)' : p.canal || (ml ? 'ML - Viny' : 'Marketplace');
   const faturamento = exigeNF(p), nfOk = !faturamento || nfLiberada(e);
-  return { p, e, ml, base, prazo, despachado, despachoEm, etapa, atrasado, canal, loja, envioLoja, pagPendente, faturamento, nfOk };
+  const balcao = loja, pago = !!(e.pago_em || e.pagamento_aprovado_em);   // balcão: separado → pago → entregue
+  return { p, e, ml, base, prazo, despachado, despachoEm, etapa, atrasado, canal, loja, envioLoja, pagPendente, faturamento, nfOk, balcao, pago };
 }
 const nomeCanal = c => c === 'Loja' ? 'Balcão (retirada)' : c === 'Loja (envio)' ? 'Loja · envio' : /ml|mercado/i.test(c) ? 'Mercado Livre' : /tray/i.test(c) ? 'Site (Tray)' : /amazon/i.test(c) ? 'Amazon' : c;
 
@@ -146,37 +147,44 @@ function expKpiDia(fonte, d) {
 }
 
 // ═══════════════════════════ tela ═══════════════════════════
+/** Abas da Expedição por forma de frete (mesmas cores da TV). */
+const FRETES_EXP = [['todos', 'Todos', '📋'], ['ml', 'Mercado Livre', '🟨'], ['correios', 'Correios', '🟦'], ['jadlog', 'Jadlog', '🟥'], ['rodonaves', 'Rodonaves', '🟧'],
+  ['retirar', 'Retirar na loja', '🟪'], ['uber', 'Uber', '⬛'], ['propria', 'Entrega própria', '⬜'], ['nd', 'Não definida', '🟩']];
+const freteDe = x => tipoTV(x)[0];
+
 function vExpedicao() {
-  if (!EXP) { carregarExp().then(render).catch(e => avisar(e.message)); return topo('Expedição e estoque', '') + '<div class="card vazio">Carregando a expedição…</div>'; }
-  UI.expAba ||= 'pedidos';
+  if (!EXP) { carregarExp().then(render).catch(e => avisar(e.message)); return topo('Expedição', '') + '<div class="card vazio">Carregando a expedição…</div>'; }
+  UI.expFrete = FRETES_EXP.some(f => f[0] === UI.expFrete) ? UI.expFrete : 'todos';
   const todos = EXP.ecom.map(infoPedido);
-  const aFazer = todos.filter(x => !x.despachado && x.etapa !== 'aguardando');
-  const atrasados = aFazer.filter(x => x.atrasado);
-  const contHoje = EXP.cont.filter(c => c.data === hojeSP() && c.status !== 'recusado');
-  const abas = [['pedidos', '🏪 Balcão', aFazer.filter(x => x.loja).length], ['envios', '🚚 Envios', aFazer.filter(x => !x.loja).length], ['ml', '🛍 Mercado Livre', aFazer.filter(x => x.ml).length],
-    ['aprovacao', '💳 Aguardando aprovação', todos.filter(x => x.etapa === 'aguardando').length], ['entrada', '📥 Entrada de NF', ENT.notas ? ENT.notas.filter(n => ['a_receber', 'conferindo', 'divergente'].includes(n.status)).length : ''], ['contagem', '🔢 Contagem do dia', `${contHoje.length}/${EXP.cfg.meta_contagem}`], ['estoque', '📉 Estoque baixo', EXP.alertas.length], ['indicadores', '📊 Indicadores', '']];
-  return topo('Expedição e estoque', `Pedidos de loja e de marketplaces desde ${fmtCurta(EXP.cfg.inicio)} · atualizados do Tiny a cada 10 min`,
+  const ativos = todos.filter(x => !x.despachado);
+  const atrasados = ativos.filter(x => x.atrasado);
+  const daAba = UI.expFrete === 'todos' ? todos : todos.filter(x => freteDe(x) === UI.expFrete);
+  return topo('Expedição', `Pedidos de loja e de marketplaces desde ${fmtCurta(EXP.cfg.inicio)} · atualizados do Tiny a cada 10 min`,
     `<button class="btn" data-a="expAtualizar" ${EXP_ATUALIZANDO.v ? 'disabled' : ''}>${EXP_ATUALIZANDO.v ? '⏳ Atualizando…' : '↻ Atualizar'}</button><button class="btn" data-a="expOcorrencia">⚠ Registrar ocorrência</button>`)
     + `<div class="grid g4">
-      <div class="card kpi-card"><div class="rot">A fazer</div><div class="val">${aFazer.length}</div><div class="sub">${aFazer.filter(x => x.loja).length} balcão · ${aFazer.filter(x => !x.loja).length} envios · ${todos.filter(x => x.etapa === 'aguardando').length} aguardando aprovação</div></div>
-      <div class="card kpi-card"><div class="rot">Atrasados agora</div><div class="val ${atrasados.length ? 'c-ruim' : 'c-ok'}">${atrasados.length}</div><div class="sub">passaram do prazo de despacho</div></div>
-      <div class="card kpi-card"><div class="rot">Contagem de hoje</div><div class="val ${contHoje.length >= EXP.cfg.meta_contagem ? 'c-ok' : 'c-med'}">${contHoje.length} de ${EXP.cfg.meta_contagem}</div><div class="sub">itens conferidos no estoque</div></div>
-      <div class="card kpi-card"><div class="rot">Estoque baixo</div><div class="val ${EXP.alertas.length ? 'c-med' : ''}">${EXP.alertas.length}</div><div class="sub">produtos para pedir compra</div></div></div>
-    <div class="chips mt">${abas.map(([k, n, b]) => `<button class="chip ${UI.expAba === k ? 'on' : ''}" data-a="expAba" data-v="${k}">${n}${b !== '' ? `<span class="n">${b}</span>` : ''}</button>`).join('')}</div>
-    <div class="mt">${{ pedidos: () => abaPedidos(todos.filter(x => x.loja), 'balcao'), envios: () => faixaEnvioML() + abaPedidos(todos.filter(x => !x.loja), 'envios'), ml: () => abaMLExp(todos),
-      aprovacao: () => abaPedidos(todos.filter(x => x.etapa === 'aguardando'), 'aprovacao'), entrada: abaEntradaNF, contagem: abaContagem, estoque: abaEstoque, indicadores: abaIndicadores }[UI.expAba]?.() || ''}</div>`;
+      <div class="card kpi-card"><div class="rot">Recebidos</div><div class="val">${ativos.filter(x => x.etapa === 'aguardando').length}</div><div class="sub">aguardando aprovação ou pagamento</div></div>
+      <div class="card kpi-card"><div class="rot">A separar</div><div class="val ${ativos.some(x => x.etapa === 'a_separar') ? 'c-med' : ''}">${ativos.filter(x => x.etapa === 'a_separar').length}</div><div class="sub">${ativos.filter(x => x.etapa === 'a_separar' && x.loja).length} no balcão</div></div>
+      <div class="card kpi-card"><div class="rot">Atrasados agora</div><div class="val ${atrasados.length ? 'c-ruim' : 'c-ok'}">${atrasados.length}</div><div class="sub">passaram do prazo</div></div>
+      <div class="card kpi-card"><div class="rot">Concluídos hoje</div><div class="val c-ok">${todos.filter(x => x.despachoEm && dataSP(x.despachoEm) === hojeSP()).length}</div><div class="sub">entregues ou despachados</div></div></div>
+    <div class="chips mt">${FRETES_EXP.map(([k, n, ic]) => { const c = (k === 'todos' ? ativos : ativos.filter(x => freteDe(x) === k)).length;
+      return `<button class="chip ${UI.expFrete === k ? 'on' : ''}" data-a="expFreteAba" data-v="${k}">${ic} ${n}<span class="n">${c}</span></button>`; }).join('')}</div>
+    <div class="mt">${UI.expFrete === 'ml' ? abaMLExp(todos) : (['todos', 'correios', 'jadlog', 'rodonaves'].includes(UI.expFrete) ? faixaEnvioML() : '') + abaPedidos(daAba, UI.expFrete)}</div>`;
 }
 
 function abaPedidos(todos, modo) {
-  if (modo === 'aprovacao') UI.expFiltro = 'aguardando'; else if (UI.expFiltro === 'aguardando' || UI.expFiltro === 'loja') UI.expFiltro = 'fazer';
-  UI.expFiltro ||= 'fazer';
-  const filtros = modo === 'aprovacao' ? { aguardando: ['Aguardando aprovação', x => x.etapa === 'aguardando'] } : {
-    fazer: ['A fazer', x => !x.despachado && x.etapa !== 'aguardando'], atrasados: ['Atrasados', x => !x.despachado && x.atrasado],
-    faturamento: ['🧾 Faturamento', x => !x.despachado && x.faturamento],
+  const filtros = {
+    recebido: ['📥 Recebido', x => !x.despachado && x.etapa === 'aguardando'],
+    a_separar: ['📦 A separar', x => !x.despachado && x.etapa === 'a_separar'],
+    separado: ['✓ Separado', x => !x.despachado && ['separado', 'conferido'].includes(x.etapa) && !(x.balcao && x.pago)],
+    pago: ['💰 Pago', x => !x.despachado && x.balcao && x.pago && x.etapa !== 'aguardando'],
+    entregue: ['🚚 Entregue', x => x.despachado],
     hoje: ['Concluídos hoje', x => x.despachoEm && dataSP(x.despachoEm) === hojeSP()],
+    atrasados: ['⏰ Atrasados', x => !x.despachado && x.atrasado],
+    faturamento: ['🧾 Faturamento', x => !x.despachado && x.faturamento],
   };
+  UI.expFiltro = filtros[UI.expFiltro] ? UI.expFiltro : 'a_separar';
   // loja primeiro (cliente esperando no balcão), depois pelo prazo
-  const lista = todos.filter(filtros[UI.expFiltro][1]).sort((a, b) => (b.loja - a.loja) || ((a.prazo || 9e15) - (b.prazo || 9e15)));
+  const lista = todos.filter(filtros[UI.expFiltro][1]).sort(UI.expFiltro === 'entregue' ? (a, b) => String(b.despachoEm || '').localeCompare(String(a.despachoEm || '')) : (a, b) => (b.loja - a.loja) || ((a.prazo || 9e15) - (b.prazo || 9e15)));
   const linha = x => {
     const { p, e, ml, prazo } = x;
     const its = EXP.itens[p.id] || [];
@@ -204,10 +212,11 @@ function abaPedidos(todos, modo) {
         ${x.pagPendente ? '' : x.despachado ? `<small class="mut">${x.loja ? 'Entregue' : 'Despachado'} ${x.despachoEm ? dataHora(x.despachoEm) : ''}${e.despachado_por ? ' por ' + esc(nomeP(e.despachado_por)) : ''}</small>` : x.etapa === 'aguardando' ? '<small class="mut">Ainda não aprovado no Tiny (pagamento ou conferência do pedido).</small>' : `
           ${e.pagamento_aprovado_em ? `<small class="c-ok">${ehBoleto(p) ? "✅ Faturamento aprovado" : "💳 Pagamento aprovado"} por ${esc(nomeP(e.pagamento_aprovado_por))}</small>` : ''}
           ${!e.separado_em ? `<button class="btn pri peq" data-a="expEtapa" data-id="${p.id}" data-k="separado">✓ Separado</button>` : `<small class="mut">Separado ${dataHora(e.separado_em)}${e.separado_por ? ' · ' + esc(nomeP(e.separado_por)) : ''}</small>`}
-          ${x.loja ? (e.separado_em ? `<button class="btn pri peq" data-a="expEtapa" data-id="${p.id}" data-k="despachado">💰 Cobrado e entregue</button>` : '') : `
+          ${x.loja ? `${!x.pago ? `<button class="btn ${e.separado_em ? 'pri' : ''} peq" data-a="expEtapa" data-id="${p.id}" data-k="pago">💰 Pago</button>` : `<small class="c-ok">💰 Pago${e.pago_em ? ' ' + dataHora(e.pago_em) + (e.pago_por ? ' · ' + esc(nomeP(e.pago_por)) : '') : ''}</small>`}
+            ${e.separado_em && x.pago ? `<button class="btn pri peq" data-a="expEtapa" data-id="${p.id}" data-k="despachado">📦 Entregue</button>` : ''}` : `
           ${e.separado_em && !e.conferido_em ? `<button class="btn pri peq" data-a="expEtapa" data-id="${p.id}" data-k="conferido">✓ Conferido e embalado</button>` : e.conferido_em ? `<small class="mut">· Conferido ${dataHora(e.conferido_em)}</small>` : ''}
           ${e.conferido_em ? `<button class="btn pri peq" data-a="expEtapa" data-id="${p.id}" data-k="despachado">🚚 Despachado</button>` : ''}`}
-          ${e.separado_em ? `<button class="btn peq" data-a="expDesfazer" data-id="${p.id}" title="Desfazer a última etapa">↺</button>` : ''}
+          ${e.separado_em || e.pago_em ? `<button class="btn peq" data-a="expDesfazer" data-id="${p.id}" title="Desfazer a última etapa">↺</button>` : ''}
           ${e.tiny_erro ? `<br><small class="c-ruim">⚠ Tiny não atualizou: ${esc(e.tiny_erro)}</small>` : ''}`}
         ${etiqueta ? `<button class="btn peq" data-a="imprimirEtiquetas" data-envios="${esc(String(ml.envio_id))}">🖨 Etiqueta</button>` : ''}
         <button class="btn peq" data-a="expOcorrencia" data-id="${p.id}">⚠ Ocorrência</button>
@@ -217,10 +226,8 @@ function abaPedidos(todos, modo) {
   const etiquetasLote = lista.filter(x => x.ml && x.ml.envio_status === 'ready_to_ship' && x.ml.envio_substatus === 'ready_to_print').map(x => x.ml.envio_id);
   return `<div class="filtros"><div class="chips">${Object.entries(filtros).map(([k, [n, f]]) => `<button class="chip ${UI.expFiltro === k ? 'on' : ''}" data-a="expFiltro" data-v="${k}">${n}<span class="n">${todos.filter(f).length}</span></button>`).join('')}</div>
       ${etiquetasLote.length > 1 ? `<button class="btn pri peq" data-a="imprimirEtiquetas" data-envios="${etiquetasLote.join(',')}">🖨 Imprimir todas as etiquetas do ML (${etiquetasLote.length})</button>` : ''}</div>
-    ${modo === 'aprovacao' ? '<p class="explica">Pedidos pagos por <b>depósito ou Tray</b> só vão para a separação depois que Vinícius, Marcos, Fefão ou Felipe Menezes conferirem o pagamento e clicarem em "Aprovar pagamento". Aqui também ficam os pedidos de marketplace ainda "Em aberto" no Tiny.</p>'
-      : modo === 'ml' ? '<p class="explica"><b>Mercado Livre:</b> a NF sai sozinha, a etiqueta é impressa aqui e o pedido segue separar → conferir e embalar → despachar (postar na agência). O Mercado Livre fica só com Vinícius, Marcos e Diana.</p>'
-      : modo === 'envios' ? '<p class="explica">Pedidos da loja enviados por <b>Correios ou transportadora</b> e os pedidos de marketplace: separar → conferir e embalar → despachar.</p>'
-      : '<p class="explica"><b>Balcão:</b> pedidos com retirada na loja (forma de envio "Retirar Loja" ou em branco). Separação imediata: separar → cobrar e entregar. No Tiny: Separado = Aprovado; Cobrado e entregue = Entregue.</p>'}
+    ${modo === 'ml' ? '<p class="explica"><b>Mercado Livre:</b> a NF sai sozinha, a etiqueta é impressa aqui e o pedido segue separar → conferir e embalar → despachar (postar na agência).</p>'
+      : '<p class="explica"><b>Balcão (retirada):</b> separar → 💰 pago → 📦 entregue (no Tiny: Separado = Aprovado; Entregue = Entregue). <b>Envios:</b> separar → conferir e embalar → despachar.</p>'}
     ${lista.length ? lista.slice(0, 80).map(linha).join('') : '<div class="card vazio">Nada por aqui. 👏</div>'}`;
 }
 
@@ -312,7 +319,8 @@ async function expAtualizar() {
 }
 async function expEtapa(id, etapa) {
   const p = EXP.ecom.find(x => x.id === id);
-  const msg = etapa === 'despachado' ? (p?.tipo === 'loja' ? `Confirmar que o pedido ${p.numero} foi COBRADO e ENTREGUE ao cliente?\n\nNo Tiny ele vai para "Entregue".` : 'Confirmar que este pedido saiu (coleta, Correios ou transportadora)?')
+  const msg = etapa === 'pago' ? `O cliente PAGOU o pedido ${p?.numero} (${R(p?.valor)} · ${p?.pag_forma || p?.forma_pagamento || ''})?`
+    : etapa === 'despachado' ? (p?.tipo === 'loja' ? `Confirmar que o pedido ${p.numero} foi ENTREGUE ao cliente?\n\nNo Tiny ele vai para "Entregue".` : 'Confirmar que este pedido saiu (coleta, Correios ou transportadora)?')
     : etapa === 'separado' && p?.numero_ecommerce == null ? `Pedido ${p?.numero} separado?\n\nNo Tiny ele vai para "Aprovado".` : null;
   if (msg && !confirm(msg)) return;
   try { const r = await chamarFuncao('expedicao', { acao: 'etapa', pedido_id: id, etapa }); EXP.exp[id] = r.expedicao; if (r.aviso) alert(r.aviso); render(); }
@@ -340,7 +348,7 @@ async function expNFDispensa(id) {
 }
 async function expDesfazer(id) {
   const e = EXP.exp[id]; if (!e) return;
-  const etapa = e.despachado_em ? 'despachado' : e.conferido_em ? 'conferido' : 'separado';
+  const etapa = e.despachado_em ? 'despachado' : e.conferido_em ? 'conferido' : e.pago_em ? 'pago' : 'separado';
   if (!confirm(`Desfazer "${ETAPA_EXP[etapa][0]}" deste pedido na Intranet?\n\nAtenção: a situação no Tiny não volta sozinha; se precisar, ajuste no Tiny.`)) return;
   try { const r = await chamarFuncao('expedicao', { acao: 'desfazer', pedido_id: id }); EXP.exp[id] = r.expedicao; render(); }
   catch (er) { alert('Não gravou: ' + er.message); }

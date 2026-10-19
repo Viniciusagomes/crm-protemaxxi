@@ -129,7 +129,7 @@ setInterval(() => { if (D && EU) { carregarCreditos().catch(() => {}); if (ehDon
 function atalhosBarra() {
   if (ehDono()) return [['inicio', '⌂', 'Início'], ['crm', '🎯', 'Funil'], ['vendas', '📈', 'Vendas']];
   if (EU.tiny) return [['meudia', '☀', 'Meu dia'], ['crm', '🎯', 'Funil'], ['situacao', '🚦', 'Pedidos']];
-  if (veExp()) return [['expedicao', '📦', 'Expedição'], ['solicitacoes', '📨', 'Solicit.'], ['meudia', '☀', 'Meu dia']];
+  if (veExp()) return [['visaoestoque', '📋', 'Visão'], ['expedicao', '📦', 'Expedição'], ['estoque', '🏷', 'Estoque']];
   return [['inicio', '⌂', 'Início'], ['solicitacoes', '📨', 'Solicit.'], ['meudia', '☀', 'Meu dia']].filter(([v]) => podeAba(v));
 }
 function conteudoBarraInf() {

@@ -19,6 +19,7 @@ function passosPedido(p) {
   if (precisaAprovar(p)) passos.push(['Pagamento aprovado', !!e.pagamento_aprovado_em || saiu, e.pagamento_aprovado_em ? dataHora(e.pagamento_aprovado_em) : '']);
   passos.push(['Separado', !!e.separado_em || saiu, e.separado_em ? dataHora(e.separado_em) : '']);
   if (exigeNF(p)) passos.push(['Nota fiscal', nfLiberada(e) || saiu, e.nf_dispensa ? 'não faturado' : e.nf_numero ? 'NF ' + e.nf_numero : '']);
+  if (ret) passos.push(['Pago', !!(e.pago_em || e.pagamento_aprovado_em) || saiu, e.pago_em ? dataHora(e.pago_em) : '']);
   if (!ret) passos.push(['Conferido e embalado', !!e.conferido_em || saiu, e.conferido_em ? dataHora(e.conferido_em) : '']);
   passos.push([ret ? 'Entregue ao cliente' : 'Enviado', saiu, e.despachado_em ? dataHora(e.despachado_em) : '']);
   const problemas = [
@@ -27,7 +28,7 @@ function passosPedido(p) {
     ...(exigeNF(p) && !saiu && !nfLiberada(e) && e.separado_em ? ['🧾 Pedido de faturamento separado, aguardando a nota fiscal para sair'] : []),
   ];
   const resolvidos = (p.ocorrencias || []).filter(o => o.resolvido);
-  const ESPERA = { 'Pagamento aprovado': 'Aguardando aprovação do pagamento', 'Nota fiscal': 'Aguardando a nota fiscal', 'Separado': 'Na fila para separar', 'Conferido e embalado': 'Separado · falta conferir e embalar',
+  const ESPERA = { 'Pagamento aprovado': 'Aguardando aprovação do pagamento', 'Nota fiscal': 'Aguardando a nota fiscal', 'Pago': 'Separado · aguardando pagamento', 'Separado': 'Na fila para separar', 'Conferido e embalado': 'Separado · falta conferir e embalar',
     'Enviado': 'Embalado · aguardando envio', 'Entregue ao cliente': 'Separado · aguardando o cliente' };
   const atual = cancel ? 'Cancelado' : saiu ? (ret ? 'Entregue' : 'Enviado') : ESPERA[(passos.find(x => !x[1]) || [''])[0]] || 'Em andamento';
   const estado = cancel ? 'cancelado' : problemas.length ? 'problema' : saiu ? 'concluido' : 'andamento';
