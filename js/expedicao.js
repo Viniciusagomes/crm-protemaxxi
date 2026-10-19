@@ -193,7 +193,7 @@ function abaPedidos(todos, modo) {
       <table class="tabela" style="margin-top:6px"><tbody>${its.map(i => { const pr = EXP.prod[String(i.produto_id)];
         return `<tr><td style="width:60px" class="num"><b>${N(i.quantidade)}×</b></td><td><b>${esc(i.codigo || '')}</b> ${esc(i.descricao || '')}</td><td><small>${pr ? '📍 ' + esc(pr.localizacao || pr.unidade || '—') : ''}</small></td><td class="dir"><small>${pr?.saldo != null ? 'estoque ' + N(pr.saldo) : ''}</small></td></tr>`; }).join('') || '<tr><td class="mut">Itens ainda não carregados do Tiny.</td></tr>'}</tbody></table>
       ${brindesDoPedido(p.numero).map(b => `<div class="alerta ok" style="margin-top:6px"><span class="ic">🎁</span><span><b>Brinde aprovado: ${b.qtd}× ${esc(CRE.brindes?.find(x => x.id === b.brinde_id)?.nome || 'brinde')}</b>, separar junto com o pedido.</span><button class="btn peq" data-a="briAprovar" data-id="${b.id}" data-v="entregue">Entregue</button></div>`).join('')}
-      ${ocs.map(o => `<div class="alerta med" style="margin-top:6px"><span class="ic">${TIPOS_OC[o.tipo][0]}</span><span>${TIPOS_OC[o.tipo][1]}${o.produto ? ': ' + esc(o.produto) : ''}${o.descricao ? ' — ' + esc(o.descricao) : ''}</span></div>`).join('')}
+      ${ocs.map(o => `<div class="alerta med" style="margin-top:6px"><span class="ic">${TIPOS_OC[o.tipo][0]}</span><span style="flex:1">${TIPOS_OC[o.tipo][1]}${o.produto ? ': ' + esc(o.produto) : ''}${o.descricao ? ' — ' + esc(o.descricao) : ''}</span>${podeExcluirOc(o) ? `<button class="icone-btn" data-a="expOcExcluir" data-id="${o.id}" title="Excluir esta ocorrência">🗑</button>` : ''}</div>`).join('')}
       ${semNF ? '<div class="alerta med" style="margin-top:6px"><span class="ic">🧾</span><span>Aguardando a nota fiscal. A etiqueta do ML só libera depois da NF.</span></div>' : ''}
       ${alertaDeposito(p) && !x.despachado ? '<div class="alerta med" style="margin-top:6px"><span class="ic">🧾</span><span><b>Pagamento por depósito: caso seja faturamento, a nota fiscal é obrigatória antes de sair.</b></span></div>' : ''}
       ${x.faturamento && !x.despachado ? `<div class="alerta ${x.nfOk ? 'ok' : 'ruim'}" style="margin-top:6px"><span class="ic">🧾</span><span><b>Pedido de faturamento (${esc(p.pag_forma || p.forma_pagamento || '')}): nota fiscal obrigatória antes de sair.</b>
@@ -298,7 +298,7 @@ function abaIndicadores() {
         ${Object.entries(r.porCanal).map(([k, s]) => `<tr><td>${esc(k)}</td><td class="dir">${s.d}</td><td class="dir">${pct(s.ok / s.d * 100)}</td></tr>`).join('') || '<tr><td colspan="3" class="vazio">Nenhum despacho no mês.</td></tr>'}</tbody></table></div>
       <div class="card"><h2>Ocorrências do mês</h2><table class="tabela"><tbody>
         ${ocs.map(o => `<tr><td>${TIPOS_OC[o.tipo][0]} <b>${TIPOS_OC[o.tipo][1]}</b>${o.pedido_numero ? ' · pedido ' + esc(o.pedido_numero) : ''}<br><small>${esc(o.produto || '')}${o.quantidade ? ' (' + N(o.quantidade) + ')' : ''}${o.descricao ? ' — ' + esc(o.descricao) : ''}</small><br><small class="mut">${dataHora(o.quando)} · ${esc(nomeP(o.pessoa_id))}</small></td>
-          <td class="dir">${o.resolvido ? `<span class="tag ok">resolvida</span>${o.solucao ? `<br><small>${esc(o.solucao)}</small>` : ''}` : `<button class="btn peq" data-a="expResolver" data-id="${o.id}">Resolver</button>`}</td></tr>`).join('') || '<tr><td class="vazio">Nenhuma ocorrência no mês. 👏</td></tr>'}</tbody></table></div>
+          <td class="dir">${o.resolvido ? `<span class="tag ok">resolvida</span>${o.solucao ? `<br><small>${esc(o.solucao)}</small>` : ''}` : `<button class="btn peq" data-a="expResolver" data-id="${o.id}">Resolver</button>`}${podeExcluirOc(o) ? ` <button class="icone-btn" data-a="expOcExcluir" data-id="${o.id}" title="Excluir esta ocorrência">🗑</button>` : ''}</td></tr>`).join('') || '<tr><td class="vazio">Nenhuma ocorrência no mês. 👏</td></tr>'}</tbody></table></div>
     </div>`;
 }
 
@@ -399,6 +399,16 @@ Motivo: ${motivo}`)) return;
   catch (e) { return alert('Não cancelou: ' + e.message); }
   p.situacao = 'Cancelado'; EXP.ecom = EXP.ecom.filter(x => x.id !== id);
   fecharModal(); avisar(`Pedido ${p.numero} cancelado no Tiny ✓`); render();
+}
+/** Excluir ocorrência lançada por engano ou de teste: quem lançou, quem aprova pagamento ou o dono. */
+const podeExcluirOc = o => ehDono() || o.pessoa_id === EU.id || !!EU?.permissoes?.aprovar_pagamento;
+async function expOcExcluir(id) {
+  const o = EXP.ocs.find(x => String(x.id) === String(id)); if (!o) return;
+  if (!confirm(`Excluir a ocorrência "${TIPOS_OC[o.tipo]?.[1] || o.tipo}${o.produto ? ': ' + o.produto : ''}"${o.pedido_numero ? ' do pedido ' + o.pedido_numero : ''}?\n\nUse só para ocorrência lançada por engano ou de teste. Se o problema foi resolvido, use "Resolver".`)) return;
+  const { data, error } = await sb.from('expedicao_ocorrencias').delete().eq('id', id).select('id');
+  if (error || !data?.length) return alert('Não excluiu: ' + (error?.message || 'sem permissão.'));
+  EXP.ocs = EXP.ocs.filter(x => String(x.id) !== String(id));
+  avisar('Ocorrência excluída ✓'); render();
 }
 function expFormOcorrencia(pedidoId) {
   const p = pedidoId ? EXP.ecom.find(x => x.id === pedidoId) : null;

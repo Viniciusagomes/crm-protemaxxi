@@ -381,6 +381,7 @@ const A = {
   expFreteSalvar: el => expFreteSalvar(el.dataset.id, el),
   expCancelar2: el => expCancelar2(el.dataset.id),
   expOcorrencia: el => expFormOcorrencia(el.dataset.id),
+  expOcExcluir: el => expOcExcluir(el.dataset.id).catch(e => avisar(e.message)),
   expSalvarOcorrencia: () => expSalvarOcorrencia(),
   expResolver: el => expResolver(el.dataset.id),
   expContar: el => expContar(el.dataset.id),
