@@ -199,6 +199,7 @@ function abaPedidos(todos, modo) {
           ${e.tiny_erro ? `<br><small class="c-ruim">⚠ Tiny não atualizou: ${esc(e.tiny_erro)}</small>` : ''}`}
         ${etiqueta ? `<button class="btn peq" data-a="imprimirEtiquetas" data-envios="${esc(String(ml.envio_id))}">🖨 Etiqueta</button>` : ''}
         <button class="btn peq" data-a="expOcorrencia" data-id="${p.id}">⚠ Ocorrência</button>
+        ${!p.numero_ecommerce && !x.despachado ? `<button class="btn peq" data-a="expFrete" data-id="${p.id}" title="Trocar a forma de envio no Tiny">🚚 Trocar frete</button>` : ''}
         ${!p.numero_ecommerce && !x.despachado && podeAprovarPag() ? `<button class="btn peq perigo" data-a="expCancelar" data-id="${p.id}" title="Cancelar esta venda no Tiny">✖ Cancelar venda</button>` : ''}</div></div>`;
   };
   const etiquetasLote = lista.filter(x => x.ml && x.ml.envio_status === 'ready_to_ship' && x.ml.envio_substatus === 'ready_to_print').map(x => x.ml.envio_id);
@@ -318,6 +319,37 @@ async function expDesfazer(id) {
   try { const r = await chamarFuncao('expedicao', { acao: 'desfazer', pedido_id: id }); EXP.exp[id] = r.expedicao; render(); }
   catch (er) { alert('Não gravou: ' + er.message); }
 }
+/** Trocar frete: lista as formas de envio do Tiny (Correios, transportadoras, retirada, Uber…) e troca no pedido. */
+const FRETES = { lista: null, em: 0 };
+async function expFrete(id) {
+  const p = EXP.ecom.find(x => x.id === id); if (!p) return;
+  modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>🚚 Trocar frete · pedido ${esc(p.numero || '')}</h2><p class="mut">Carregando as formas de envio do Tiny…</p>`);
+  try { if (!FRETES.lista || Date.now() - FRETES.em > 30 * 60e3) { FRETES.lista = (await chamarFuncao('expedicao', { acao: 'formas_envio' })).formas; FRETES.em = Date.now(); } }
+  catch (e) { return modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>🚚 Trocar frete</h2><div class="alerta ruim"><span class="ic">!</span><span>${esc(e.message)}</span></div>`); }
+  const atual = [p.envio_forma, p.envio_servico].filter(Boolean).join(' · ') || 'Não definido';
+  const opcoes = FRETES.lista.map(f => f.fretes.length
+    ? `<optgroup label="${esc(f.nome)}">${f.fretes.map(x => `<option value="${f.id}|${x.id}" ${p.envio_forma === f.nome && p.envio_servico === x.nome ? 'selected' : ''}>${esc(f.nome)} · ${esc(x.nome)}</option>`).join('')}</optgroup>`
+    : `<option value="${f.id}|" ${p.envio_forma === f.nome ? 'selected' : ''}>${esc(f.nome)}</option>`).join('');
+  modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>🚚 Trocar frete · pedido ${esc(p.numero || '')}</h2>
+    <p>${esc(p.cliente_nome || '')} · agora: <b>${esc(atual)}</b></p>
+    <label class="campo">Nova forma de envio<select id="freteNovo"><option value="">Escolha…</option>${opcoes}</select></label>
+    <p class="explica">A troca vale no pedido do Tiny (só o transporte muda: itens, valores e pagamento ficam iguais). Se o pedido já tiver nota fiscal, troque direto no Tiny.</p>
+    <div class="acoes mt"><button class="btn" data-a="fecharModal">Voltar</button><button class="btn pri" data-a="expFreteSalvar" data-id="${esc(id)}">Trocar frete</button></div>`);
+}
+async function expFreteSalvar(id, el) {
+  const p = EXP.ecom.find(x => x.id === id); if (!p) return;
+  const [fe, ff] = ($('#freteNovo')?.value || '|').split('|');
+  if (!fe) return alert('Escolha a nova forma de envio.');
+  const f = FRETES.lista.find(x => String(x.id) === fe), nome = [f?.nome, f?.fretes.find(x => String(x.id) === ff)?.nome].filter(Boolean).join(' · ');
+  if (!confirm(`Trocar o frete do pedido ${p.numero} para ${nome}?`)) return;
+  if (el) el.disabled = true;
+  try {
+    const r = await chamarFuncao('expedicao', { acao: 'frete', pedido_id: id, forma_envio_id: fe, forma_frete_id: ff || null });
+    p.envio_forma = r.envio_forma; p.envio_servico = r.envio_servico; p.tipo = tipoExp(p, null);
+  } catch (e) { if (el) el.disabled = false; return alert('Não trocou: ' + e.message); }
+  fecharModal(); avisar(`Frete do pedido ${p.numero}: ${nome} ✓`); render();
+}
+
 /** Cancelar venda: 1) botão abre a janela com o motivo; 2) confirma; 3) digita o número do pedido. Só então vai ao Tiny. */
 function expCancelar(id) {
   const p = EXP.ecom.find(x => x.id === id); if (!p) return;

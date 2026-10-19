@@ -74,7 +74,9 @@ function corTempo(x) {
 /** Cor do card pela forma de envio: [classe, texto]. ML amarelo, Correios azul, Jadlog vermelho, Rodonaves laranja,
  *  retirada roxo, Uber preto, entrega própria cinza, sem forma definida verde. */
 function tipoTV(x) {
-  const { p } = x, serv = p.envio_servico || '', txt = semAcento(`${p.envio_forma || ''} ${serv}`).toLowerCase();
+  const { p } = x, forma = semAcento(p.envio_forma || '').toLowerCase();
+  // o serviço (Sedex, Jadlog…) só conta para Correios/Transportadora: ao trocar para Uber ou retirada o Tiny guarda o serviço antigo
+  const serv = /correio|transport/.test(forma) || !forma ? p.envio_servico || '' : '', txt = `${forma} ${semAcento(serv).toLowerCase()}`;
   if (x.ml || /mercado|ml\b/i.test(`${x.canal} ${p.envio_forma || ''}`)) return ['ml', 'Mercado Livre'];
   if (/jadlog/.test(txt)) return ['jadlog', 'Jadlog'];
   if (/rodonaves/.test(txt)) return ['rodonaves', 'Rodonaves'];
