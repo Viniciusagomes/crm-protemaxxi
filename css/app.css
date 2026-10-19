@@ -635,3 +635,5 @@ body.tvestoque .barra-inf { display: none !important; }
 .sit-passos li.ok { color: var(--txt); } .sit-passos li.ok::before { background: var(--ok); box-shadow: 0 0 0 4px rgba(31,174,90,.18); } .sit-passos li.ok::after { background: var(--ok); }
 .sit-passos li b { display: block; font-weight: 600; } .sit-passos li small { display: block; color: var(--txt2); font-size: 11px; }
 @media (max-width: 600px) { .sit-passos li { font-size: 11px; } }
+.tvnf { background: #FDE8E6; color: #A3231A; font-family: Archivo; font-weight: 800; font-size: 22px; padding: 8px 14px; border-top: 3px solid #D2463C; animation: tvpulsa 1.6s infinite; }
+.tvnf.ok { background: #E3F5EA; color: #11202F; border-top-color: #1FAE5A; animation: none; }

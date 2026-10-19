@@ -92,6 +92,7 @@ function notificacoes() {
   const atras = atv.filter(a => a.quando < h), hojeA = atv.filter(a => a.quando === h);
   if (atras.length) add('atv-a:' + atras.length, '⏰', `${atras.length} atividade(s) atrasada(s)`, 'nav', { v: 'meudia' }, 'ruim');
   if (hojeA.length) add('atv-h:' + hojeA.length, '📅', `${hojeA.length} atividade(s) para hoje`, 'nav', { v: 'meudia' });
+  if (EXP && veExp()) { const f = EXP.ecom.map(infoPedido).filter(x => x.faturamento && !x.despachado && !x.nfOk && x.e.separado_em).length; if (f) add('fat:' + f, '🧾', `${f} pedido(s) de faturamento separados sem nota fiscal`, 'nav', { v: 'expedicao' }, 'ruim'); }
   if (EXP && podeAprovarPag()) { const n = EXP.ecom.map(infoPedido).filter(x => x.pagPendente).length; if (n) add('pag:' + n, '💰', `${n} pedido(s) aguardando aprovação de pagamento`, 'nav', { v: 'expedicao' }, 'med'); }
   if (veML() && D.ml) { const n = D.ml.perguntas.filter(perguntaPendente).length; if (n) add('mlp:' + n, '❓', `${n} pergunta(s) sem resposta no Mercado Livre`, 'nav', { v: 'ml' }, 'med'); }
   if (typeof veEnvioML === 'function' && veEnvioML() && ENVML.em) { const s = situacaoEnvioML(); if (s.hj && s.pend.length && s.falta != null && s.falta <= 60) add('envml:' + h, '🚚', `Postagem ML ${s.falta < 0 ? 'ATRASADA' : 'em ' + fmtFalta(s.falta)}: ${s.pend.length} pedido(s)`, 'nav', { v: veExp() ? 'expedicao' : 'ml' }, 'ruim'); }

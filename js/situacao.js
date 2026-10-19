@@ -18,14 +18,16 @@ function passosPedido(p) {
   const passos = [['Pedido feito', true, p.data ? fmtCurta(p.data) : '']];
   if (precisaAprovar(p)) passos.push(['Pagamento aprovado', !!e.pagamento_aprovado_em || saiu, e.pagamento_aprovado_em ? dataHora(e.pagamento_aprovado_em) : '']);
   passos.push(['Separado', !!e.separado_em || saiu, e.separado_em ? dataHora(e.separado_em) : '']);
+  if (exigeNF(p)) passos.push(['Nota fiscal', nfLiberada(e) || saiu, e.nf_dispensa ? 'não faturado' : e.nf_numero ? 'NF ' + e.nf_numero : '']);
   if (!ret) passos.push(['Conferido e embalado', !!e.conferido_em || saiu, e.conferido_em ? dataHora(e.conferido_em) : '']);
   passos.push([ret ? 'Entregue ao cliente' : 'Enviado', saiu, e.despachado_em ? dataHora(e.despachado_em) : '']);
   const problemas = [
     ...(p.ocorrencias || []).filter(o => !o.resolvido).map(o => `${(TIPOS_OC[o.tipo] || TIPOS_OC.outro)[0]} ${(TIPOS_OC[o.tipo] || TIPOS_OC.outro)[1]}${o.produto ? ': ' + o.produto : ''}${o.quantidade ? ` (${N(o.quantidade)})` : ''}${o.descricao ? ' · ' + o.descricao : ''}`),
     ...(e.tiny_erro ? ['⚠ O Tiny não aceitou a última mudança de situação'] : []),
+    ...(exigeNF(p) && !saiu && !nfLiberada(e) && e.separado_em ? ['🧾 Pedido de faturamento separado, aguardando a nota fiscal para sair'] : []),
   ];
   const resolvidos = (p.ocorrencias || []).filter(o => o.resolvido);
-  const ESPERA = { 'Pagamento aprovado': 'Aguardando aprovação do pagamento', 'Separado': 'Na fila para separar', 'Conferido e embalado': 'Separado · falta conferir e embalar',
+  const ESPERA = { 'Pagamento aprovado': 'Aguardando aprovação do pagamento', 'Nota fiscal': 'Aguardando a nota fiscal', 'Separado': 'Na fila para separar', 'Conferido e embalado': 'Separado · falta conferir e embalar',
     'Enviado': 'Embalado · aguardando envio', 'Entregue ao cliente': 'Separado · aguardando o cliente' };
   const atual = cancel ? 'Cancelado' : saiu ? (ret ? 'Entregue' : 'Enviado') : ESPERA[(passos.find(x => !x[1]) || [''])[0]] || 'Em andamento';
   const estado = cancel ? 'cancelado' : problemas.length ? 'problema' : saiu ? 'concluido' : 'andamento';

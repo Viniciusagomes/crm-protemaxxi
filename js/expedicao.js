@@ -21,7 +21,12 @@ const SIT_LOJA_ABERTA = ['Em aberto', 'Aprovado', 'Preparando envio', 'Faturado'
 /** Retirada no balcão: forma de envio "Retirar Loja" ou em branco. Correios, transportadora etc. = envio. */
 const ehRetirada = p => !p.envio_forma || /retir/i.test(p.envio_forma);
 /** Depósito ou Tray: o pagamento precisa ser aprovado (Vinícius, Marcos, Fefão ou Felipe Menezes) antes de separar. Pix não: é feito na maquininha. */
-const precisaAprovar = p => !p.numero_ecommerce && /dep[oó]sito|tray/i.test(`${p.pag_forma || ''} ${p.pag_meio || ''} ${p.forma_pagamento || ''}`);
+const pagTxt = p => `${p.pag_forma || ''} ${p.pag_meio || ''} ${p.forma_pagamento || ''}`;
+const precisaAprovar = p => !p.numero_ecommerce && /dep[oó]sito|tray|boleto|m[uú]ltipl/i.test(pagTxt(p));
+/** Faturamento (boleto, múltiplas, depósito): nota fiscal obrigatória antes de o material sair. */
+const exigeNF = p => !p.numero_ecommerce && /boleto|m[uú]ltipl|dep[oó]sito/i.test(pagTxt(p));
+const ehBoleto = p => /boleto|m[uú]ltipl/i.test(pagTxt(p));
+const nfLiberada = e => !!e?.nf_dispensa || /autoriz/i.test(e?.nf_situacao || '');
 const podeAprovarPag = () => ehDono() || !!EU?.permissoes?.aprovar_pagamento;
 /** 'loja' (retirada no balcão) | 'envio' (loja por correios/transportadora) | 'marketplace' | null (fora da expedição por enquanto) */
 function tipoExp(p, ml) {
@@ -98,7 +103,8 @@ function infoPedido(p) {
   const etapa = despachado ? 'despachado' : (pagPendente || (p.tipo === 'marketplace' && p.situacao === 'Em aberto')) ? 'aguardando' : e.conferido_em ? 'conferido' : e.separado_em ? 'separado' : 'a_separar';
   const atrasado = !pagPendente && prazo && (despachoEm ? new Date(despachoEm) > prazo : !despachado && Date.now() > prazo);
   const canal = loja ? 'Loja' : envioLoja ? 'Loja (envio)' : p.canal || (ml ? 'ML - Viny' : 'Marketplace');
-  return { p, e, ml, base, prazo, despachado, despachoEm, etapa, atrasado, canal, loja, envioLoja, pagPendente };
+  const faturamento = exigeNF(p), nfOk = !faturamento || nfLiberada(e);
+  return { p, e, ml, base, prazo, despachado, despachoEm, etapa, atrasado, canal, loja, envioLoja, pagPendente, faturamento, nfOk };
 }
 const nomeCanal = c => c === 'Loja' ? 'Balcão (retirada)' : c === 'Loja (envio)' ? 'Loja · envio' : /ml|mercado/i.test(c) ? 'Mercado Livre' : /tray/i.test(c) ? 'Site (Tray)' : /amazon/i.test(c) ? 'Amazon' : c;
 
@@ -165,6 +171,7 @@ function abaPedidos(todos, modo) {
   UI.expFiltro ||= 'fazer';
   const filtros = modo === 'aprovacao' ? { aguardando: ['Aguardando aprovação', x => x.etapa === 'aguardando'] } : {
     fazer: ['A fazer', x => !x.despachado && x.etapa !== 'aguardando'], atrasados: ['Atrasados', x => !x.despachado && x.atrasado],
+    faturamento: ['🧾 Faturamento', x => !x.despachado && x.faturamento],
     hoje: ['Concluídos hoje', x => x.despachoEm && dataSP(x.despachoEm) === hojeSP()],
   };
   // loja primeiro (cliente esperando no balcão), depois pelo prazo
@@ -180,17 +187,20 @@ function abaPedidos(todos, modo) {
         <b>Pedido ${esc(p.numero || '')}</b> · <span class="tag ${x.loja ? 'ruim' : 'azul'}">${esc(nomeCanal(x.canal))}</span> · ${esc(p.cliente_nome || '')} ${x.loja ? seloCredito(p.cliente_chave) : ''}
         <br><small class="mut">${p.situacao ? 'Tiny: ' + esc(p.situacao) : ''}${ml?.envio_substatus ? ' · ML: ' + esc(SUBSTATUS_NOME[ml.envio_substatus] || ml.envio_substatus) : ''}${x.loja && p.vendedor_nome ? ' · vendedor ' + esc(p.vendedor_nome) : ''}</small>
         ${x.loja || x.envioLoja ? `<br><b>${x.loja ? 'A cobrar' : 'Valor'}: ${R(p.valor)}</b> <small>(${esc(p.pag_forma || p.forma_pagamento || '?')}${p.pag_meio ? ' · ' + esc(p.pag_meio) : ''})</small>${x.envioLoja ? `<br><small>🚚 ${esc(p.envio_forma)}</small>` : ''}` : ''}</div>
-        <div style="text-align:right"><span class="tag ${ETAPA_EXP[x.etapa][1]}">${ETAPA_EXP[x.etapa][0]}</span><br>
+        <div style="text-align:right">${x.faturamento ? `<span class="tag ${x.nfOk ? 'ok' : 'ruim'}" title="Pedido de faturamento: NF obrigatória">🧾 ${x.nfOk ? 'NF ok' : 'NF obrigatória'}</span> ` : ''}<span class="tag ${ETAPA_EXP[x.etapa][1]}">${ETAPA_EXP[x.etapa][0]}</span><br>
         <small class="${x.atrasado ? 'c-ruim' : 'mut'}">${prazo ? (x.despachado ? 'prazo era ' : x.loja ? 'entregar até ' : 'despachar até ') + dataHora(prazo) : 'sem prazo'}${x.atrasado ? ' · ATRASADO' : ''}</small></div></div>
       <table class="tabela" style="margin-top:6px"><tbody>${its.map(i => { const pr = EXP.prod[String(i.produto_id)];
         return `<tr><td style="width:60px" class="num"><b>${N(i.quantidade)}×</b></td><td><b>${esc(i.codigo || '')}</b> ${esc(i.descricao || '')}</td><td><small>${pr ? '📍 ' + esc(pr.localizacao || pr.unidade || '—') : ''}</small></td><td class="dir"><small>${pr?.saldo != null ? 'estoque ' + N(pr.saldo) : ''}</small></td></tr>`; }).join('') || '<tr><td class="mut">Itens ainda não carregados do Tiny.</td></tr>'}</tbody></table>
       ${brindesDoPedido(p.numero).map(b => `<div class="alerta ok" style="margin-top:6px"><span class="ic">🎁</span><span><b>Brinde aprovado: ${b.qtd}× ${esc(CRE.brindes?.find(x => x.id === b.brinde_id)?.nome || 'brinde')}</b>, separar junto com o pedido.</span><button class="btn peq" data-a="briAprovar" data-id="${b.id}" data-v="entregue">Entregue</button></div>`).join('')}
       ${ocs.map(o => `<div class="alerta med" style="margin-top:6px"><span class="ic">${TIPOS_OC[o.tipo][0]}</span><span>${TIPOS_OC[o.tipo][1]}${o.produto ? ': ' + esc(o.produto) : ''}${o.descricao ? ' — ' + esc(o.descricao) : ''}</span></div>`).join('')}
       ${semNF ? '<div class="alerta med" style="margin-top:6px"><span class="ic">🧾</span><span>Aguardando a nota fiscal. A etiqueta do ML só libera depois da NF.</span></div>' : ''}
+      ${x.faturamento && !x.despachado ? `<div class="alerta ${x.nfOk ? 'ok' : 'ruim'}" style="margin-top:6px"><span class="ic">🧾</span><span><b>Pedido de faturamento (${esc(p.pag_forma || p.forma_pagamento || '')}): nota fiscal obrigatória antes de sair.</b>
+        ${e.nf_dispensa ? `<br>Liberado sem NF por ${esc(nomeP(e.nf_dispensa_por))}: ${esc(e.nf_dispensa)}` : e.nf_numero ? `<br>NF ${esc(e.nf_numero)} · ${esc(e.nf_situacao || '')}${e.nf_em ? ` <small>(conferido ${dataHora(e.nf_em)})</small>` : ''}` : `<br>${e.nf_situacao ? 'Sem nota no Tiny' + (e.nf_em ? ` <small>(conferido ${dataHora(e.nf_em)})</small>` : '') : 'Nota ainda não conferida'}. ${ehBoleto(p) ? 'Boleto: precisa da aprovação do diretor, do boleto e da NF.' : ''}`}</span>
+        ${x.nfOk ? '' : `<button class="btn peq" data-a="expNF" data-id="${p.id}">🔄 Conferir NF</button>${podeAprovarPag() ? `<button class="btn peq" data-a="expNFDispensa" data-id="${p.id}" title="Não é faturado: liberar sem nota">Não é faturado</button>` : ''}`}</div>` : ''}
       <div class="acoes" style="margin-top:8px">
-        ${x.pagPendente ? (podeAprovarPag() ? `<button class="btn pri peq" data-a="expAprovarPag" data-id="${p.id}">💳 Aprovar pagamento</button> <small class="mut">Confira o ${esc(p.pag_forma || 'pagamento')} antes de aprovar.</small>` : '<small class="mut">💳 Aguardando a aprovação do pagamento (Vinícius, Marcos, Fefão ou Felipe Menezes).</small>') : ''}
+        ${x.pagPendente ? (podeAprovarPag() ? (ehBoleto(p) ? `<button class="btn pri peq" data-a="expAprovarPag" data-id="${p.id}">✅ Faturamento aprovado</button> <small class="mut">Só aprove depois do OK do diretor no grupo de boletos.</small>` : `<button class="btn pri peq" data-a="expAprovarPag" data-id="${p.id}">💳 Aprovar pagamento</button> <small class="mut">Confira o ${esc(p.pag_forma || 'pagamento')} antes de aprovar.</small>`) : '<small class="mut">💳 Aguardando a aprovação do pagamento (Vinícius, Marcos, Fefão ou Felipe Menezes).</small>') : ''}
         ${x.pagPendente ? '' : x.despachado ? `<small class="mut">${x.loja ? 'Entregue' : 'Despachado'} ${x.despachoEm ? dataHora(x.despachoEm) : ''}${e.despachado_por ? ' por ' + esc(nomeP(e.despachado_por)) : ''}</small>` : x.etapa === 'aguardando' ? '<small class="mut">Ainda não aprovado no Tiny (pagamento ou conferência do pedido).</small>' : `
-          ${e.pagamento_aprovado_em ? `<small class="c-ok">💳 Pagamento aprovado por ${esc(nomeP(e.pagamento_aprovado_por))}</small>` : ''}
+          ${e.pagamento_aprovado_em ? `<small class="c-ok">${ehBoleto(p) ? "✅ Faturamento aprovado" : "💳 Pagamento aprovado"} por ${esc(nomeP(e.pagamento_aprovado_por))}</small>` : ''}
           ${!e.separado_em ? `<button class="btn pri peq" data-a="expEtapa" data-id="${p.id}" data-k="separado">✓ Separado</button>` : `<small class="mut">Separado ${dataHora(e.separado_em)}${e.separado_por ? ' · ' + esc(nomeP(e.separado_por)) : ''}</small>`}
           ${x.loja ? (e.separado_em ? `<button class="btn pri peq" data-a="expEtapa" data-id="${p.id}" data-k="despachado">💰 Cobrado e entregue</button>` : '') : `
           ${e.separado_em && !e.conferido_em ? `<button class="btn pri peq" data-a="expEtapa" data-id="${p.id}" data-k="conferido">✓ Conferido e embalado</button>` : e.conferido_em ? `<small class="mut">· Conferido ${dataHora(e.conferido_em)}</small>` : ''}
@@ -308,9 +318,23 @@ async function expEtapa(id, etapa) {
 }
 async function expAprovarPag(id) {
   const p = EXP.ecom.find(x => x.id === id);
-  if (!confirm(`Confirma que o pagamento do pedido ${p?.numero} (${R(p?.valor)} · ${p?.pag_forma || ''}) já caiu?`)) return;
+  if (!confirm(ehBoleto(p || {}) ? `Pedido ${p?.numero} (${R(p?.valor)} · ${p?.pag_forma || ''}): o diretor já aprovou o faturamento no grupo de boletos?\n\nDepois de aprovado, o pedido vai para a separação. Ele só sai com a nota fiscal autorizada.`
+    : `Confirma que o pagamento do pedido ${p?.numero} (${R(p?.valor)} · ${p?.pag_forma || ''}) já caiu?`)) return;
   try { const r = await chamarFuncao('expedicao', { acao: 'aprovar_pagamento', pedido_id: id }); EXP.exp[id] = r.expedicao; avisar('Pagamento aprovado ✓ O pedido foi para a separação.'); render(); }
   catch (e) { alert('Não gravou: ' + e.message); }
+}
+async function expNF(id) {
+  try { const r = await chamarFuncao('expedicao', { acao: 'nf_status', pedido_id: id }); EXP.exp[id] = r.expedicao; render();
+    avisar(nfLiberada(r.expedicao) ? 'NF autorizada ✓ pode liberar o pedido.' : `Ainda sem NF autorizada (${r.expedicao.nf_situacao || 'sem nota'}).`); }
+  catch (e) { alert(e.message); }
+}
+async function expNFDispensa(id) {
+  const p = EXP.ecom.find(x => x.id === id);
+  const motivo = prompt(`O pedido ${p?.numero} (${p?.pag_forma || ''}) NÃO é faturado e pode sair sem nota fiscal?\n\nEscreva o motivo (fica registrado):`);
+  if (motivo == null) return;
+  if (motivo.trim().length < 5) return alert('Escreva o motivo.');
+  try { const r = await chamarFuncao('expedicao', { acao: 'nf_dispensa', pedido_id: id, motivo: motivo.trim() }); EXP.exp[id] = r.expedicao; render(); }
+  catch (e) { alert(e.message); }
 }
 async function expDesfazer(id) {
   const e = EXP.exp[id]; if (!e) return;
