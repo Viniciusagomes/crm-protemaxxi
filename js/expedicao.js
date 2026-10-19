@@ -2,7 +2,7 @@
 /* CRM Protemaxxi — Expedição e estoque: pedidos a separar e despachar, ocorrências (item faltante, erro, atraso),
    contagem diária de estoque (corrige o Tiny aos poucos), estoque baixo → solicitação de compra, e indicadores. */
 
-const veExp = () => ehDono() || !!EU?.permissoes?.expedicao || !!EU?.permissoes?.ecommerce;
+const veExp = () => ehDono() || !!EU?.permissoes?.expedicao || !!EU?.permissoes?.ecommerce || !!EU?.permissoes?.aprovar_pagamento;
 const SIT_ABERTA_EXP = ['Aprovado', 'Preparando envio', 'Faturado', 'Pronto para envio'];
 const SIT_DESPACHADA = ['Enviado', 'Entregue'];
 const TIPOS_OC = {
@@ -198,7 +198,8 @@ function abaPedidos(todos, modo) {
           ${e.separado_em ? `<button class="btn peq" data-a="expDesfazer" data-id="${p.id}" title="Desfazer a última etapa">↺</button>` : ''}
           ${e.tiny_erro ? `<br><small class="c-ruim">⚠ Tiny não atualizou: ${esc(e.tiny_erro)}</small>` : ''}`}
         ${etiqueta ? `<button class="btn peq" data-a="imprimirEtiquetas" data-envios="${esc(String(ml.envio_id))}">🖨 Etiqueta</button>` : ''}
-        <button class="btn peq" data-a="expOcorrencia" data-id="${p.id}">⚠ Ocorrência</button></div></div>`;
+        <button class="btn peq" data-a="expOcorrencia" data-id="${p.id}">⚠ Ocorrência</button>
+        ${!p.numero_ecommerce && !x.despachado && podeAprovarPag() ? `<button class="btn peq perigo" data-a="expCancelar" data-id="${p.id}" title="Cancelar esta venda no Tiny">✖ Cancelar venda</button>` : ''}</div></div>`;
   };
   const etiquetasLote = lista.filter(x => x.ml && x.ml.envio_status === 'ready_to_ship' && x.ml.envio_substatus === 'ready_to_print').map(x => x.ml.envio_id);
   return `<div class="filtros"><div class="chips">${Object.entries(filtros).map(([k, [n, f]]) => `<button class="chip ${UI.expFiltro === k ? 'on' : ''}" data-a="expFiltro" data-v="${k}">${n}<span class="n">${todos.filter(f).length}</span></button>`).join('')}</div>
@@ -316,6 +317,30 @@ async function expDesfazer(id) {
   if (!confirm(`Desfazer "${ETAPA_EXP[etapa][0]}" deste pedido na Intranet?\n\nAtenção: a situação no Tiny não volta sozinha; se precisar, ajuste no Tiny.`)) return;
   try { const r = await chamarFuncao('expedicao', { acao: 'desfazer', pedido_id: id }); EXP.exp[id] = r.expedicao; render(); }
   catch (er) { alert('Não gravou: ' + er.message); }
+}
+/** Cancelar venda: 1) botão abre a janela com o motivo; 2) confirma; 3) digita o número do pedido. Só então vai ao Tiny. */
+function expCancelar(id) {
+  const p = EXP.ecom.find(x => x.id === id); if (!p) return;
+  modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>✖ Cancelar a venda ${esc(p.numero || '')}?</h2>
+    <p>${esc(p.cliente_nome || '')} · <b>${R(p.valor)}</b> · ${esc(p.pag_forma || p.forma_pagamento || '')}</p>
+    <div class="alerta ruim"><span class="ic">⚠</span><span>O pedido será <b>cancelado no Tiny</b> e sai da expedição. Se o cliente já pagou, combine a devolução ou o crédito antes.</span></div>
+    <label class="mt">Motivo do cancelamento<textarea id="cancMotivo" rows="3" placeholder="Ex.: cliente desistiu, pedido duplicado, sem estoque…"></textarea></label>
+    <div class="acoes mt"><button class="btn" data-a="fecharModal">Voltar</button><button class="btn perigo" data-a="expCancelar2" data-id="${esc(id)}">Sim, quero cancelar</button></div>`);
+}
+async function expCancelar2(id) {
+  const p = EXP.ecom.find(x => x.id === id); if (!p) return;
+  const motivo = ($('#cancMotivo')?.value || '').trim();
+  if (motivo.length < 5) return alert('Escreva o motivo do cancelamento.');
+  if (!confirm(`Tem certeza que quer CANCELAR o pedido ${p.numero} (${R(p.valor)})?
+
+Motivo: ${motivo}`)) return;
+  const dig = prompt(`Última confirmação: digite o número do pedido (${p.numero}) para cancelar de vez.`);
+  if (dig == null) return;
+  if (dig.trim() !== String(p.numero)) return alert('O número não confere. Nada foi cancelado.');
+  try { await chamarFuncao('expedicao', { acao: 'cancelar', pedido_id: id, motivo }); }
+  catch (e) { return alert('Não cancelou: ' + e.message); }
+  p.situacao = 'Cancelado'; EXP.ecom = EXP.ecom.filter(x => x.id !== id);
+  fecharModal(); avisar(`Pedido ${p.numero} cancelado no Tiny ✓`); render();
 }
 function expFormOcorrencia(pedidoId) {
   const p = pedidoId ? EXP.ecom.find(x => x.id === pedidoId) : null;
