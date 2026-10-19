@@ -44,6 +44,13 @@
     };
     document.getElementById('btnGoogle')?.addEventListener('click', () => responder(document.getElementById('txt')?.value.trim(), true));
   }
-  tela();
-  if (nota && !a.respondido) responder(null, false);   // veio do e-mail já com a estrela escolhida
+  // Veio do e-mail com a estrela escolhida (?n=): só mostra a nota marcada e pede um toque para confirmar.
+  // Não grava sozinho: robôs de segurança de e-mail abrem os links e gerariam notas falsas.
+  if (nota && !a.respondido && q.get('n')) {
+    caixa.innerHTML = `<p>Olá${a.cliente ? ', ' + esc(a.cliente) : ''}! Você escolheu:</p>
+      <div class="estrelas">${[1, 2, 3, 4, 5].map(n => `<button data-n="${n}" class="${n <= nota ? 'on' : ''}" aria-label="${n} estrela(s)">★</button>`).join('')}</div>
+      <div class="rot">${ROT[nota]}</div><button class="btn pri" id="btnConfirma">Confirmar minha nota</button>`;
+    caixa.querySelectorAll('.estrelas button').forEach(b => b.onclick = () => { nota = +b.dataset.n; tela(); responder(null, false); });
+    document.getElementById('btnConfirma').onclick = () => { tela(); responder(null, false); };
+  } else tela();
 })();
