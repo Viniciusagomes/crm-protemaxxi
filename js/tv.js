@@ -71,7 +71,19 @@ function corTempo(x) {
   if (x.prazo) return (x.prazo - Date.now()) / 3600e3 < 2 ? 'a' : 'v';
   return 'v';
 }
-const tipoTV = x => x.loja ? ['b', 'Balcão'] : x.envioLoja ? ['e', 'Envio' + (x.p.envio_forma ? ' · ' + x.p.envio_forma : '')] : ['m', nomeCanal(x.canal)];
+/** Cor do card pela forma de envio: [classe, texto]. ML amarelo, Correios azul, Jadlog vermelho, Rodonaves laranja,
+ *  retirada roxo, Uber preto, entrega própria cinza, sem forma definida verde. */
+function tipoTV(x) {
+  const { p } = x, serv = p.envio_servico || '', txt = semAcento(`${p.envio_forma || ''} ${serv}`).toLowerCase();
+  if (x.ml || /mercado|ml\b/i.test(`${x.canal} ${p.envio_forma || ''}`)) return ['ml', 'Mercado Livre'];
+  if (/jadlog/.test(txt)) return ['jadlog', 'Jadlog'];
+  if (/rodonaves/.test(txt)) return ['rodonaves', 'Rodonaves'];
+  if (/correio|sedex|\bpac\b/.test(txt)) { const s = /sedex\s*10/.test(txt) ? 'Sedex 10' : /sedex\s*12/.test(txt) ? 'Sedex 12' : /sedex/.test(txt) ? 'Sedex' : /\bpac\b/.test(txt) ? 'PAC' : ''; return ['correios', 'Correios' + (s ? ' · ' + s : '')]; }
+  if (/retir/.test(txt)) return ['retirar', 'Retirar na loja'];
+  if (/uber/.test(txt)) return ['uber', 'Uber'];
+  if (/propri/.test(txt)) return ['propria', 'Entrega própria'];
+  return ['nd', p.envio_forma || serv ? `${p.envio_forma || ''}${serv ? ' · ' + serv : ''}` : (x.loja ? 'Balcão · envio não definido' : 'Envio não definido')];
+}
 
 /** Tabela de itens no padrão do Tiny: SKU | Produto | Qtd, com linhas e colunas bem marcadas. */
 function tabelaItensTV(its, max, comValor) {
@@ -90,7 +102,7 @@ function comandaTV(x, agora) {
   const pecas = soma(its.map(i => +i.quantidade || 0));
   return `<div class="tvcmd ${cls} ${agora ? 'agora' : ''}">
     ${agora ? '<div class="tvagora">▶ SEPARAR AGORA</div>' : ''}
-    <div class="tvcmdtopo"><span class="tvnum">${esc(p.numero || '')}</span><span class="tvtipo">${esc(nome)}</span>${tempo ? `<span class="tvrel ${corTempo(x)}">⏱ ${esc(tempo)}</span>` : ''}</div>
+    <div class="tvcmdtopo">${tempo ? `<span class="tvbola ${corTempo(x) === 'r' ? 'r' : 'v'}" title="${corTempo(x) === 'r' ? 'Em atraso' : 'No tempo'}"></span>` : ''}<span class="tvnum">${esc(p.numero || '')}</span><span class="tvtipo">${esc(nome)}</span>${tempo ? `<span class="tvrel">${esc(tempo)}</span>` : ''}</div>
     <div class="tvcli">${esc(p.cliente_nome || '')}${p.vendedor_nome ? ` <small>· ${esc(p.vendedor_nome)}</small>` : ''}</div>
     ${tabelaItensTV(its, agora ? 40 : TV_MAX_ITENS)}
     ${brindesDoPedido(p.numero).map(b => `<div class="tvbrinde">🎁 BRINDE: ${b.qtd}× ${esc(CRE.brindes?.find(x => x.id === b.brinde_id)?.nome || 'brinde')}</div>`).join('')}
