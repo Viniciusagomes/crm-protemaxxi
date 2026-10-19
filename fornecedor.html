@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://qeacyyccxgytqrwmddyl.supabase.co; object-src 'none'; base-uri 'self'; form-action 'none'">
+<title>Portal do fornecedor</title>
+<link rel="icon" href="img/icone.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0E1A2B">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Archivo+Expanded:wght@800;900&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+  :root { --noite: #0E1A2B; --papel: #F5F2EC; --verde: #1FAE5A; --verde-esc: #178B47; --txt: #11202F; --txt2: #4D5B69; --borda: #E8DFD3; --ruim: #D2463C; --med: #D9930D; }
+  * { box-sizing: border-box; } body { margin: 0; background: var(--papel); color: var(--txt); font: 15px/1.55 Figtree, system-ui, sans-serif; }
+  header { background: linear-gradient(135deg, var(--noite), #15263B); color: #fff; padding: 22px 18px 60px; }
+  header .in, main { max-width: 860px; margin: 0 auto; } header img { height: 30px; }
+  .eyebrow { font-family: Archivo; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; font-size: 11px; color: var(--verde); margin-top: 18px; }
+  h1 { font-family: "Archivo Expanded", Archivo, sans-serif; font-weight: 900; font-size: clamp(22px, 5.5vw, 30px); margin: 4px 0 0; line-height: 1.1; }
+  h2 { font-family: Archivo; font-size: 18px; margin: 0 0 10px; } h3 { font-family: Archivo; font-size: 15px; margin: 18px 0 8px; }
+  header p { color: #C9D3DD; margin: 6px 0 0; }
+  main { padding: 0 14px 40px; margin-top: -40px; }
+  .card { background: #fff; border: 1px solid var(--borda); border-radius: 18px; padding: 18px; box-shadow: 0 2px 8px rgba(14,26,43,.07); margin-bottom: 14px; }
+  .vazio { text-align: center; padding: 30px 10px; color: var(--txt2); }
+  .mut { color: var(--txt2); } small { font-size: 12.5px; }
+  .tag { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 99px; background: #EEE9E0; color: var(--txt2); white-space: nowrap; }
+  .tag.ok { background: #E3F5EA; color: var(--verde-esc); } .tag.med { background: #FBF0D9; color: var(--med); } .tag.ruim { background: #FBE4E1; color: var(--ruim); }
+  .op { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--borda); cursor: pointer; } .op:last-child { border: 0; } .op:hover b { color: var(--verde-esc); }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; color: var(--txt2); }
+  input, select, textarea { font: inherit; color: var(--txt); border: 1px solid #CFC7B9; border-radius: 10px; padding: 9px 10px; background: #fff; width: 100%; }
+  input:focus, textarea:focus { outline: 2px solid var(--verde); outline-offset: -1px; }
+  input[type=checkbox] { width: auto; accent-color: var(--verde); }
+  .grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+  .btn { font: 700 14px Archivo, sans-serif; border: 1px solid #CFC7B9; background: #fff; color: var(--txt); border-radius: 12px; padding: 11px 18px; cursor: pointer; }
+  .btn.pri { background: var(--verde); border-color: var(--verde); color: #fff; box-shadow: 0 8px 20px -8px rgba(31,174,90,.7); } .btn:disabled { opacity: .5; cursor: default; }
+  .acoes { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 14px; }
+  .itens { width: 100%; border-collapse: collapse; } .itens th { text-align: left; font-size: 12px; color: var(--txt2); padding: 6px; border-bottom: 2px solid var(--borda); }
+  .itens td { padding: 8px 6px; border-bottom: 1px solid var(--borda); vertical-align: top; } .itens .num { text-align: right; white-space: nowrap; }
+  .itens input { padding: 7px 8px; } .itens input.preco { max-width: 130px; text-align: right; }
+  .total { font-family: Archivo; font-size: 20px; font-weight: 800; } .aviso { padding: 12px 14px; border-radius: 12px; background: #E3F5EA; color: var(--verde-esc); font-weight: 600; }
+  .aviso.ruim { background: #FBE4E1; color: var(--ruim); } .aviso.med { background: #FBF0D9; color: #8A5D05; }
+  a.voltar { color: var(--verde-esc); font-weight: 700; text-decoration: none; cursor: pointer; }
+  footer { text-align: center; color: var(--txt2); font-size: 12.5px; padding-bottom: 30px; }
+  @media (max-width: 640px) { .itens thead { display: none; } .itens tr { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; border-bottom: 1px solid var(--borda); padding: 8px 0; } .itens td { border: 0; padding: 2px 0; } .itens td.desc { grid-column: 1 / -1; } .itens .num { text-align: left; } .itens input.preco { max-width: none; text-align: left; } }
+</style>
+</head>
+<body>
+<header><div class="in"><img src="img/logo.svg" alt="Logo"><div class="eyebrow">Portal do fornecedor</div><h1 id="titulo">Cotações</h1><p id="subtitulo"></p></div></header>
+<main id="conteudo"><div class="card vazio">Carregando…</div></main>
+<footer>Seus preços são confidenciais: só a equipe de compras vê, e nenhum outro fornecedor tem acesso à sua proposta.</footer>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" integrity="sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug" crossorigin="anonymous"></script>
+<script src="js/config.js?v=20261019a"></script>
+<script src="js/fornecedor.js?v=20261019a"></script>
+</body>
+</html>

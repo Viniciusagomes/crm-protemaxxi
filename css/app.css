@@ -613,3 +613,10 @@ body.tvestoque .barra-inf { display: none !important; }
 .tl { border-left: 3px solid var(--verde); padding: 4px 0 10px 12px; margin-left: 4px; display: flex; flex-direction: column; } .tl small { color: var(--txt3); } .tl.interno { border-left-color: var(--borda-forte); opacity: .8; }
 
 .ava-est { color: #F5B700; letter-spacing: 1px; white-space: nowrap; } .ava-est i { color: var(--borda-forte); font-style: normal; }
+
+/* ─── Compras: comparativo de propostas (Fase 8) ─── */
+.comparativo th, .comparativo td { min-width: 120px; vertical-align: top; }
+.comparativo th:first-child, .comparativo td:first-child { min-width: 200px; }
+.comparativo td.melhor { background: var(--ok-bg); color: var(--ok); }
+.comparativo td.vencedor, .comparativo th.vencedor { box-shadow: inset 2px 0 0 var(--verde), inset -2px 0 0 var(--verde); }
+.comparativo tr.total td { border-top: 2px solid var(--borda-forte); font-size: 15px; }

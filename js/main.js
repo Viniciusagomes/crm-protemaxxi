@@ -11,6 +11,7 @@ function menu() {
     ...(veTudoVendas() || EU.tiny ? [['', 'avaliacoes', '⭐', 'Avaliações', ehDono() && AVA.lista ? AVA.lista.filter(a => a.nota && a.nota <= 3 && !a.tratado).length : 0]] : []), ['', 'creditos', '💳', 'Créditos e vales', ehDono() && CRE.pend ? CRE.pend.length : 0], ['', 'brindes', '🎁', 'Brindes', ehDono() && CRE.bped ? CRE.bped.filter(b => b.status === 'pendente').length : 0],
     ...(veML() ? [['', 'ml', '🛍', 'Mercado Livre', D.ml ? D.ml.perguntas.filter(perguntaPendente).length : 0]] : []),
     ...(veExp() ? [['Operação'], ['', 'expedicao', '📦', 'Expedição e estoque', EXP ? EXP.ecom.map(infoPedido).filter(x => !x.despachado && x.atrasado).length : 0], ['', 'abrirTV', '📺', 'TV do estoque']] : []),
+    ...(veCompras() ? [...(veExp() ? [] : [['Operação']]), ['', 'compras', '🤝', 'Compras e fornecedores', COMP.ops ? COMP.ops.filter(o => situacaoOp(o) === 'encerrada').length : 0]] : []),
     ['Comunicação'], ['', 'solicitacoes', '📨', 'Solicitações', minhasPendentes().length], ['', 'suporte', '🔧', 'Assistência (OS e RMA)', AT.os ? AT.os.filter(o => o.status === 'pronto' || (o.previsao && o.previsao < hoje() && !['entregue', 'cancelado'].includes(o.status))).length : 0],
     ['Equipe'], ['', 'checklist', '☑', 'Checklist do dia'],
     ...(temEquipe() ? [['', 'supervisao', '👥', 'Supervisão']] : []),
@@ -24,7 +25,7 @@ function menu() {
 }
 const VIEWS_FN = {
   inicio: () => vInicio(), vendas: () => vVendas(), ml: () => vML(), pedidos: () => vPedidos(), clientes: () => vClientes(),
-  solicitacoes: () => vIntranet(), suporte: () => vAssistencia(), expedicao: () => vExpedicao(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(), creditos: () => vCreditos(), brindes: () => vBrindes(), crm: () => vCRM(), meudia: () => vMeuDia(), avaliacoes: () => vAvaliacoes(),
+  solicitacoes: () => vIntranet(), suporte: () => vAssistencia(), expedicao: () => vExpedicao(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(), creditos: () => vCreditos(), brindes: () => vBrindes(), crm: () => vCRM(), meudia: () => vMeuDia(), avaliacoes: () => vAvaliacoes(), compras: () => vCompras(),
   checklist: () => vChecklist(), supervisao: () => vSupervisao(), geral: () => vGeral(), metas: () => vMetas(),
   remuneracao: () => vRemuneracao(), feedbacks: () => vFeedbacks(), config: () => vConfig(), ajuda: () => vAjuda(),
 };
@@ -32,7 +33,7 @@ const SO_DONO = ['config', 'geral', 'logs'];
 
 function render() {
   if (!D || !EU) return;
-  if ((SO_DONO.includes(UI.view) && !ehDono()) || (UI.view === 'ml' && !veML()) || (UI.view === 'monitoria' && !veMonitoria()) || ((UI.view === 'expedicao' || UI.view === 'tvestoque') && !veExp())) UI.view = 'inicio';
+  if ((SO_DONO.includes(UI.view) && !ehDono()) || (UI.view === 'ml' && !veML()) || (UI.view === 'monitoria' && !veMonitoria()) || ((UI.view === 'expedicao' || UI.view === 'tvestoque') && !veExp()) || (UI.view === 'compras' && !veCompras())) UI.view = 'inicio';
   document.body.classList.toggle('tvestoque', UI.view === 'tvestoque');
   if (UI.view === 'checklist' && !D.pessoas.find(p => p.id === UI.pessoa && p.ativo && pessoasQueVejo().includes(p.id))) UI.pessoa = EU.id;
   const fid = document.activeElement?.dataset?.fid;
@@ -40,6 +41,7 @@ function render() {
   const y = window.scrollY;
   if (!CRM.em && !CRM.carregando && (EU.tiny || ehDono())) { CRM.em = 1; carregarCRM(true).then(render).catch(() => {}); }
   if (!CRE.em && !CRE.carregando) { CRE.em = 1; carregarCreditos(true).then(render).catch(() => {}); }   // saldos e pendências em segundo plano
+  if (!COMP.em && !COMP.carregando && veCompras()) { COMP.em = 1; carregarCompras(true).then(render).catch(() => {}); }   // oportunidades para o contador do menu
   $('#nav').innerHTML = menu();
   $('#usuario').innerHTML = `${av(EU)}<div><b>${esc(EU.nome)}</b><small>${esc(EU.cargo)}</small></div>`;
   $('#main').innerHTML = (VIEWS_FN[UI.view] || vInicio)();
@@ -283,6 +285,28 @@ const A = {
   irProspeccao: () => { UI.view = 'clientes'; UI.cliAba = 'prospeccao'; render(); },
   creAtualizar: () => carregarCreditos(true).then(render).catch(e => avisar(e.message)),
   creNovo: el => formCredito(el.dataset.chave, el.dataset.nome),
+  // compras e portal do fornecedor
+  compAtualizar: () => carregarCompras(true).then(render).catch(e => avisar(e.message)),
+  compAba: el => { UI.compAba = el.dataset.v; render(); },
+  compNovaOp: () => formOportunidade().catch(e => avisar(e.message)),
+  compDeSol: el => { fecharModal(); formOportunidade(null, el.dataset.id).catch(e => avisar(e.message)); },
+  compEditarOp: el => formOportunidade(el.dataset.id).catch(e => avisar(e.message)),
+  compSalvarOp: el => salvarOportunidade(el),
+  compVerOp: el => carregarCompras().then(() => verOportunidade(el.dataset.id)).catch(e => avisar(e.message)),
+  compStatusOp: el => mudarStatusOp(el.dataset.id, el.dataset.v),
+  compPrazoOp: el => prorrogarOp(el.dataset.id),
+  compVencedor: el => escolherVencedor(el.dataset.op, el.dataset.p),
+  compAddConv: async el => { const f = +$('#opAddForn')?.value; if (!f) return avisar('Escolha o fornecedor.'); try { await ok(sb.from('op_fornecedores').insert({ oportunidade_id: +el.dataset.op, fornecedor_id: f, convidado_por: EU.id })); await carregarCompras(true); verOportunidade(el.dataset.op); } catch (e) { avisar(e.message); } },
+  compTirarConv: async el => { try { await ok(sb.from('op_fornecedores').delete().eq('oportunidade_id', +el.dataset.op).eq('fornecedor_id', +el.dataset.f)); await carregarCompras(true); verOportunidade(el.dataset.op); } catch (e) { avisar(e.message); } },
+  compCopiar: el => copiarTexto(el.dataset.v),
+  compVerForn: el => formFornecedor(el.dataset.id),
+  compFornNovo: () => formFornecedor(),
+  compSalvarForn: el => salvarFornecedor(el.dataset.id),
+  compNovoToken: async el => { if (!confirm('Trocar o link deste fornecedor? O link antigo para de funcionar na hora.')) return; try { await ok(sb.from('fornecedores').update({ token: tokenNovo() }).eq('id', +el.dataset.id)); await carregarCompras(true); formFornecedor(el.dataset.id); avisar('Link trocado: mande o novo ao fornecedor.'); } catch (e) { avisar(e.message); } },
+  compConvite: () => carregarCompras().then(formConvite).catch(e => avisar(e.message)),
+  compSalvarConvite: () => salvarConvite(),
+  compConviteLink: el => linkConvite(el.dataset.id),
+  compConviteApagar: async el => { if (!confirm('Apagar este convite? O link deixa de funcionar.')) return; try { await ok(sb.from('forn_convites').delete().eq('id', +el.dataset.id)); await carregarCompras(true); render(); } catch (e) { avisar(e.message); } },
   creSalvar: () => creSalvar().catch(e => avisar(e.message)),
   creAprovar: el => creAprovar(el.dataset.id, el.dataset.v).catch(e => avisar(e.message)),
   creExtrato: el => creExtrato(el.dataset.chave).catch(e => avisar(e.message)),

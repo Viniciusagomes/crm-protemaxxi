@@ -146,7 +146,7 @@ async function abrirSolicitacao(id) {
     <h3 class="mt2">Conversa</h3>
     ${coms.map(c => c.sistema ? `<div class="coment sis">• ${esc(c.texto)} · ${new Date(c.criado_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</div>` : `<div class="coment"><div class="meta"><b>${esc(nomeP(c.autor_id))}</b> · ${new Date(c.criado_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</div><p>${esc(c.texto)}</p></div>`).join('') || '<p class="mut">Sem mensagens ainda.</p>'}
     <textarea id="solComent" rows="3" placeholder="Escreva uma resposta ou atualização…"></textarea>
-    <div class="acoes mt"><button class="btn pri" data-a="comentarSolicitacao" data-id="${s.id}">Enviar</button>${pode && ABERTAS.includes(s.status) ? `<button class="btn" data-a="concluirSolicitacao" data-id="${s.id}">✓ Marcar como concluída</button>` : ''}</div>`, true);
+    <div class="acoes mt"><button class="btn pri" data-a="comentarSolicitacao" data-id="${s.id}">Enviar</button>${['cotacao', 'compra'].includes(s.tipo) && veCompras() ? `<button class="btn" data-a="compDeSol" data-id="${s.id}" title="Publica os itens no portal do fornecedor para receber propostas">🌐 Pedir propostas no portal</button>` : ''}${pode && ABERTAS.includes(s.status) ? `<button class="btn" data-a="concluirSolicitacao" data-id="${s.id}">✓ Marcar como concluída</button>` : ''}</div>`, true);
 }
 async function registrarSistema(id, texto) { await ok(sb.from('solicitacao_comentarios').insert({ solicitacao_id: id, autor_id: EU.id, texto, sistema: true })); }
 async function mudarSolicitacao(id, campo, valor) {
