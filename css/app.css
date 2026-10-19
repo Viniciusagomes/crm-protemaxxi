@@ -648,3 +648,6 @@ body.tvestoque .barra-inf { display: none !important; }
 .bol-valor { font-family: Archivo; font-weight: 800; font-size: 22px; }
 .bol-info { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px; } .bol-info > div { display: flex; flex-direction: column; gap: 2px; }
 @media (max-width: 600px) { .bol-info { grid-template-columns: 1fr 1fr; } }
+
+/* OS com vários produtos */
+.os-item { border: 1px solid var(--borda); border-radius: 12px; padding: 10px 12px; margin: 8px 0; } .os-item-cab { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }

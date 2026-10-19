@@ -1,7 +1,8 @@
 'use strict';
 /* Assistência técnica (OS + RMA). Módulo independente: textos, prazos e dados da empresa vêm de config 'assistencia'.
-   Fluxo: Recebido (fotos obrigatórias) → Em análise → [orçamento | peça | assistência do fabricante (RMA) | troca | sem defeito]
-          → Pronto para retirada → Entregue. Cada etapa gera aviso ao cliente (WhatsApp com um toque; e-mail automático quando configurado)
+   Fluxo (obrigatório, o banco não deixa pular etapa): Recebido (fotos obrigatórias) → Em análise → [orçamento | peça | assistência
+          do fabricante (RMA) → retornou] → Pronto para retirada → Entregue. Uma OS pode ter vários produtos (at_os_itens).
+   Tiny: a OS é criada também no Tiny (ERP) ao ser aberta e cada mudança de situação vai para lá (função assistencia-tiny). Cada etapa gera aviso ao cliente (WhatsApp com um toque; e-mail automático quando configurado)
    e aparece na página pública "Acompanhe sua OS" (os.html?t=<código>). */
 
 const AT = { os: null, rma: null, cfg: null, carregando: false, em: 0 };
@@ -110,13 +111,12 @@ function formOS() {
       <label class="campo inteiro">Cliente *<input type="text" id="osCli" list="osListaCli" placeholder="Nome do cliente"></label>
       <label class="campo">Telefone / WhatsApp<input type="tel" id="osFone" placeholder="DDD + número"></label>
       <label class="campo">E-mail<input type="email" id="osEmail"></label>
+      <label class="campo">CPF / CNPJ <small class="mut">(para criar a OS no Tiny)</small><input type="text" id="osDoc" inputmode="numeric"></label>
       <label class="campo">Tipo<select id="osTipo">${Object.entries(TIPOS_OS).map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</select></label>
       <label class="campo">Nº do pedido (Tiny) ou NF da compra<input type="text" id="osPedido" placeholder="Ex.: 77910"></label>
-      <label class="campo inteiro">Equipamento *<input type="text" id="osProd" list="osListaProd" placeholder="Ex.: Câmera Intelbras VHD 1220 B"></label>
-      <label class="campo">Marca<input type="text" id="osMarca" list="osListaMarca"></label>
-      <label class="campo">Modelo<input type="text" id="osModelo"></label>
-      <label class="campo">Nº de série<input type="text" id="osSerie"></label>
       <label class="campo">Data da compra<input type="date" id="osCompra"></label>
+      <div class="campo inteiro"><b>Produtos da OS</b><div id="osItens">${blocoItemOS(1)}</div>
+        <button type="button" class="btn peq" data-a="atAddItem">＋ Adicionar mais produtos</button></div>
       <label class="campo inteiro">Defeito relatado pelo cliente *<textarea id="osDefeito" rows="2"></textarea></label>
       <label class="campo">Acessórios entregues<input type="text" id="osAcess" placeholder="Ex.: fonte, cabo, caixa"></label>
       <label class="campo">Estado físico<input type="text" id="osEstado" placeholder="Ex.: riscos na lateral, sem caixa"></label>
@@ -126,25 +126,53 @@ function formOS() {
     <datalist id="osListaCli">${(D.clientes || []).slice(0, 4000).map(c => `<option value="${esc(c.nome)}">`).join('')}</datalist>
     <datalist id="osListaMarca">${(AT.cfg?.assistencias || []).map(a => `<option value="${esc(a)}">`).join('')}</datalist>
     <div class="mt"><button class="btn pri" data-a="atSalvar">Abrir OS</button></div>`, true);
-  $('#osCli').addEventListener('change', e => { const c = (D.clientes || []).find(x => x.nome === e.target.value); if (c) { if (c.fone && !$('#osFone').value) $('#osFone').value = c.fone; if (c.email && !$('#osEmail').value) $('#osEmail').value = c.email; } });
+  $('#osCli').addEventListener('change', e => { const c = (D.clientes || []).find(x => x.nome === e.target.value); if (c) { if (c.fone && !$('#osFone').value) $('#osFone').value = c.fone; if (c.email && !$('#osEmail').value) $('#osEmail').value = c.email; if (c.doc && !$('#osDoc').value) $('#osDoc').value = c.doc; } });
   $('#osPedido').addEventListener('change', e => { const p = D.pedidos.find(x => String(x.numero) === e.target.value.trim()); if (p) { $('#osCompra').value = p.data; if (!$('#osCli').value) $('#osCli').value = p.cliente_nome; } });
 }
+/** Bloco de um produto no cadastro da OS (o botão "Adicionar mais produtos" cria outro). */
+function blocoItemOS(n) {
+  return `<div class="os-item" data-item="${n}"><div class="os-item-cab"><b>Produto ${n}</b>${n > 1 ? `<button type="button" class="icone-btn" data-a="atRemItem" title="Remover este produto">✕</button>` : ''}</div>
+    <div class="form-grid"><label class="campo inteiro">Equipamento *<input type="text" class="it-desc" placeholder="Ex.: Câmera Intelbras VHD 1220 B"></label>
+    <label class="campo">Marca<input type="text" class="it-marca" list="osListaMarca"></label><label class="campo">Modelo<input type="text" class="it-modelo"></label>
+    <label class="campo">Nº de série<input type="text" class="it-serie"></label><label class="campo">Quantidade<input type="number" class="it-qtd" min="1" step="1" value="1"></label>
+    <label class="campo inteiro">Defeito deste produto <small class="mut">(se for diferente do geral)</small><input type="text" class="it-defeito"></label></div></div>`;
+}
+function atAddItem() {
+  const box = $('#osItens'); if (!box) return;
+  box.insertAdjacentHTML('beforeend', blocoItemOS(box.querySelectorAll('.os-item').length + 1));
+  box.lastElementChild.querySelector('.it-desc')?.focus();
+}
+function atRemItem(el) { el.closest('.os-item')?.remove(); document.querySelectorAll('#osItens .os-item').forEach((b, i) => { b.querySelector('.os-item-cab b').textContent = 'Produto ' + (i + 1); }); }
+const itensDoForm = () => [...document.querySelectorAll('#osItens .os-item')].map((b, i) => { const q = c => (b.querySelector(c)?.value || '').trim();
+  return { seq: i + 1, descricao: q('.it-desc'), marca: q('.it-marca') || null, modelo: q('.it-modelo') || null, numero_serie: q('.it-serie') || null, quantidade: Math.max(1, +q('.it-qtd') || 1), defeito: q('.it-defeito') || null }; });
+/** Cria a OS no Tiny (em segundo plano: se o Tiny falhar, a OS fica na Intranet com o aviso e o botão "Enviar ao Tiny"). */
+async function atEnviarTiny(o) {
+  try { const r = await chamarFuncao('assistencia-tiny', { acao: 'enviar', os_id: o.id }); Object.assign(o, { tiny_os_id: r.tiny_os_id, tiny_os_numero: String(r.tiny_os_numero ?? o.tiny_os_numero ?? ''), tiny_erro: null }); return r; }
+  catch (e) { o.tiny_erro = e.message; throw e; }
+}
+async function atSincTiny(o) { if (!o.tiny_os_id) return; try { await chamarFuncao('assistencia-tiny', { acao: 'situacao', os_id: o.id }); o.tiny_erro = null; } catch (e) { o.tiny_erro = e.message; avisar('OS salva, mas o Tiny não atualizou: ' + e.message); } }
+
 async function atSalvar() {
   const v = id => ($('#' + id)?.value || '').trim();
-  const nome = v('osCli'), prod = v('osProd'), defeito = v('osDefeito'), fotos = [...($('#osFotos')?.files || [])];
+  const itens = itensDoForm().filter(i => i.descricao);
+  const nome = v('osCli'), prod = itens[0]?.descricao, defeito = v('osDefeito'), fotos = [...($('#osFotos')?.files || [])];
   const minimo = +(AT.cfg?.fotos_minimas || 2);
-  if (!nome || !prod || !defeito) return avisar('Preencha o cliente, o equipamento e o defeito.');
+  if (!nome || !prod || !defeito) return avisar('Preencha o cliente, pelo menos um produto e o defeito.');
+  if (itensDoForm().some(i => !i.descricao)) return avisar('Preencha o equipamento de cada produto (ou remova o bloco vazio).');
   if (fotos.length < minimo) return avisar(`Tire pelo menos ${minimo} fotos: o produto inteiro e a etiqueta com o nº de série.`);
   const c = (D.clientes || []).find(x => x.nome === nome);
   const btn = document.querySelector('[data-a="atSalvar"]'); if (btn) { btn.disabled = true; btn.textContent = 'Salvando e enviando fotos…'; }
   try {
-    const o = await ok(sb.from('at_os').insert({ cliente_nome: nome, cliente_chave: c?.chave || null, cliente_doc: c?.doc || null, cliente_fone: v('osFone').replace(/\D/g, '') || null, cliente_email: v('osEmail') || null,
-      tipo: v('osTipo'), pedido_numero: v('osPedido') || null, produto_descricao: prod, marca: v('osMarca') || null, modelo: v('osModelo') || null, numero_serie: v('osSerie') || null,
+    const resumo = itens.length > 1 ? `${prod} + ${itens.length - 1} produto(s)` : prod;
+    const o = await ok(sb.from('at_os').insert({ cliente_nome: nome, cliente_chave: c?.chave || null, cliente_doc: v('osDoc').replace(/\D/g, '') || c?.doc || null, cliente_fone: v('osFone').replace(/\D/g, '') || null, cliente_email: v('osEmail') || null,
+      tipo: v('osTipo'), pedido_numero: v('osPedido') || null, produto_descricao: resumo, marca: itens[0].marca, modelo: itens[0].modelo, numero_serie: itens[0].numero_serie,
       data_compra: v('osCompra') || null, defeito_relatado: defeito, acessorios: v('osAcess') || null, estado_fisico: v('osEstado') || null, previsao: v('osPrev') || null,
       criado_por: EU.id, responsavel_id: EU.id }).select().single());
+    await ok(sb.from('at_os_itens').insert(itens.map(i => ({ ...i, os_id: o.id }))));
     await enviarFotosOS(o, fotos, 'entrada');
     await gerarAvisos(o, 'recebido', '');
-    AT.os.unshift(o); fecharModal(); avisar(`OS ${o.numero} aberta.`); render(); atAbrir(o.id);
+    AT.os.unshift(o); fecharModal(); avisar(`OS ${o.numero} aberta. Criando no Tiny…`); render(); atAbrir(o.id);
+    atEnviarTiny(o).then(r => { avisar(`OS ${o.numero} criada no Tiny (nº ${r.tiny_os_numero}).`); atAbrir(o.id); }).catch(e => { avisar('A OS foi aberta, mas não foi criada no Tiny: ' + e.message); atAbrir(o.id); });
   } catch (e) { if (btn) { btn.disabled = false; btn.textContent = 'Abrir OS'; } throw e; }
 }
 async function enviarFotosOS(o, arquivos, etapa) {
@@ -168,8 +196,9 @@ async function gerarAvisos(o, status, extra, texto) {
 // ─── ficha da OS ───
 async function atAbrir(id) {
   const o = AT.os.find(x => String(x.id) === String(id)) || await ok(sb.from('at_os').select('*').eq('id', id).single());
-  const [ev, fotos, avisos] = await Promise.all([
+  const [ev, fotos, avisos, itens] = await Promise.all([
     ok(sb.from('at_eventos').select('*').eq('os_id', o.id).order('em')), ok(sb.from('at_fotos').select('*').eq('os_id', o.id).order('em')), ok(sb.from('at_avisos').select('*').eq('os_id', o.id).order('criado_em', { ascending: false })),
+    ok(sb.from('at_os_itens').select('*').eq('os_id', o.id).order('seq')),
   ]);
   const { data: urls } = fotos.length ? await sb.storage.from('anexos').createSignedUrls(fotos.map(f => f.caminho), 3600) : { data: [] };
   const rmas = (AT.rma || []).filter(r => r.os_id === o.id), g = garantiaOS(o), aberta = !['entregue', 'cancelado'].includes(o.status);
@@ -186,7 +215,10 @@ async function atAbrir(id) {
   modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button>
     <small class="mut">${TIPOS_OS[o.tipo]} · aberta ${new Date(o.criado_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} por ${esc(nomeP(o.criado_por))}</small>
     <h2 style="margin:4px 0">OS ${esc(o.numero)} · ${esc(o.cliente_nome)} <span class="tag ${ST_OS[o.status][1]}">${ST_OS[o.status][0]}</span></h2>
-    <div class="os-campos">${campo('Equipamento', o.produto_descricao)}${campo('Marca / modelo', [o.marca, o.modelo].filter(Boolean).join(' '))}${campo('Nº de série', o.numero_serie)}
+    ${itens.length ? `<table class="tabela mt"><thead><tr><th>#</th><th>Produto</th><th>Marca / modelo</th><th>Nº de série</th><th class="dir">Qtd</th><th>Defeito</th></tr></thead><tbody>${itens.map(i => `<tr><td>${i.seq}</td><td><b>${esc(i.descricao)}</b></td><td>${esc([i.marca, i.modelo].filter(Boolean).join(' '))}</td><td>${esc(i.numero_serie || '—')}</td><td class="dir">${N(i.quantidade)}</td><td><small>${esc(i.defeito || '')}</small></td></tr>`).join('')}</tbody></table>` : ''}
+    <div class="alerta ${o.tiny_os_id ? 'ok' : o.tiny_erro ? 'ruim' : 'med'} mt"><span class="ic">🧾</span><span>${o.tiny_os_id ? `<b>OS nº ${esc(o.tiny_os_numero || '')} no Tiny</b> · as mudanças de situação vão para lá sozinhas${o.tiny_erro ? `<br><small class="c-ruim">Última sincronização falhou: ${esc(o.tiny_erro)}</small>` : ''}` : o.tiny_erro ? `<b>Não foi criada no Tiny:</b> ${esc(o.tiny_erro)}` : 'Criando no Tiny…'}</span>
+      ${!o.tiny_os_id ? `<button class="btn peq" data-a="atTinyEnviar" data-id="${o.id}">Enviar ao Tiny</button>` : o.tiny_erro ? `<button class="btn peq" data-a="atTinySinc" data-id="${o.id}">Sincronizar de novo</button>` : ''}</div>
+    <div class="os-campos">${itens.length ? '' : campo('Equipamento', o.produto_descricao) + campo('Marca / modelo', [o.marca, o.modelo].filter(Boolean).join(' ')) + campo('Nº de série', o.numero_serie)}
       ${campo('Defeito relatado', o.defeito_relatado)}${campo('Acessórios', o.acessorios)}${campo('Estado físico', o.estado_fisico)}
       ${campo('Pedido / NF', [o.pedido_numero, o.nf_numero].filter(Boolean).join(' · '))}${campo('Compra', o.data_compra && pd(o.data_compra).toLocaleDateString('pt-BR'))}
       ${campo('Contato', [o.cliente_fone, o.cliente_email].filter(Boolean).join(' · '))}${campo('Previsão', o.previsao && pd(o.previsao).toLocaleDateString('pt-BR'))}
@@ -251,6 +283,7 @@ async function atConfirmar(id, status) {
   if (status === 'cancelado') await ok(sb.from('at_eventos').insert({ os_id: o.id, texto: 'Motivo: ' + v('mdMotivo'), publico: true, por: EU.id }));
   if ($('#mdAvisar')?.checked && msg) await gerarAvisos(o, status, '', msg);
   avisar(`OS ${o.numero}: ${ST_OS[status][0]}.`); render(); atAbrir(o.id);
+  atSincTiny(o).then(() => atAbrir(o.id));
 }
 function atEditarForm(id) {
   const o = AT.os.find(x => String(x.id) === String(id));
@@ -294,6 +327,7 @@ function carregarQR() {
 async function atTermo(id) {
   const o = AT.os.find(x => String(x.id) === String(id)), c = AT.cfg || {}, link = linkOS(o);
   const w = window.open('', '_blank'); if (!w) return avisar('Libere as janelas pop-up para imprimir.');
+  const itensT = await ok(sb.from('at_os_itens').select('*').eq('os_id', o.id).order('seq'));
   let qr = '';
   try { await carregarQR(); const q = window.qrcode(0, 'M'); q.addData(link); q.make(); qr = q.createDataURL(4, 4); } catch { /* sem QR */ }
   const linha = (r, v) => `<tr><th>${r}</th><td>${esc(v || '—')}</td></tr>`;
@@ -304,7 +338,7 @@ async function atTermo(id) {
     <div class="cab"><div><h1>Termo de recebimento · OS ${esc(o.numero)}</h1><div>${esc(c.empresa || '')} · ${esc(c.endereco || '')} · ${esc(c.telefone || '')}</div><div>Recebido em ${new Date(o.criado_em).toLocaleString('pt-BR')} por ${esc(nomeP(o.criado_por))}</div></div>
       <div class="qr">${qr ? `<img src="${qr}" alt="QR code">` : ''}<small>Acompanhe sua OS: ${esc(link)}</small></div></div>
     <table>${linha('Cliente', o.cliente_nome)}${linha('Contato', [o.cliente_fone, o.cliente_email].filter(Boolean).join(' · '))}${linha('Tipo', TIPOS_OS[o.tipo]?.replace(/^\S+\s/, ''))}
-      ${linha('Equipamento', o.produto_descricao)}${linha('Marca / modelo', [o.marca, o.modelo].filter(Boolean).join(' '))}${linha('Nº de série', o.numero_serie)}${linha('Pedido / NF de compra', [o.pedido_numero, o.nf_numero].filter(Boolean).join(' · '))}
+      ${(itensT.length ? itensT : [{ seq: 1, descricao: o.produto_descricao, marca: o.marca, modelo: o.modelo, numero_serie: o.numero_serie, quantidade: 1 }]).map(i => linha(`Produto ${i.seq}`, `${+i.quantidade > 1 ? i.quantidade + 'x ' : ''}${i.descricao}${[i.marca, i.modelo].filter(Boolean).length ? ' · ' + [i.marca, i.modelo].filter(Boolean).join(' ') : ''}${i.numero_serie ? ' · SN ' + i.numero_serie : ''}${i.defeito ? ' · defeito: ' + i.defeito : ''}`)).join('')}${linha('Pedido / NF de compra', [o.pedido_numero, o.nf_numero].filter(Boolean).join(' · '))}${o.tiny_os_numero ? linha('OS no Tiny', o.tiny_os_numero) : ''}
       ${linha('Defeito relatado', o.defeito_relatado)}${linha('Acessórios entregues', o.acessorios)}${linha('Estado físico', o.estado_fisico)}${linha('Previsão', o.previsao && pd(o.previsao).toLocaleDateString('pt-BR'))}</table>
     <p>O equipamento foi recebido nas condições descritas acima e fotografado na entrada. Equipamentos em garantia seguem as regras do fabricante; o laudo da assistência técnica pode negar a garantia em caso de mau uso, oxidação ou violação.
       Equipamentos não retirados em até 90 dias após o aviso de "pronto para retirada" poderão ter destinação conforme a lei.</p>
