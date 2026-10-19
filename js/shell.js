@@ -144,16 +144,25 @@ function atualizarShell() {
   if (!document.getElementById('barraInf')) document.body.insertAdjacentHTML('beforeend', '<nav class="barra-inf" id="barraInf"></nav>');
   $('#barraInf').innerHTML = conteudoBarraInf();
   const rod = document.querySelector('.side-rodape .linha-botoes');
-  if (rod && !document.getElementById('btnLetra')) rod.insertAdjacentHTML('beforeend', `<button class="tema" id="btnLetra" data-a="alternarLetra" title="Letra maior">A+</button>${INSTALAR.evento ? '<button class="tema" data-a="instalarApp" title="Instalar no celular/PC">📲 App</button>' : ''}`);
+  if (rod && !document.getElementById('btnLetra')) rod.insertAdjacentHTML('beforeend', '<button class="tema" id="btnLetra" data-a="alternarLetra" title="Letra maior">A+</button>');
+  botaoInstalar();
   document.body.classList.remove('menu-aberto');
   if (SINO.primeira) checarSino();
 }
 
 // ─── app instalável (PWA) ───
 const INSTALAR = { evento: null };
-window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); INSTALAR.evento = e; document.getElementById('btnLetra')?.insertAdjacentHTML('afterend', '<button class="tema" data-a="instalarApp" title="Instalar no celular/PC">📲 App</button>'); });
+const jaInstalado = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+/** Um único botão "App": aparece enquanto o navegador oferece a instalação e some quando já está instalado. */
+function botaoInstalar() {
+  const b = document.getElementById('btnInstalar'), mostrar = !!INSTALAR.evento && !jaInstalado();
+  if (!mostrar) { b?.remove(); return; }
+  if (!b) document.getElementById('btnLetra')?.insertAdjacentHTML('afterend', '<button class="tema" id="btnInstalar" data-a="instalarApp" title="Instalar no celular/PC">📲 App</button>');
+}
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); INSTALAR.evento = e; botaoInstalar(); });
+window.addEventListener('appinstalled', () => { INSTALAR.evento = null; botaoInstalar(); });
 async function instalarApp() {
-  if (INSTALAR.evento) { INSTALAR.evento.prompt(); await INSTALAR.evento.userChoice.catch(() => {}); INSTALAR.evento = null; return; }
+  if (INSTALAR.evento) { const ev = INSTALAR.evento; INSTALAR.evento = null; botaoInstalar(); ev.prompt(); await ev.userChoice.catch(() => {}); return; }
   avisar('No iPhone: toque em Compartilhar e depois em "Adicionar à Tela de Início". No Android: menu ⋮ → "Instalar app".');
 }
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
