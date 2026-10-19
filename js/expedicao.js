@@ -184,7 +184,11 @@ function abaPedidos(todos, modo) {
   };
   UI.expFiltro = filtros[UI.expFiltro] ? UI.expFiltro : 'a_separar';
   // loja primeiro (cliente esperando no balcão), depois pelo prazo
-  const lista = todos.filter(filtros[UI.expFiltro][1]).sort(UI.expFiltro === 'entregue' ? (a, b) => String(b.despachoEm || '').localeCompare(String(a.despachoEm || '')) : (a, b) => (b.loja - a.loja) || ((a.prazo || 9e15) - (b.prazo || 9e15)));
+  // busca: pedido, cliente, vendedor, SKU ou produto; com texto digitado procura em todas as situações da aba de frete
+  const termos = semAcento(UI.expBusca || '').toLowerCase().split(/\s+/).filter(Boolean);
+  const texto = x => semAcento([x.p.numero, x.p.numero_ecommerce, x.p.cliente_nome, x.p.vendedor_nome, x.p.envio_forma, x.p.envio_servico,
+    ...(EXP.itens[x.p.id] || []).flatMap(i => [i.codigo, i.descricao])].filter(Boolean).join(' ')).toLowerCase();
+  const lista = (termos.length ? todos.filter(x => { const t = texto(x); return termos.every(w => t.includes(w)); }) : todos.filter(filtros[UI.expFiltro][1])).sort(UI.expFiltro === 'entregue' ? (a, b) => String(b.despachoEm || '').localeCompare(String(a.despachoEm || '')) : (a, b) => (b.loja - a.loja) || ((a.prazo || 9e15) - (b.prazo || 9e15)));
   const linha = x => {
     const { p, e, ml, prazo } = x;
     const its = EXP.itens[p.id] || [];
@@ -224,7 +228,9 @@ function abaPedidos(todos, modo) {
         ${!p.numero_ecommerce && !x.despachado && podeAprovarPag() ? `<button class="btn peq perigo" data-a="expCancelar" data-id="${p.id}" title="Cancelar esta venda no Tiny">✖ Cancelar venda</button>` : ''}</div></div>`;
   };
   const etiquetasLote = lista.filter(x => x.ml && x.ml.envio_status === 'ready_to_ship' && x.ml.envio_substatus === 'ready_to_print').map(x => x.ml.envio_id);
-  return `<div class="filtros"><div class="chips">${Object.entries(filtros).map(([k, [n, f]]) => `<button class="chip ${UI.expFiltro === k ? 'on' : ''}" data-a="expFiltro" data-v="${k}">${n}<span class="n">${todos.filter(f).length}</span></button>`).join('')}</div>
+  return `<div class="filtros"><input type="search" class="busca-exp" placeholder="🔎 Buscar pedido, cliente, SKU ou produto…" value="${esc(UI.expBusca || '')}" data-c="ui" data-k="expBusca" data-fid="expBusca">
+    ${termos.length ? `<small class="mut">${lista.length} encontrado(s) em todas as situações · <a href="#" data-a="expBuscaLimpar">limpar</a></small>` : ''}</div>
+    <div class="filtros"><div class="chips">${Object.entries(filtros).map(([k, [n, f]]) => `<button class="chip ${UI.expFiltro === k && !termos.length ? 'on' : ''}" data-a="expFiltro" data-v="${k}">${n}<span class="n">${todos.filter(f).length}</span></button>`).join('')}</div>
       ${etiquetasLote.length > 1 ? `<button class="btn pri peq" data-a="imprimirEtiquetas" data-envios="${etiquetasLote.join(',')}">🖨 Imprimir todas as etiquetas do ML (${etiquetasLote.length})</button>` : ''}</div>
     ${modo === 'ml' ? '<p class="explica"><b>Mercado Livre:</b> a NF sai sozinha, a etiqueta é impressa aqui e o pedido segue separar → conferir e embalar → despachar (postar na agência).</p>'
       : '<p class="explica"><b>Balcão (retirada):</b> separar → 💰 pago → 📦 entregue (no Tiny: Separado = Aprovado; Entregue = Entregue). <b>Envios:</b> separar → conferir e embalar → despachar.</p>'}

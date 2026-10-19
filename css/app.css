@@ -641,3 +641,4 @@ body.tvestoque .barra-inf { display: none !important; }
 
 /* contato do cliente (botão + do Meu dia) */
 .cont-linha { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--borda); flex-wrap: wrap; } .cont-linha > div { flex: 1; min-width: 160px; } .cont-linha .ic { font-size: 22px; }
+.busca-exp { flex: 1; min-width: 240px; max-width: 520px; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--borda); font: inherit; font-size: 15px; background: var(--card, #fff); color: inherit; }

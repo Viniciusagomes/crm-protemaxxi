@@ -262,6 +262,7 @@ const A = {
   imprimirEtiquetas: el => imprimirEtiquetas(el.dataset.envios),
   expAba: el => { UI.expAba = el.dataset.v; render(); },
   expFreteAba: el => { UI.expFrete = el.dataset.v; render(); },
+  expBuscaLimpar: () => { UI.expBusca = ''; render(); },
   estAba: el => { UI.estAba = el.dataset.v; render(); },
   estIr: el => { UI.view = el.dataset.v; if (el.dataset.f) UI.expFiltro = el.dataset.f; if (el.dataset.fr) { UI.expFrete = el.dataset.fr; UI.expFiltro = 'a_separar'; } if (el.dataset.e) UI.estAba = el.dataset.e; render(); window.scrollTo(0, 0); },
   expFiltro: el => { UI.expFiltro = el.dataset.v; render(); },
