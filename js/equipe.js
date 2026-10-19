@@ -601,16 +601,20 @@ const TIPOS_FB = { elogio: '👏 Elogio', orientacao: '🧭 Orientação', ocorr
 function vFeedbacks() {
   const lista = D.feedbacks.filter(f => !UI.fbPessoa || f.pessoa === UI.fbPessoa).sort((a, b) => (b.data + b.id).localeCompare(a.data + a.id));
   const autores = D.pessoas.filter(p => p.ativo && (supervisores().includes(p) || !p.supervisor));
-  return topo('Feedbacks e ocorrências', 'Histórico de 1:1, elogios, orientações e ocorrências. Ajuda na avaliação mensal e protege a empresa.')
-    + `<div class="grid g2"><div class="card"><h2>Novo registro</h2>
-      <div class="grid g2" style="gap:10px"><label class="campo">Sobre quem<select id="fbPessoa">${optPessoas(UI.fbPessoa, ativos().filter(p => pessoasQueVejo().includes(p.id) && p.id !== EU.id))}</select></label>
+  // quem não tem equipe registra só elogios a colegas; vê só o que fez e o que recebeu (o banco já filtra)
+  const lider = temEquipe(), tiposFb = lider ? TIPOS_FB : { elogio: TIPOS_FB.elogio };
+  const alvos = lider ? ativos().filter(p => pessoasQueVejo().includes(p.id) && p.id !== EU.id) : ativos().filter(p => p.id !== EU.id);
+  const envolvidos = lider ? D.pessoas : D.pessoas.filter(p => D.feedbacks.some(f => f.pessoa === p.id || f.autor === p.id));
+  return topo('Feedbacks e ocorrências', lider ? 'Histórico de 1:1, elogios, orientações e ocorrências. Ajuda na avaliação mensal e protege a empresa.' : 'Os feedbacks que você recebeu e os elogios que você fez aos colegas.')
+    + `<div class="grid g2"><div class="card"><h2>${lider ? 'Novo registro' : 'Elogiar um colega'}</h2>
+      <div class="grid g2" style="gap:10px"><label class="campo">Sobre quem<select id="fbPessoa">${optPessoas(UI.fbPessoa, alvos)}</select></label>
       
-      <label class="campo">Tipo<select id="fbTipo">${Object.entries(TIPOS_FB).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label>
+      <label class="campo">Tipo<select id="fbTipo">${Object.entries(tiposFb).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label>
       <label class="campo">Data<input type="date" id="fbData" value="${hoje()}"></label></div>
       <label class="campo mt">O que aconteceu / o que foi combinado<textarea id="fbTexto" rows="4" placeholder="Ex.: Combinamos que os orçamentos vão sair no mesmo dia. Próxima conversa em 7 dias."></textarea></label>
       <div class="mt"><button class="btn pri" data-a="fbAdd">Salvar registro</button></div></div>
-    <div class="card"><div class="secao-titulo"><h2>Histórico</h2><select data-c="fbFiltro">${optPessoas(UI.fbPessoa, D.pessoas, 'Todas as pessoas')}</select></div>
-      ${lista.length ? lista.map(f => { const p = pessoa(f.pessoa), a = pessoa(f.autor); return `<div class="feedback"><div class="meta">${p ? av(p) : ''}<b style="color:var(--txt)">${esc(p?.nome || '?')}</b><span class="tag">${TIPOS_FB[f.tipo] || f.tipo}</span><span>${fmtCurta(f.data)}/${f.data.slice(0, 4)}</span>${a ? `<span>por ${esc(a.nome)}</span>` : ''}<button class="icone-btn" style="margin-left:auto" title="Apagar" data-a="fbDel" data-id="${f.id}">🗑</button></div><p>${esc(f.texto)}</p></div>`; }).join('') : '<div class="vazio">Nenhum registro ainda.</div>'}
+    <div class="card"><div class="secao-titulo"><h2>Histórico</h2><select data-c="fbFiltro">${optPessoas(UI.fbPessoa, envolvidos, 'Todas as pessoas')}</select></div>
+      ${lista.length ? lista.map(f => { const p = pessoa(f.pessoa), a = pessoa(f.autor); return `<div class="feedback"><div class="meta">${p ? av(p) : ''}<b style="color:var(--txt)">${esc(p?.nome || '?')}</b><span class="tag">${TIPOS_FB[f.tipo] || f.tipo}</span><span>${fmtCurta(f.data)}/${f.data.slice(0, 4)}</span>${a ? `<span>por ${esc(a.nome)}</span>` : ''}${f.autor === EU.id || ehDono() ? `<button class="icone-btn" style="margin-left:auto" title="Apagar" data-a="fbDel" data-id="${f.id}">🗑</button>` : ''}</div><p>${esc(f.texto)}</p></div>`; }).join('') : '<div class="vazio">Nenhum registro ainda.</div>'}
     </div></div>`;
 }
 

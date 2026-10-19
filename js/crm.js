@@ -175,7 +175,26 @@ async function atvFeita(id) {
 }
 
 // ─── Meu dia ───
+/** Meu dia de quem não é do comercial (estoque, suporte…): solicitações, expedição e ocorrências do dia. */
+function vMeuDiaOp() {
+  const h = hoje(), paraMim = minhasPendentes(), pedi = D.solicitacoes.filter(s => s.solicitante_id === EU.id && ABERTAS.includes(s.status));
+  if (veExp() && !EXP && !EXP_ATUALIZANDO.v) { EXP_ATUALIZANDO.v = true; carregarExp(true).catch(() => {}).finally(() => { EXP_ATUALIZANDO.v = false; render(); }); }
+  const xs = EXP ? EXP.ecom.map(infoPedido).filter(x => !x.despachado) : [];
+  const separar = xs.filter(x => x.etapa === 'a_separar'), atrasados = xs.filter(x => x.atrasado), aguard = xs.filter(x => x.pagPendente);
+  const ocs = EXP ? EXP.ocs.filter(o => !o.resolvido) : [];
+  const kpi = (rot, val, sub, cor, v) => `<div class="card kpi-card ${v ? 'clic' : ''}" ${v ? `style="cursor:pointer" data-a="nav" data-v="${v}"` : ''}><div class="rot">${rot}</div><div class="val ${cor || ''}">${val}</div><div class="sub">${sub}</div></div>`;
+  const linhaSol = s => `<tr class="clic" data-a="verSolicitacao" data-id="${s.id}"><td>${(TIPOS_SOL[s.tipo] || TIPOS_SOL.outro).ic} <b>${esc(s.titulo)}</b><br><small>de ${esc(nomeP(s.solicitante_id))}${s.prazo ? ` · prazo ${fmtCurta(s.prazo)}` : ''}</small></td><td><span class="st st-${s.status}">${STATUS_SOL[s.status]}</span></td></tr>`;
+  return topo('Meu dia', `${fmtData(h)} · o que precisa ser feito hoje`, '<button class="btn pri" data-a="novaSolicitacao">+ Nova solicitação</button>')
+    + `<div class="grid g4">${veExp() ? kpi('A separar', EXP ? separar.length : '…', `${separar.filter(x => x.loja).length} no balcão`, separar.length ? 'c-med' : '', 'expedicao')
+      + kpi('Atrasados', EXP ? atrasados.length : '…', 'pedidos fora do prazo', atrasados.length ? 'c-ruim' : 'c-ok', 'expedicao')
+      + kpi('Ocorrências abertas', EXP ? ocs.length : '…', `${aguard.length} aguardando pagamento`, ocs.length ? 'c-ruim' : '', 'expedicao') : ''}
+      ${kpi('Solicitações para mim', paraMim.length, `${pedi.length} que eu pedi em aberto`, paraMim.length ? 'c-med' : '', 'solicitacoes')}</div>
+    <div class="grid g2 mt"><div class="card"><div class="secao-titulo"><h2>Para mim resolver</h2><a href="#/solicitacoes">ver todas</a></div>${paraMim.length ? `<table class="tabela"><tbody>${paraMim.slice(0, 10).map(linhaSol).join('')}</tbody></table>` : '<div class="vazio">Nada pendente para você. 🎉</div>'}</div>
+      ${veExp() ? `<div class="card"><div class="secao-titulo"><h2>Próximos a separar</h2><a href="#/expedicao">expedição</a></div>${separar.length ? `<table class="tabela"><tbody>${separar.slice(0, 10).map(x => `<tr><td><b>${esc(x.p.numero || '')}</b> · ${esc(x.p.cliente_nome || '')}<br><small>${esc(nomeCanal(x.canal))}${x.prazo ? ' · até ' + dataHora(x.prazo) : ''}</small></td><td>${x.atrasado ? '<span class="tag ruim">atrasado</span>' : ''}</td></tr>`).join('')}</tbody></table>` : `<div class="vazio">${EXP ? 'Nada para separar agora. 👏' : 'Carregando…'}</div>`}</div>` : ''}</div>`;
+}
+
 function vMeuDia() {
+  if (!EU.tiny && !ehDono() && !EU.permissoes?.vendas_todas) return vMeuDiaOp();
   if (!CRM.neg) { if (!CRM.carregando) carregarCRM().then(render).catch(e => avisar(e.message)); return topo('Meu dia', '') + '<div class="card vazio">Carregando…</div>'; }
   const vends = vendCRM();
   if (!UI.diaPessoa || !(vends.some(v => v.id === UI.diaPessoa) || UI.diaPessoa === EU.id)) UI.diaPessoa = EU.id;

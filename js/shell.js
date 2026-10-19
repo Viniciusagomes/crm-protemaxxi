@@ -127,9 +127,9 @@ setInterval(() => { if (D && EU) { carregarCreditos().catch(() => {}); if (ehDon
 // ─── barra inferior (celular) ───
 function atalhosBarra() {
   if (ehDono()) return [['inicio', '⌂', 'Início'], ['crm', '🎯', 'Funil'], ['vendas', '📈', 'Vendas']];
-  if (EU.tiny) return [['meudia', '☀', 'Meu dia'], ['crm', '🎯', 'Funil'], ['clientes', '👤', 'Clientes']];
-  if (veExp()) return [['expedicao', '📦', 'Expedição'], ['solicitacoes', '📨', 'Solicit.'], ['checklist', '☑', 'Checklist']];
-  return [['inicio', '⌂', 'Início'], ['solicitacoes', '📨', 'Solicit.'], ['checklist', '☑', 'Checklist']];
+  if (EU.tiny) return [['meudia', '☀', 'Meu dia'], ['crm', '🎯', 'Funil'], ['situacao', '🚦', 'Pedidos']];
+  if (veExp()) return [['expedicao', '📦', 'Expedição'], ['solicitacoes', '📨', 'Solicit.'], ['meudia', '☀', 'Meu dia']];
+  return [['inicio', '⌂', 'Início'], ['solicitacoes', '📨', 'Solicit.'], ['meudia', '☀', 'Meu dia']].filter(([v]) => podeAba(v));
 }
 function conteudoBarraInf() {
   const n = notificacoes().length;

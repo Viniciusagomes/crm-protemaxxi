@@ -5,8 +5,8 @@
 function menu() {
   const itens = [
     ['', 'inicio', '⌂', 'Início'],
-    ...(EU.tiny || ehDono() ? [['', 'meudia', '☀', 'Meu dia', CRM.atv ? CRM.atv.filter(a => a.pessoa_id === EU.id && !a.feito && a.quando <= hoje()).length : 0]] : []),
-    ['Comercial'], ['', 'crm', '🎯', 'Funil (CRM)'], ['', 'vendas', '📈', 'Vendas'], ['', 'pedidos', '🧾', 'Pedidos'], ['', 'clientes', '👤', 'Clientes'],
+    ['', 'meudia', '☀', 'Meu dia', CRM.atv ? CRM.atv.filter(a => a.pessoa_id === EU.id && !a.feito && a.quando <= hoje()).length : 0],
+    ['Comercial'], ['', 'crm', '🎯', 'Funil (CRM)'], ['', 'vendas', '📈', 'Vendas'], ['', 'pedidos', '🧾', 'Pedidos'], ['', 'situacao', '🚦', 'Situação dos pedidos', SIT.lista ? SIT.lista.filter(p => passosPedido(p).estado === 'problema').length : 0], ['', 'clientes', '👤', 'Clientes'],
     ...(veMonitoria() ? [['', 'monitoria', '🏷', 'Monitoria de preços']] : []),
     ...(veTudoVendas() || EU.tiny ? [['', 'avaliacoes', '⭐', 'Avaliações', ehDono() && AVA.lista ? AVA.lista.filter(a => a.nota && a.nota <= 3 && !a.tratado).length : 0]] : []), ['', 'creditos', '💳', 'Créditos e vales', ehDono() && CRE.pend ? CRE.pend.length : 0], ['', 'brindes', '🎁', 'Brindes', ehDono() && CRE.bped ? CRE.bped.filter(b => b.status === 'pendente').length : 0],
     ...(veML() ? [['', 'ml', '🛍', 'Mercado Livre', D.ml ? D.ml.perguntas.filter(perguntaPendente).length : 0]] : []),
@@ -17,23 +17,44 @@ function menu() {
     ...(temEquipe() ? [['', 'supervisao', '👥', 'Supervisão']] : []),
     ...(ehDono() ? [['', 'geral', '◉', 'Visão da equipe']] : []),
     ['', 'metas', '🎯', 'Metas e números'], ['', 'remuneracao', '💰', ehDono() ? 'Remuneração' : 'Meu ganho'],
-    ...(temEquipe() || ehDono() ? [['', 'feedbacks', '💬', 'Feedbacks']] : []),
+    ['', 'feedbacks', '💬', 'Feedbacks'],
     ['Sistema'], ...(ehDono() ? [['', 'config', '⚙', 'Configurações'], ['', 'logs', '📜', 'Logs']] : []), ['', 'ajuda', '?', 'Como usar'],
   ];
-  return itens.map(([g, k, ic, nome, badge]) => g !== '' && !k ? `<div class="grupo">${g}</div>`
+  // só as abas do perfil; tira títulos de grupo que ficaram vazios
+  const vis = itens.filter(([g, k]) => (g !== '' && !k) || podeAba(k)).filter((it, i, arr) => !(it[0] !== '' && !it[1]) || (arr[i + 1] && arr[i + 1][0] === ''));
+  return vis.map(([g, k, ic, nome, badge]) => g !== '' && !k ? `<div class="grupo">${g}</div>`
     : `<button class="${UI.view === k ? 'on' : ''}" data-a="nav" data-v="${k}"><span class="ic">${ic}</span>${nome}${badge ? `<span class="badge">${badge}</span>` : ''}</button>`).join('');
 }
 const VIEWS_FN = {
   inicio: () => vInicio(), vendas: () => vVendas(), ml: () => vML(), pedidos: () => vPedidos(), clientes: () => vClientes(),
-  solicitacoes: () => vIntranet(), suporte: () => vAssistencia(), expedicao: () => vExpedicao(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(), creditos: () => vCreditos(), brindes: () => vBrindes(), crm: () => vCRM(), meudia: () => vMeuDia(), avaliacoes: () => vAvaliacoes(), compras: () => vCompras(),
+  solicitacoes: () => vIntranet(), suporte: () => vAssistencia(), expedicao: () => vExpedicao(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(), creditos: () => vCreditos(), brindes: () => vBrindes(), crm: () => vCRM(), meudia: () => vMeuDia(), situacao: () => vSituacao(), avaliacoes: () => vAvaliacoes(), compras: () => vCompras(),
   checklist: () => vChecklist(), supervisao: () => vSupervisao(), geral: () => vGeral(), metas: () => vMetas(),
   remuneracao: () => vRemuneracao(), feedbacks: () => vFeedbacks(), config: () => vConfig(), ajuda: () => vAjuda(),
 };
 const SO_DONO = ['config', 'geral', 'logs'];
 
+/** Abas de cada perfil (o dono vê tudo). Vendedor: comercial + situação dos pedidos; estoque: expedição e TV;
+ *  supervisor: tudo da própria área + supervisão da equipe. Remuneração, avaliações e configurações ficam só com o dono. */
+function abasDoPerfil() {
+  if (!EU || ehDono()) return null;
+  const P = EU.permissoes || {}, s = new Set(['inicio', 'meudia', 'pedidos', 'clientes', 'solicitacoes', 'feedbacks', 'ajuda']);
+  const add = (...ks) => ks.forEach(k => s.add(k));
+  const comercial = !!EU.tiny || !!P.vendas_todas;
+  if (comercial) add('crm', 'vendas', 'situacao');
+  if (P.ecommerce) add('vendas');
+  if (veML()) add('ml');
+  if (veExp()) add('expedicao', 'abrirTV', 'tvestoque');
+  if (veCompras()) add('compras');
+  if (P.suporte) add('suporte');
+  if (veMonitoria()) add('monitoria');
+  if (temEquipe()) { add('supervisao', 'checklist', 'metas'); if (comercial) add('creditos', 'brindes'); }
+  return s;
+}
+const podeAba = k => { const s = abasDoPerfil(); return !s || s.has(k); };
+
 function render() {
   if (!D || !EU) return;
-  if ((SO_DONO.includes(UI.view) && !ehDono()) || (UI.view === 'ml' && !veML()) || (UI.view === 'monitoria' && !veMonitoria()) || ((UI.view === 'expedicao' || UI.view === 'tvestoque') && !veExp()) || (UI.view === 'compras' && !veCompras())) UI.view = 'inicio';
+  if (!podeAba(UI.view) || (SO_DONO.includes(UI.view) && !ehDono()) || (UI.view === 'ml' && !veML()) || (UI.view === 'monitoria' && !veMonitoria()) || ((UI.view === 'expedicao' || UI.view === 'tvestoque') && !veExp()) || (UI.view === 'compras' && !veCompras())) UI.view = 'inicio';
   document.body.classList.toggle('tvestoque', UI.view === 'tvestoque');
   if (UI.view === 'checklist' && !D.pessoas.find(p => p.id === UI.pessoa && p.ativo && pessoasQueVejo().includes(p.id))) UI.pessoa = EU.id;
   const fid = document.activeElement?.dataset?.fid;
@@ -78,8 +99,8 @@ function vInicio() {
   const cards = [];
   if (veTudoVendas()) cards.push(`<div class="card kpi-card"><div class="rot">Vendas da loja no mês</div><div class="val">${R0(somaV(val))}</div><div class="sub">Projeção ${R0(du ? somaV(val) / du * duT : 0)} · hoje ${R0(somaV(val.filter(p => p.data === h)))}</div></div>`);
   if (r) cards.push(`<div class="card kpi-card"><div class="rot">Minhas vendas no mês</div><div class="val">${R0(r.mes)}</div><div class="sub">Projeção ${R0(r.proj)}${kFat ? ` · meta ${R0(kFat.meta)}` : ''}</div>${kFat ? `<div class="mt">${barra(r.proj / (kFat.meta || 1))}</div>` : ''}</div>`);
-  if (temTarefas) cards.push(`<div class="card kpi-card clic" style="cursor:pointer" data-a="nav" data-v="checklist"><div class="rot">Meu checklist de hoje</div><div class="val c-${classe(pc)}">${pc == null ? 'folga' : P(pc)}</div><div class="sub">No mês: ${P(adesao(EU, m))}</div><div class="mt">${barra(pc)}</div></div>`);
-  if (rem) cards.push(`<div class="card kpi-card clic" style="cursor:pointer" data-a="nav" data-v="remuneracao"><div class="rot">${ehDono() ? 'Meu ganho previsto' : 'Quanto vou ganhar este mês'}</div><div class="val c-ok">${R0(rem.total)}</div><div class="sub">Variável: ${R0(rem.variavel + rem.equipe)} · projeção</div></div>`);
+  if (temTarefas && podeAba('checklist')) cards.push(`<div class="card kpi-card clic" style="cursor:pointer" data-a="nav" data-v="checklist"><div class="rot">Meu checklist de hoje</div><div class="val c-${classe(pc)}">${pc == null ? 'folga' : P(pc)}</div><div class="sub">No mês: ${P(adesao(EU, m))}</div><div class="mt">${barra(pc)}</div></div>`);
+  if (rem && ehDono()) cards.push(`<div class="card kpi-card clic" style="cursor:pointer" data-a="nav" data-v="remuneracao"><div class="rot">${ehDono() ? 'Meu ganho previsto' : 'Quanto vou ganhar este mês'}</div><div class="val c-ok">${R0(rem.total)}</div><div class="sub">Variável: ${R0(rem.variavel + rem.equipe)} · projeção</div></div>`);
   if (ehDono()) { const rs = D.pessoas.filter(p => p.ativo && p.regras.length).map(p => calcRem(p, m, 'projecao')); cards.push(`<div class="card kpi-card clic" style="cursor:pointer" data-a="nav" data-v="remuneracao"><div class="rot">Folha prevista do mês</div><div class="val">${R0(soma(rs.map(x => x.total)))}</div><div class="sub">Custo c/ encargos ${R0(soma(rs.map(x => x.custo)))}</div></div>`); }
   cards.push(`<div class="card kpi-card clic" style="cursor:pointer" data-a="nav" data-v="solicitacoes"><div class="rot">Solicitações para mim</div><div class="val ${paraMim.length ? 'c-med' : ''}">${paraMim.length}</div><div class="sub">${pedi.length} que eu pedi em aberto</div></div>`);
   const linhaSol = s => `<tr class="clic" data-a="verSolicitacao" data-id="${s.id}"><td>${(TIPOS_SOL[s.tipo] || TIPOS_SOL.outro).ic} <b>${esc(s.titulo)}</b><br><small>de ${esc(nomeP(s.solicitante_id))}${s.prazo ? ` · prazo ${fmtCurta(s.prazo)}` : ''}</small></td><td class="pri-${s.prioridade}">${PRIORIDADES[s.prioridade]}</td><td><span class="st st-${s.status}">${STATUS_SOL[s.status]}</span></td></tr>`;
@@ -179,6 +200,8 @@ let timerTV = null;
 
 // ═══════════════════════════ ações ═══════════════════════════
 const A = {
+  sitFiltro: el => { UI.sitFiltro = el.dataset.v; render(); },
+  sitAtualizar: async () => { try { await carregarSituacao(true); avisar('Atualizado ✓'); } catch (e) { avisar(e.message); } render(); },
   nav: el => { if (el.dataset.v === 'abrirTV') return A.abrirTV(); UI.view = el.dataset.v; fecharModal(); render(); window.scrollTo(0, 0); },
   tema: () => {
     const r = document.documentElement, atual = r.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');

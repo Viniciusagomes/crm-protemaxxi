@@ -624,3 +624,14 @@ body.tvestoque .barra-inf { display: none !important; }
 .comparativo td.melhor { background: var(--ok-bg); color: var(--ok); }
 .comparativo td.vencedor, .comparativo th.vencedor { box-shadow: inset 2px 0 0 var(--verde), inset -2px 0 0 var(--verde); }
 .comparativo tr.total td { border-top: 2px solid var(--borda-forte); font-size: 15px; }
+
+/* Situação dos pedidos (vendedor) */
+.sit-card { border-left: 5px solid var(--med); margin-bottom: 12px; } .sit-card.problema { border-left-color: var(--ruim); } .sit-card.concluido { border-left-color: var(--ok); } .sit-card.cancelado { opacity: .6; border-left-color: var(--borda); }
+.sit-passos { list-style: none; display: flex; gap: 0; padding: 0; margin: 12px 0 4px; }
+.sit-passos li { flex: 1; position: relative; padding-top: 22px; text-align: center; font-size: 12.5px; color: var(--txt2); }
+.sit-passos li::before { content: ""; position: absolute; top: 4px; left: 50%; transform: translateX(-50%); width: 14px; height: 14px; border-radius: 50%; background: var(--borda); z-index: 1; }
+.sit-passos li::after { content: ""; position: absolute; top: 10px; left: -50%; width: 100%; height: 3px; background: var(--borda); }
+.sit-passos li:first-child::after { display: none; }
+.sit-passos li.ok { color: var(--txt); } .sit-passos li.ok::before { background: var(--ok); box-shadow: 0 0 0 4px rgba(31,174,90,.18); } .sit-passos li.ok::after { background: var(--ok); }
+.sit-passos li b { display: block; font-weight: 600; } .sit-passos li small { display: block; color: var(--txt2); font-size: 11px; }
+@media (max-width: 600px) { .sit-passos li { font-size: 11px; } }
