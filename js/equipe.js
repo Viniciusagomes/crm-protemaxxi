@@ -33,6 +33,8 @@ function mesReg(pid, m, criar) {
 const STATUS = { normal: 'Dia normal', falta: 'Falta', folga: 'Folga', feriado: 'Feriado', ferias: 'Férias', atestado: 'Atestado', extra: 'Trabalhou fora da escala' };
 const STATUS_OFF = ['folga', 'feriado', 'ferias', 'atestado'];
 const statusDia = (p, d) => reg(p.id, d)?.status || 'normal';
+/** A partir de quando o checklist conta para a pessoa: o mais tarde entre o início de uso do sistema e o início dela. */
+const inicioCk = p => [D.config.inicioUso, p.inicio].filter(Boolean).sort().pop() || '';
 const escalado = (p, d) => p.dias.includes(dow(d)) && !(p.inicio && d < p.inicio) && !D.config.feriados.includes(d);
 /** Dia de trabalho para o checklist (só conta a partir do início de uso do sistema). */
 function trabalha(p, d) {
@@ -71,13 +73,13 @@ function adesao(p, m, lim = hoje()) {
   }
   for (const t of tarefas(p, 'S')) {
     for (const d of diasDoMes(m)) {
-      if (dow(d) !== (t.diaSemana || 5) % 7 || (p.inicio && d < p.inicio)) continue;
+      if (dow(d) !== (t.diaSemana || 5) % 7 || (inicioCk(p) && d < inicioCk(p))) continue;
       const f = feitaS(p, d, t);
       if (d <= l || f) { esp++; if (f) ok++; }
     }
   }
   for (const t of tarefas(p, 'M')) {
-    const v = venceMes(t, m); if (p.inicio && v < p.inicio) continue;
+    const v = venceMes(t, m); if (inicioCk(p) && v < inicioCk(p)) continue;
     const f = feitaM(p, m, t);
     if (v <= l || f) { esp++; if (f) ok++; }
   }
@@ -86,8 +88,8 @@ function adesao(p, m, lim = hoje()) {
 const adesaoEquipe = (sid, m) => media(subs(sid).map(s => adesao(s, m)));
 function diaAnteriorTrab(p, d) { let x = addDias(d, -1); for (let i = 0; i < 12; i++) { if (trabalha(p, x)) return x; x = addDias(x, -1); } return null; }
 const criticasPendentes = (p, d) => tarefas(p, 'D').filter(t => t.critica && !feitaD(p, d, t));
-function semanaisAtrasadas(p, d) { const seg = segundaDa(d); return tarefas(p, 'S').filter(t => venceSemana(t, seg) < d && !feitaS(p, d, t)); }
-function mensaisAtrasadas(p, d) { const m = mesDe(d); return tarefas(p, 'M').filter(t => venceMes(t, m) < d && !feitaM(p, m, t) && !(p.inicio && venceMes(t, m) < p.inicio)); }
+function semanaisAtrasadas(p, d) { const seg = segundaDa(d); return tarefas(p, 'S').filter(t => venceSemana(t, seg) < d && !feitaS(p, d, t) && !(inicioCk(p) && venceSemana(t, seg) < inicioCk(p))); }
+function mensaisAtrasadas(p, d) { const m = mesDe(d); return tarefas(p, 'M').filter(t => venceMes(t, m) < d && !feitaM(p, m, t) && !(inicioCk(p) && venceMes(t, m) < inicioCk(p))); }
 
 // ─── indicadores ───
 const FONTES = { manual: 'Lançado à mão', tiny_vendas: 'Tiny: vendas do vendedor', tiny_ecommerce: 'Tiny: vendas do e-commerce (R$)', tiny_ecommerce_pedidos: 'Tiny: pedidos do e-commerce',
