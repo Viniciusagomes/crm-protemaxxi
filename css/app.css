@@ -638,3 +638,6 @@ body.tvestoque .barra-inf { display: none !important; }
 .tvnf { background: #FDE8E6; color: #A3231A; font-family: Archivo; font-weight: 800; font-size: 22px; padding: 8px 14px; border-top: 3px solid #D2463C; animation: tvpulsa 1.6s infinite; }
 .tvnf.ok { background: #E3F5EA; color: #11202F; border-top-color: #1FAE5A; animation: none; }
 .tvnf.aviso { background: #FFF4D6; color: #7A5200; border-top-color: #D9930D; animation: none; }
+
+/* contato do cliente (botão + do Meu dia) */
+.cont-linha { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--borda); flex-wrap: wrap; } .cont-linha > div { flex: 1; min-width: 160px; } .cont-linha .ic { font-size: 22px; }

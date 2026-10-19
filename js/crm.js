@@ -23,6 +23,26 @@ async function carregarCRM(forcar) {
   } finally { CRM.carregando = false; }
 }
 /** Telefone do negócio: o da ficha do cliente ou o que veio escrito no nome do contato do Tiny ("19 98166-4877 ~Fernanda"). */
+/** Botão + das tarefas: contato do cliente (celular, telefone, e-mail) com atalhos para WhatsApp, ligar e e-mail. */
+async function atvContato(id) {
+  const a = (CRM.atv || []).find(x => String(x.id) === String(id));
+  modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>${esc(a?.cliente_nome || 'Contato do cliente')}</h2><p class="mut">Carregando o contato…</p>`);
+  const { data: c, error } = await sb.rpc('contato_atividade', { p_atividade: Number(id) });
+  if (error || !c) return modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>Contato do cliente</h2><div class="alerta med"><span class="ic">!</span><span>${esc(error?.message || 'Não encontrei o contato desta tarefa.')}</span></div>`);
+  // contato escrito no próprio nome (ex.: "19 99547-8814 ~Valdecir"): usa como celular
+  const doNome = ((c.nome || '').match(/(\+?55\s*)?\(?\d{2}\)?\s*9?\d{4}[-\s]?\d{4}/) || [''])[0];
+  const cel = c.celular || doNome, dig = s => String(s || '').replace(/\D/g, '');
+  const wa = n => { const d = dig(n); return d.length >= 10 ? 'https://wa.me/' + (d.startsWith('55') && d.length > 11 ? d : '55' + d) : ''; };
+  const linha = (ic, rot, v, extra) => `<div class="cont-linha"><span class="ic">${ic}</span><div><small class="mut">${rot}</small><br><b>${v ? esc(v) : '<span class="mut">não cadastrado</span>'}</b></div>${v ? extra : ''}</div>`;
+  modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>${esc(c.nome || a?.cliente_nome || 'Cliente')}</h2>
+    <p class="mut">${[c.cidade, c.uf].filter(Boolean).map(esc).join(' / ')}${c.doc ? ` · ${c.doc.length === 14 ? 'CNPJ' : 'CPF'} ${esc(c.doc)}` : ''}</p>
+    ${linha('📱', 'Celular / WhatsApp', cel, `${wa(cel) ? `<a class="btn pri peq" href="${wa(cel)}" target="_blank" rel="noopener">💬 WhatsApp</a>` : ''}<a class="btn peq" href="tel:${dig(cel)}">📞 Ligar</a>`)}
+    ${c.fone && dig(c.fone) !== dig(cel) ? linha('☎', 'Telefone', c.fone, `<a class="btn peq" href="tel:${dig(c.fone)}">📞 Ligar</a>`) : ''}
+    ${linha('✉', 'E-mail', (c.email || '').trim(), `<a class="btn peq" href="mailto:${esc((c.email || '').trim())}">✉ Enviar e-mail</a>`)}
+    ${!cel && !c.email ? '<div class="alerta med mt"><span class="ic">!</span><span>Sem celular e sem e-mail no cadastro. Ao falar com o cliente, peça e atualize no Tiny.</span></div>' : ''}
+    ${c.chave ? `<div class="acoes mt"><button class="btn peq" data-a="verCliente" data-chave="${esc(c.chave)}">Ficha do cliente</button></div>` : ''}`);
+}
+
 function foneNegocio(n) {
   const c = (D.clientes || []).find(x => x.chave === n.cliente_chave);
   if (c?.fone) return c.fone;
@@ -207,6 +227,7 @@ function vMeuDia() {
   const pro = PRO.dados && PRO.chave === h + quem ? PRO.dados : null;
   const linhaA = a => `<div class="atv ${a.quando < h ? 'atrasada' : ''}"><button class="atv-check" data-a="atvFeita" data-id="${a.id}" title="Marcar como feita"></button>
     <div style="flex:1"><b>${TIPOS_ATV[a.tipo] || a.tipo}</b> · ${esc(a.titulo)}<br><small>${a.cliente_nome ? esc(a.cliente_nome) + ' · ' : ''}${fmtCurta(a.quando)}${a.quando < h ? ' · atrasada' : ''}${a.automatica ? ' · automática' : ''}</small></div>
+    ${a.negocio_id || a.cliente_chave || a.cliente_nome ? `<button class="btn peq" data-a="atvContato" data-id="${a.id}" title="Contato do cliente: celular e e-mail">+</button>` : ''}
     ${a.negocio_id ? `<button class="btn peq" data-a="crmAbrir" data-id="${a.negocio_id}">Negócio</button>` : a.cliente_chave ? `<button class="btn peq" data-a="verCliente" data-chave="${esc(a.cliente_chave)}">Cliente</button>` : ''}</div>`;
   return topo('Meu dia', `${fmtData(h)} · tudo o que precisa ser feito hoje, num lugar só`, `<button class="btn" data-a="crmAtualizar">↻ Atualizar</button><button class="btn pri" data-a="crmNovo">+ Novo negócio</button>`)
     + `${vends.length > 1 || ehDono() ? `<div class="chips" style="margin-bottom:12px">${[...new Map([[EU.id, EU], ...vends.map(v => [v.id, v])]).values()].map(v => `<button class="chip ${quem === v.id ? 'on' : ''}" data-a="diaPessoa" data-v="${v.id}">${esc(v.nome)}</button>`).join('')}</div>` : ''}

@@ -304,6 +304,7 @@ const A = {
   crmMover: el => crmMover(el.dataset.id, el.dataset.v).then(() => crmAbrir(el.dataset.id)).catch(e => avisar(e.message)),
   atvNova: el => atvNova(el.dataset.negocio, { chave: el.dataset.chave, nome: el.dataset.nome }).catch(e => avisar(e.message)),
   atvFeita: el => atvFeita(el.dataset.id).catch(e => avisar(e.message)),
+  atvContato: el => atvContato(el.dataset.id).catch(e => avisar(e.message)),
   diaPessoa: el => { UI.diaPessoa = el.dataset.v; render(); },
   irProspeccao: () => { UI.view = 'clientes'; UI.cliAba = 'prospeccao'; render(); },
   creAtualizar: () => carregarCreditos(true).then(render).catch(e => avisar(e.message)),
