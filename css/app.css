@@ -637,3 +637,4 @@ body.tvestoque .barra-inf { display: none !important; }
 @media (max-width: 600px) { .sit-passos li { font-size: 11px; } }
 .tvnf { background: #FDE8E6; color: #A3231A; font-family: Archivo; font-weight: 800; font-size: 22px; padding: 8px 14px; border-top: 3px solid #D2463C; animation: tvpulsa 1.6s infinite; }
 .tvnf.ok { background: #E3F5EA; color: #11202F; border-top-color: #1FAE5A; animation: none; }
+.tvnf.aviso { background: #FFF4D6; color: #7A5200; border-top-color: #D9930D; animation: none; }

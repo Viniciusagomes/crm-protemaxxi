@@ -107,7 +107,7 @@ function comandaTV(x, agora) {
     <div class="tvcmdtopo">${tempo ? `<span class="tvbola ${corTempo(x) === 'r' ? 'r' : 'v'}" title="${corTempo(x) === 'r' ? 'Em atraso' : 'No tempo'}"></span>` : ''}<span class="tvnum">${esc(p.numero || '')}</span><span class="tvtipo">${esc(nome)}</span>${tempo ? `<span class="tvrel">${esc(tempo)}</span>` : ''}</div>
     <div class="tvcli">${esc(p.cliente_nome || '')}${p.vendedor_nome ? ` <small>· ${esc(p.vendedor_nome)}</small>` : ''}</div>
     ${tabelaItensTV(its, agora ? 40 : TV_MAX_ITENS)}
-    ${x.faturamento ? `<div class="tvnf ${x.nfOk ? 'ok' : ''}">🧾 FATURAMENTO · ${x.nfOk ? 'NF OK' : 'SÓ SAI COM NOTA FISCAL'}</div>` : ''}
+    ${x.faturamento ? `<div class="tvnf ${x.nfOk ? 'ok' : ''}">🧾 FATURAMENTO · ${x.nfOk ? 'NF OK' : 'SÓ SAI COM NOTA FISCAL'}</div>` : alertaDeposito(p) ? '<div class="tvnf aviso">🧾 DEPÓSITO · SE FOR FATURAMENTO, NF OBRIGATÓRIA</div>' : ''}
     ${brindesDoPedido(p.numero).map(b => `<div class="tvbrinde">🎁 BRINDE: ${b.qtd}× ${esc(CRE.brindes?.find(x => x.id === b.brinde_id)?.nome || 'brinde')}</div>`).join('')}
     <div class="tvcmdpe"><span>${its.length} produto(s) · ${N(pecas)} peça(s)</span>${x.loja ? `<span>Cobrar <b>${R(p.valor)}</b> ${esc(p.pag_forma || p.forma_pagamento || '')}</span>` : ''}</div>
   </div>`;
