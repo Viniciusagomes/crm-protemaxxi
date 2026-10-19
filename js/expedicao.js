@@ -22,7 +22,9 @@ const SIT_LOJA_ABERTA = ['Em aberto', 'Aprovado', 'Preparando envio', 'Faturado'
 const ehRetirada = p => !p.envio_forma || /retir/i.test(p.envio_forma);
 /** Depósito ou Tray: o pagamento precisa ser aprovado (Vinícius, Marcos, Fefão ou Felipe Menezes) antes de separar. Pix não: é feito na maquininha. */
 const pagTxt = p => `${p.pag_forma || ''} ${p.pag_meio || ''} ${p.forma_pagamento || ''}`;
-const precisaAprovar = p => !p.numero_ecommerce && /dep[oó]sito|tray|boleto|m[uú]ltipl/i.test(pagTxt(p));
+/** Pedido do site (Tray): entra na expedição como pedido da loja, mas o pagamento precisa ser aprovado antes de separar. */
+const siteTray = p => /tray/i.test(p.canal || '');
+const precisaAprovar = p => siteTray(p) || (!p.numero_ecommerce && /dep[oó]sito|tray|boleto|m[uú]ltipl/i.test(pagTxt(p)));
 /** Faturamento (boleto, múltiplas): nota fiscal obrigatória antes de o material sair. Depósito só ganha um alerta. */
 const exigeNF = p => !p.numero_ecommerce && /boleto|m[uú]ltipl/i.test(pagTxt(p));
 const alertaDeposito = p => !p.numero_ecommerce && !exigeNF(p) && /dep[oó]sito/i.test(pagTxt(p));
@@ -32,7 +34,7 @@ const podeAprovarPag = () => ehDono() || !!EU?.permissoes?.aprovar_pagamento;
 /** 'loja' (retirada no balcão) | 'envio' (loja por correios/transportadora) | 'marketplace' | null (fora da expedição por enquanto) */
 function tipoExp(p, ml) {
   if (!p.numero_ecommerce) return ehRetirada(p) ? 'loja' : 'envio';
-  if (/tray/i.test(p.canal || '')) return null;
+  if (siteTray(p)) return ehRetirada(p) ? 'loja' : 'envio';   // site: retirada = fluxo do balcão; envio = fluxo de envio
   if (ml || /ml|mercado|amazon/i.test(p.canal || '')) return 'marketplace';
   return null;   // e-commerce ainda sem canal (o Tiny detalha em minutos)
 }
@@ -103,7 +105,7 @@ function infoPedido(p) {
   const pagPendente = precisaAprovar(p) && !e.pagamento_aprovado_em;
   const etapa = despachado ? 'despachado' : (pagPendente || (p.tipo === 'marketplace' && p.situacao === 'Em aberto')) ? 'aguardando' : e.conferido_em ? 'conferido' : e.separado_em ? 'separado' : 'a_separar';
   const atrasado = !pagPendente && prazo && (despachoEm ? new Date(despachoEm) > prazo : !despachado && Date.now() > prazo);
-  const canal = loja ? 'Loja' : envioLoja ? 'Loja (envio)' : p.canal || (ml ? 'ML - Viny' : 'Marketplace');
+  const canal = siteTray(p) ? p.canal : loja ? 'Loja' : envioLoja ? 'Loja (envio)' : p.canal || (ml ? 'ML - Viny' : 'Marketplace');
   const faturamento = exigeNF(p), nfOk = !faturamento || nfLiberada(e);
   const balcao = loja, pago = !!(e.pago_em || e.pagamento_aprovado_em);   // balcão: separado → pago → entregue
   return { p, e, ml, base, prazo, despachado, despachoEm, etapa, atrasado, canal, loja, envioLoja, pagPendente, faturamento, nfOk, balcao, pago };
