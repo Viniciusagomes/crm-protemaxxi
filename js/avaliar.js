@@ -1,7 +1,7 @@
 'use strict';
 /* Página pública de avaliação do atendimento (avaliar.html?t=…). Toda nota fica no nosso log.
-   4–5 estrelas: registra a nota e abre direto a avaliação do Google. 1–3: pede o relato (vai só para a loja) e também mostra, discreto,
-   o link do Google — a regra do Google proíbe esconder o convite de quem deu nota baixa. */
+   4–5 estrelas: registra a nota e abre direto a avaliação do Google (só na primeira vez: quem já foi ao Google só é agradecido).
+   1–3: abre a caixa de texto; o relato vai só para a loja. */
 (async () => {
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const caixa = document.getElementById('caixa'), q = new URLSearchParams(location.search), t = q.get('t') || '';
@@ -13,7 +13,7 @@
   }
   const { data: a } = await sb.rpc('avaliacao_ver', { p_token: t });
   if (!a) { caixa.innerHTML = '<p>Este link de avaliação não é mais válido.</p>'; return; }
-  const emp = a.empresa || 'nossa loja', google = a.google || '';
+  const emp = a.empresa || 'nossa loja', google = a.ja_google ? '' : (a.google || '');   // Google só na primeira avaliação
   const ROT = ['', 'Muito ruim', 'Ruim', 'Regular', 'Bom', 'Excelente!'];
   let nota = +q.get('n') || a.nota || 0;
   // async: a chamada do supabase-js só sai quando é aguardada; assim ela sai mesmo quando ninguém espera a resposta
@@ -41,10 +41,9 @@
     const resto = document.getElementById('resto');
     if (!nota || (nota >= 4 && google)) return;
     resto.innerHTML = nota >= 4
-      ? `<p style="margin-top:14px"><b>Obrigado! 💚</b></p><textarea id="txt" placeholder="Quer deixar um recado para a nossa equipe? (opcional)"></textarea><button class="btn pri" id="btnEnviar">Enviar recado</button>`
+      ? `<p style="margin-top:14px"><b>Obrigado! 💚</b> Sua avaliação foi registrada.</p><textarea id="txt" placeholder="Quer deixar um recado para a nossa equipe? (opcional)"></textarea><button class="btn pri" id="btnEnviar">Enviar recado</button>`
       : `<p style="margin-top:14px"><b>Sentimos muito.</b> Conte o que aconteceu: sua mensagem vai direto para a gerência, e vamos entrar em contato.</p>
-        <textarea id="txt" placeholder="O que podemos melhorar?" autofocus></textarea><button class="btn pri" id="btnEnviar">Enviar para a loja</button>
-        ${google ? `<a class="discreto" id="btnGoogle" href="${esc(google)}" target="_blank" rel="noopener">Prefere avaliar publicamente no Google?</a>` : ''}`;
+        <textarea id="txt" placeholder="O que podemos melhorar?" autofocus></textarea><button class="btn pri" id="btnEnviar">Enviar para a loja</button>`;
     document.getElementById('txt')?.focus();
     document.getElementById('btnEnviar').onclick = async () => {
       const txt = document.getElementById('txt').value.trim();
@@ -52,7 +51,6 @@
       await responder(txt, false);
       resto.innerHTML = '<p style="margin-top:14px"><b>Recebemos sua mensagem. Obrigado!</b> Vamos entrar em contato.</p>';
     };
-    document.getElementById('btnGoogle')?.addEventListener('click', () => responder(document.getElementById('txt')?.value.trim(), true));
   }
   // Veio do e-mail com a estrela escolhida (?n=): só mostra a nota marcada e pede um toque para confirmar.
   // Não grava sozinho: robôs de segurança de e-mail abrem os links e gerariam notas falsas.
