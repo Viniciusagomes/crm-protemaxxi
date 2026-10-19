@@ -8,7 +8,7 @@
 const AT = { os: null, rma: null, cfg: null, carregando: false, em: 0 };
 const ST_OS = {
   recebido: ['📥 Recebido', ''], em_analise: ['🔬 Em análise', 'azul'], aguardando_cliente: ['💬 Aguardando cliente', 'med'], aguardando_peca: ['⏳ Aguardando peça', 'med'],
-  na_assistencia: ['🏭 Na assistência', 'azul'], retornou: ['↩ Retornou', 'azul'], pronto: ['✅ Pronto p/ retirada', 'ok'], entregue: ['🏁 Entregue', ''], cancelado: ['✕ Cancelada', 'ruim'],
+  na_assistencia: ['🏭 Assistência/fábrica', 'azul'], retornou: ['↩ Retornou', 'azul'], pronto: ['✅ Pronto p/ retirada', 'ok'], entregue: ['🏁 Entregue', ''], cancelado: ['✕ Cancelada', 'ruim'],
 };
 const TIPOS_OS = { garantia_fabrica: '🏭 Garantia do fabricante', garantia_loja: '🏪 Garantia da loja', manutencao: '🛠 Manutenção (paga)', troca: '🔁 Troca' };
 const RES_OS = { reparado: '🛠 Reparado', trocado: '🔁 Trocado', sem_defeito: '✔ Sem defeito constatado', negado: '🚫 Garantia negada', devolvido: '↩ Devolvido sem reparo', credito: '💳 Virou crédito' };
@@ -30,10 +30,38 @@ async function carregarAT(forcar) {
 }
 const diasDesde = d => Math.max(0, Math.round((Date.now() - new Date(d)) / 864e5));
 /** Garantia pela data da compra: loja (dias) e fabricante (meses), conforme a configuração. */
-function garantiaOS(o) {
-  if (!o.data_compra) return null;
-  const dias = diasDesde(o.data_compra + 'T12:00:00'), loja = +(AT.cfg?.garantia_loja_dias || 90), fab = +(AT.cfg?.garantia_fabrica_meses || 12) * 30.4;
+function garantiaDe(data) {
+  if (!data) return null;
+  const dias = diasDesde(data + 'T12:00:00'), loja = +(AT.cfg?.garantia_loja_dias || 90), fab = +(AT.cfg?.garantia_fabrica_meses || 12) * 30.4;
   return { dias, loja: dias <= loja, fabrica: dias <= fab };
+}
+const garantiaOS = o => garantiaDe(o.data_compra);
+
+// ─── compras do cliente (data da venda e produtos iguais já comprados) ───
+const normTxt = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+const grupo = (l, f) => l.reduce((a, x) => { const k = f(x); if (k) (a[k] ||= []).push(x); return a; }, {});
+/** Pedidos do cliente nos últimos 3 anos (com itens), guardados por cliente. */
+async function comprasDoCliente(chave, doc, nome) {
+  const k = [chave, doc, nome].join('|'); AT.compras ||= {};
+  if (!AT.compras[k]) { const { data, error } = await sb.rpc('at_compras_cliente', { p_chave: chave || null, p_doc: doc || null, p_nome: nome || null }); if (error) throw error; AT.compras[k] = data || []; }
+  return AT.compras[k];
+}
+/** Compras do mesmo produto (pelo código ou por ≥60% das palavras da descrição), da mais recente para a mais antiga. */
+function comprasIguais(compras, desc, codigo) {
+  const tk = normTxt(desc).split(' ').filter(t => t.length >= 2), out = [];
+  if (!tk.length && !codigo) return out;
+  for (const p of compras || []) for (const i of p.itens || []) {
+    let igual = !!(codigo && i.codigo && String(i.codigo) === String(codigo));
+    if (!igual && tk.length) { const it = new Set(normTxt(i.descricao).split(' ')); igual = tk.filter(t => it.has(t)).length / tk.length >= 0.6; }
+    if (igual) out.push({ numero: String(p.numero ?? ''), data: p.data, quantidade: +i.quantidade || 1, descricao: i.descricao });
+  }
+  return out.sort((a, b) => String(b.data).localeCompare(String(a.data)));
+}
+function resumoIguais(l) {
+  if (!l.length) return 'Nenhuma compra deste produto encontrada para o cliente (últimos 3 anos).';
+  const u = soma(l.map(x => x.quantidade)), g = garantiaDe(l[0].data);
+  return `Última compra: pedido ${l[0].numero} em ${pd(l[0].data).toLocaleDateString('pt-BR')} (há ${g.dias} dia(s): ${g.loja ? 'na garantia da loja' : 'fora da garantia da loja'}, ${g.fabrica ? 'na do fabricante' : 'fora da do fabricante'})`
+    + (l.length > 1 || u > 1 ? ` · ${N(u)} unidade(s) iguais em ${l.length} pedido(s): ${l.slice(0, 6).map(x => `${x.numero} (${pd(x.data).toLocaleDateString('pt-BR')})`).join(', ')}` : '');
 }
 function textoAviso(o, status, extra) {
   const t = AT.cfg?.textos?.[status]; if (!t) return '';
@@ -49,17 +77,18 @@ function vAssistencia() {
   const naAssist = abertas.filter(o => o.status === 'na_assistencia');
   const atrasadas = abertas.filter(o => o.previsao && o.previsao < hoje());
   const rmaAbertos = (AT.rma || []).filter(r => !r.retornou_em);
-  const abas = [['os', '🛠 Ordens de serviço', abertas.length], ['rma', '🏭 RMA (assistências)', rmaAbertos.length], ['indicadores', '📊 Indicadores', ''], ['tiny', '🧾 OS do Tiny', '']];
+  const abas = [['os', '🛠 Ordens de serviço', abertas.length], ['rma', '🏭 Assistência / fábrica (RMA)', rmaAbertos.length], ['reincidencia', '🔁 Reincidência', ''], ['indicadores', '📊 Indicadores', ''], ['tiny', '🧾 OS do Tiny', '']];
   const cab = topo('Assistência técnica', 'Garantia e manutenção: do recebimento do equipamento até a entrega, com aviso ao cliente em cada etapa.',
       `<button class="btn" data-a="atAtualizar">↻ Atualizar</button><button class="btn pri" data-a="atNova">+ Nova OS</button>`)
     + `<div class="grid g4"><div class="card kpi-card destaque"><div class="rot">OS em aberto</div><div class="val verde">${abertas.length}</div><div class="sub">${abertas.filter(o => o.status === 'recebido').length} aguardando análise</div></div>
       <div class="card kpi-card"><div class="rot">Prontas para retirada</div><div class="val ${abertas.filter(o => o.status === 'pronto').length ? 'c-ok' : ''}">${abertas.filter(o => o.status === 'pronto').length}</div><div class="sub">avise o cliente</div></div>
-      <div class="card kpi-card"><div class="rot">Na assistência</div><div class="val">${naAssist.length}</div><div class="sub">${rmaAbertos.filter(r => r.previsao_retorno && r.previsao_retorno < hoje()).length} passaram da previsão</div></div>
+      <div class="card kpi-card"><div class="rot">Na assistência</div><div class="val">${naAssist.length}</div><div class="sub">assistência ou fábrica · ${rmaAbertos.filter(r => r.previsao_retorno && r.previsao_retorno < hoje()).length} passaram da previsão</div></div>
       <div class="card kpi-card"><div class="rot">Atrasadas</div><div class="val ${atrasadas.length ? 'c-ruim' : 'c-ok'}">${atrasadas.length}</div><div class="sub">passaram da previsão para o cliente</div></div></div>
     <div class="chips mt">${abas.map(([k, n, b]) => `<button class="chip ${UI.atAba === k ? 'on' : ''}" data-a="atAba" data-v="${k}">${n}${b !== '' ? `<span class="n">${b}</span>` : ''}</button>`).join('')}</div>`;
   if (UI.atAba === 'rma') return cab + abaRMA();
   if (UI.atAba === 'indicadores') return cab + abaIndicadoresAT();
-  if (UI.atAba === 'tiny') return cab + blocoOS() + `<h2 class="mt2">RMAs antigos (solicitações)</h2>${vSolicitacoes('rma')}`;
+  if (UI.atAba === 'reincidencia') return cab + abaReincidencia();
+  if (UI.atAba === 'tiny') return cab + blocoOS();
   const card = o => { const atr = o.previsao && o.previsao < hoje();
     return `<div class="kcard ${atr ? 'sem' : ''}" data-a="atAbrir" data-id="${o.id}"><div class="kcard-nome">OS ${esc(o.numero)} · ${esc(o.cliente_nome)}</div>
       <div class="kcard-tit">${esc(o.produto_descricao)}${o.numero_serie ? ` · SN ${esc(o.numero_serie)}` : ''}</div>
@@ -82,9 +111,10 @@ function abaRMA() {
     return `<tr class="clic" data-a="atAbrir" data-id="${o.id}"><td><b>OS ${esc(o.numero)}</b><br><small>${esc(o.cliente_nome)}</small></td><td><small>${esc(o.produto_descricao)}${o.numero_serie ? '<br>SN ' + esc(o.numero_serie) : ''}</small></td>
       <td><b>${esc(r.assistencia)}</b><br><small>${r.protocolo ? 'protocolo ' + esc(r.protocolo) : 'sem protocolo'}${r.rastreio ? ' · rastreio ' + esc(r.rastreio) : ''}</small></td>
       <td><small>enviado ${fmtCurta(r.enviado_em)} · ${diasDesde(r.enviado_em + 'T12:00')} dia(s)</small>${r.previsao_retorno ? `<br><small class="${atr ? 'c-ruim' : ''}">${atr ? '⚠ ' : ''}previsão ${fmtCurta(r.previsao_retorno)}</small>` : ''}</td>
-      <td>${r.retornou_em ? `<span class="tag ${r.resultado === 'negado' ? 'ruim' : 'ok'}">${RES_OS[r.resultado] || r.resultado || 'retornou'}</span><br><small>${fmtCurta(r.retornou_em)}</small>` : '<span class="tag azul">Na assistência</span>'}</td></tr>`; };
-  return `<div class="card mt"><div class="secao-titulo"><h2>Na assistência agora</h2><small>${porAss.map(([a, n]) => `${esc(a)}: ${n}`).join(' · ')}</small></div>
-      ${abertos.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>OS</th><th>Equipamento</th><th>Assistência</th><th>Tempo</th><th>Situação</th></tr></thead><tbody>${abertos.map(linha).join('')}</tbody></table></div>` : '<div class="vazio">Nenhum equipamento na assistência.</div>'}</div>
+      <td>${r.retornou_em ? `<span class="tag ${r.resultado === 'negado' ? 'ruim' : 'ok'}">${RES_OS[r.resultado] || r.resultado || 'retornou'}</span><br><small>${fmtCurta(r.retornou_em)}</small>` : '<span class="tag azul">Fora (RMA)</span>'}</td></tr>`; };
+  return `<p class="explica mt">Tudo o que saiu para conserto fora (assistência técnica, fábrica ou distribuidor) fica nesta lista única. Todo dia o sino e o Início lembram quantos produtos estão fora e quais passaram da previsão.</p>
+    <div class="card mt"><div class="secao-titulo"><h2>Na assistência / fábrica agora</h2><small>${porAss.map(([a, n]) => `${esc(a)}: ${n}`).join(' · ')}</small></div>
+      ${abertos.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>OS</th><th>Equipamento</th><th>Assistência</th><th>Tempo</th><th>Situação</th></tr></thead><tbody>${abertos.map(linha).join('')}</tbody></table></div>` : '<div class="vazio">Nenhum equipamento na assistência ou na fábrica.</div>'}</div>
     <div class="card mt"><div class="secao-titulo"><h2>Retornaram</h2><small>${fechados.length}</small></div>${fechados.length ? listaCurta('rmaFech', `<table class="tabela"><tbody>${fechados.map(linha).join('')}</tbody></table>`, 'Buscar…') : '<div class="vazio">—</div>'}</div>`;
 }
 
@@ -113,29 +143,60 @@ function formOS() {
       <label class="campo">E-mail<input type="email" id="osEmail"></label>
       <label class="campo">CPF / CNPJ <small class="mut">(para criar a OS no Tiny)</small><input type="text" id="osDoc" inputmode="numeric"></label>
       <label class="campo">Tipo<select id="osTipo">${Object.entries(TIPOS_OS).map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</select></label>
-      <label class="campo">Nº do pedido (Tiny) ou NF da compra<input type="text" id="osPedido" placeholder="Ex.: 77910"></label>
-      <label class="campo">Data da compra<input type="date" id="osCompra"></label>
-      <div class="campo inteiro"><b>Produtos da OS</b><div id="osItens">${blocoItemOS(1)}</div>
+      <label class="campo">Nº do pedido ou NF que o cliente trouxe <small class="mut">(opcional)</small><input type="text" id="osPedido" placeholder="Ex.: 77910"></label>
+      <div class="campo inteiro" id="osCompras"></div>
+      <div class="campo inteiro"><b>Produtos da OS</b> <small class="mut">(cada produto com as suas fotos; a data e o pedido da compra são puxados das vendas do cliente)</small><div id="osItens">${blocoItemOS(1)}</div>
         <button type="button" class="btn peq" data-a="atAddItem">＋ Adicionar mais produtos</button></div>
       <label class="campo inteiro">Defeito relatado pelo cliente *<textarea id="osDefeito" rows="2"></textarea></label>
       <label class="campo">Acessórios entregues<input type="text" id="osAcess" placeholder="Ex.: fonte, cabo, caixa"></label>
       <label class="campo">Estado físico<input type="text" id="osEstado" placeholder="Ex.: riscos na lateral, sem caixa"></label>
       <label class="campo">Previsão para o cliente<input type="date" id="osPrev" value="${addDias(hoje(), +(AT.cfg?.analise_dias || 3))}"></label>
-      <label class="campo inteiro">📷 Fotos de entrada * (mínimo ${AT.cfg?.fotos_minimas || 2}: produto inteiro + etiqueta com nº de série; defeito visível, se houver)<input type="file" id="osFotos" accept="image/*" capture="environment" multiple></label>
+      <label class="campo inteiro">📷 Outras fotos <small class="mut">(opcional: caixa, acessórios, defeito visível… mínimo de ${AT.cfg?.fotos_minimas || 2} fotos somando todas)</small><input type="file" id="osFotos" accept="image/*" capture="environment" multiple></label>
     </div>
     <datalist id="osListaCli">${(D.clientes || []).slice(0, 4000).map(c => `<option value="${esc(c.nome)}">`).join('')}</datalist>
+    <datalist id="osListaComprados"></datalist>
     <datalist id="osListaMarca">${(AT.cfg?.assistencias || []).map(a => `<option value="${esc(a)}">`).join('')}</datalist>
     <div class="mt"><button class="btn pri" data-a="atSalvar">Abrir OS</button></div>`, true);
-  $('#osCli').addEventListener('change', e => { const c = (D.clientes || []).find(x => x.nome === e.target.value); if (c) { if (c.fone && !$('#osFone').value) $('#osFone').value = c.fone; if (c.email && !$('#osEmail').value) $('#osEmail').value = c.email; if (c.doc && !$('#osDoc').value) $('#osDoc').value = c.doc; } });
-  $('#osPedido').addEventListener('change', e => { const p = D.pedidos.find(x => String(x.numero) === e.target.value.trim()); if (p) { $('#osCompra').value = p.data; if (!$('#osCli').value) $('#osCli').value = p.cliente_nome; } });
+  $('#osCli').addEventListener('change', e => { const c = (D.clientes || []).find(x => x.nome === e.target.value); if (c) { if (c.fone && !$('#osFone').value) $('#osFone').value = c.fone; if (c.email && !$('#osEmail').value) $('#osEmail').value = c.email; if (c.doc && !$('#osDoc').value) $('#osDoc').value = c.doc; } atBuscarCompras(); });
+  $('#osDoc').addEventListener('change', () => atBuscarCompras());
+  $('#osPedido').addEventListener('change', e => { const p = (D.pedidos || []).find(x => String(x.numero) === e.target.value.trim()); if (p && !$('#osCli').value) { $('#osCli').value = p.cliente_nome; $('#osCli').dispatchEvent(new Event('change')); } });
+  $('#osItens').addEventListener('change', e => { if (e.target.classList.contains('it-desc')) atCompraItem(e.target.closest('.os-item'));
+    if (e.target.classList.contains('it-pedido') || e.target.classList.contains('it-data')) e.target.dataset.auto = ''; });
+  AT.comprasForm = null;
+}
+/** Busca as vendas do cliente (nome, CPF/CNPJ ou cadastro) e mostra no formulário. */
+async function atBuscarCompras() {
+  const box = $('#osCompras'); if (!box) return;
+  const nome = ($('#osCli')?.value || '').trim(), doc = ($('#osDoc')?.value || '').replace(/\D/g, ''), c = (D.clientes || []).find(x => x.nome === nome);
+  if (!nome && !doc) { box.innerHTML = ''; return; }
+  box.innerHTML = '<small class="mut">🛒 Buscando as compras do cliente…</small>';
+  try {
+    const l = await comprasDoCliente(c?.chave, doc, nome); AT.comprasForm = l;
+    const lista = $('#osListaComprados'); if (lista) lista.innerHTML = [...new Set(l.flatMap(p => (p.itens || []).map(i => i.descricao)))].slice(0, 500).map(d => `<option value="${esc(d)}">`).join('');
+    box.innerHTML = l.length ? `<div class="alerta ok"><span class="ic">🛒</span><span><b>${l.length} compra(s) do cliente nos últimos 3 anos</b> · última em ${pd(l[0].data).toLocaleDateString('pt-BR')} (pedido ${esc(String(l[0].numero))}). Ao escolher o produto, a data e o pedido da compra entram sozinhos e aparecem as outras unidades iguais que ele comprou.</span></div>`
+      : '<div class="alerta med"><span class="ic">🛒</span><span>Não achamos vendas deste cliente nos últimos 3 anos. Confira o nome ou informe o CPF/CNPJ.</span></div>';
+    document.querySelectorAll('#osItens .os-item').forEach(atCompraItem);
+  } catch (e) { box.innerHTML = `<small class="c-ruim">Não deu para buscar as compras: ${esc(e.message)}</small>`; }
+}
+/** Para um produto do formulário: acha a compra, preenche pedido/data e mostra as compras iguais. */
+function atCompraItem(b) {
+  const info = b?.querySelector('.it-compra'); if (!info) return;
+  const desc = b.querySelector('.it-desc')?.value.trim();
+  if (!desc || !AT.comprasForm) { info.innerHTML = ''; return; }
+  const l = comprasIguais(AT.comprasForm, desc), ped = b.querySelector('.it-pedido'), dt = b.querySelector('.it-data');
+  if (l.length) { if (!ped.value || ped.dataset.auto) { ped.value = l[0].numero; ped.dataset.auto = '1'; } if (!dt.value || dt.dataset.auto) { dt.value = l[0].data; dt.dataset.auto = '1'; } }
+  info.innerHTML = `<small class="${l.length ? '' : 'mut'}">🛒 ${esc(resumoIguais(l))}</small>`;
 }
 /** Bloco de um produto no cadastro da OS (o botão "Adicionar mais produtos" cria outro). */
 function blocoItemOS(n) {
   return `<div class="os-item" data-item="${n}"><div class="os-item-cab"><b>Produto ${n}</b>${n > 1 ? `<button type="button" class="icone-btn" data-a="atRemItem" title="Remover este produto">✕</button>` : ''}</div>
-    <div class="form-grid"><label class="campo inteiro">Equipamento *<input type="text" class="it-desc" placeholder="Ex.: Câmera Intelbras VHD 1220 B"></label>
+    <div class="form-grid"><label class="campo inteiro">Equipamento *<input type="text" class="it-desc" list="osListaComprados" placeholder="Ex.: Câmera Intelbras VHD 1220 B"></label>
     <label class="campo">Marca<input type="text" class="it-marca" list="osListaMarca"></label><label class="campo">Modelo<input type="text" class="it-modelo"></label>
     <label class="campo">Nº de série<input type="text" class="it-serie"></label><label class="campo">Quantidade<input type="number" class="it-qtd" min="1" step="1" value="1"></label>
-    <label class="campo inteiro">Defeito deste produto <small class="mut">(se for diferente do geral)</small><input type="text" class="it-defeito"></label></div></div>`;
+    <label class="campo inteiro">Defeito deste produto <small class="mut">(se for diferente do geral)</small><input type="text" class="it-defeito"></label>
+    <label class="campo">Pedido da compra<input type="text" class="it-pedido" placeholder="puxado das vendas"></label><label class="campo">Data da compra<input type="date" class="it-data"></label>
+    <div class="campo inteiro it-compra"></div>
+    <label class="campo inteiro">📷 Fotos deste produto * <small class="mut">(produto inteiro + etiqueta com nº de série)</small><input type="file" class="it-fotos" accept="image/*" capture="environment" multiple></label></div></div>`;
 }
 function atAddItem() {
   const box = $('#osItens'); if (!box) return;
@@ -144,7 +205,7 @@ function atAddItem() {
 }
 function atRemItem(el) { el.closest('.os-item')?.remove(); document.querySelectorAll('#osItens .os-item').forEach((b, i) => { b.querySelector('.os-item-cab b').textContent = 'Produto ' + (i + 1); }); }
 const itensDoForm = () => [...document.querySelectorAll('#osItens .os-item')].map((b, i) => { const q = c => (b.querySelector(c)?.value || '').trim();
-  return { seq: i + 1, descricao: q('.it-desc'), marca: q('.it-marca') || null, modelo: q('.it-modelo') || null, numero_serie: q('.it-serie') || null, quantidade: Math.max(1, +q('.it-qtd') || 1), defeito: q('.it-defeito') || null }; });
+  return { seq: i + 1, descricao: q('.it-desc'), marca: q('.it-marca') || null, modelo: q('.it-modelo') || null, numero_serie: q('.it-serie') || null, quantidade: Math.max(1, +q('.it-qtd') || 1), defeito: q('.it-defeito') || null, pedido_numero: q('.it-pedido') || null, data_compra: q('.it-data') || null }; });
 /** Cria a OS no Tiny (em segundo plano: se o Tiny falhar, a OS fica na Intranet com o aviso e o botão "Enviar ao Tiny"). */
 async function atEnviarTiny(o) {
   try { const r = await chamarFuncao('assistencia-tiny', { acao: 'enviar', os_id: o.id }); Object.assign(o, { tiny_os_id: r.tiny_os_id, tiny_os_numero: String(r.tiny_os_numero ?? o.tiny_os_numero ?? ''), tiny_erro: null }); return r; }
@@ -154,34 +215,38 @@ async function atSincTiny(o) { if (!o.tiny_os_id) return; try { await chamarFunc
 
 async function atSalvar() {
   const v = id => ($('#' + id)?.value || '').trim();
-  const itens = itensDoForm().filter(i => i.descricao);
+  const itens = itensDoForm(), fotosIt = [...document.querySelectorAll('#osItens .os-item')].map(b => [...(b.querySelector('.it-fotos')?.files || [])]);
   const nome = v('osCli'), prod = itens[0]?.descricao, defeito = v('osDefeito'), fotos = [...($('#osFotos')?.files || [])];
-  const minimo = +(AT.cfg?.fotos_minimas || 2);
+  const minimo = +(AT.cfg?.fotos_minimas || 2), totalFotos = fotos.length + soma(fotosIt.map(f => f.length));
   if (!nome || !prod || !defeito) return avisar('Preencha o cliente, pelo menos um produto e o defeito.');
-  if (itensDoForm().some(i => !i.descricao)) return avisar('Preencha o equipamento de cada produto (ou remova o bloco vazio).');
-  if (fotos.length < minimo) return avisar(`Tire pelo menos ${minimo} fotos: o produto inteiro e a etiqueta com o nº de série.`);
+  if (itens.some(i => !i.descricao)) return avisar('Preencha o equipamento de cada produto (ou remova o bloco vazio).');
+  const semFoto = fotosIt.findIndex(f => !f.length);
+  if (semFoto >= 0) return avisar(`Tire a foto do produto ${semFoto + 1}: o produto inteiro e a etiqueta com o nº de série.`);
+  if (totalFotos < minimo) return avisar(`Tire pelo menos ${minimo} fotos no total: o produto inteiro e a etiqueta com o nº de série.`);
   const c = (D.clientes || []).find(x => x.nome === nome);
   const btn = document.querySelector('[data-a="atSalvar"]'); if (btn) { btn.disabled = true; btn.textContent = 'Salvando e enviando fotos…'; }
   try {
     const resumo = itens.length > 1 ? `${prod} + ${itens.length - 1} produto(s)` : prod;
     const o = await ok(sb.from('at_os').insert({ cliente_nome: nome, cliente_chave: c?.chave || null, cliente_doc: v('osDoc').replace(/\D/g, '') || c?.doc || null, cliente_fone: v('osFone').replace(/\D/g, '') || null, cliente_email: v('osEmail') || null,
-      tipo: v('osTipo'), pedido_numero: v('osPedido') || null, produto_descricao: resumo, marca: itens[0].marca, modelo: itens[0].modelo, numero_serie: itens[0].numero_serie,
-      data_compra: v('osCompra') || null, defeito_relatado: defeito, acessorios: v('osAcess') || null, estado_fisico: v('osEstado') || null, previsao: v('osPrev') || null,
+      tipo: v('osTipo'), pedido_numero: v('osPedido') || itens.find(i => i.pedido_numero)?.pedido_numero || null, produto_descricao: resumo, marca: itens[0].marca, modelo: itens[0].modelo, numero_serie: itens[0].numero_serie,
+      data_compra: itens.find(i => i.data_compra)?.data_compra || null, defeito_relatado: defeito, acessorios: v('osAcess') || null, estado_fisico: v('osEstado') || null, previsao: v('osPrev') || null,
       criado_por: EU.id, responsavel_id: EU.id }).select().single());
-    await ok(sb.from('at_os_itens').insert(itens.map(i => ({ ...i, os_id: o.id }))));
+    const salvos = await ok(sb.from('at_os_itens').insert(itens.map(i => ({ ...i, os_id: o.id }))).select());
+    const idSeq = Object.fromEntries(salvos.map(x => [x.seq, x.id]));
+    for (let k = 0; k < itens.length; k++) await enviarFotosOS(o, fotosIt[k], 'entrada', idSeq[itens[k].seq]);
     await enviarFotosOS(o, fotos, 'entrada');
     await gerarAvisos(o, 'recebido', '');
     AT.os.unshift(o); fecharModal(); avisar(`OS ${o.numero} aberta. Criando no Tiny…`); render(); atAbrir(o.id);
     atEnviarTiny(o).then(r => { avisar(`OS ${o.numero} criada no Tiny (nº ${r.tiny_os_numero}).`); atAbrir(o.id); }).catch(e => { avisar('A OS foi aberta, mas não foi criada no Tiny: ' + e.message); atAbrir(o.id); });
   } catch (e) { if (btn) { btn.disabled = false; btn.textContent = 'Abrir OS'; } throw e; }
 }
-async function enviarFotosOS(o, arquivos, etapa) {
+async function enviarFotosOS(o, arquivos, etapa, itemId) {
   for (const a of arquivos) {
     if (!/^image\//.test(a.type)) continue;
     const blob = await reduzirFoto(a), caminho = `os/${o.id}/${etapa}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.jpg`;
     const { error } = await sb.storage.from('anexos').upload(caminho, blob, { contentType: 'image/jpeg' });
     if (error) throw new Error('Foto não enviada: ' + error.message);
-    await ok(sb.from('at_fotos').insert({ os_id: o.id, etapa, caminho, por: EU.id }));
+    await ok(sb.from('at_fotos').insert({ os_id: o.id, etapa, caminho, por: EU.id, item_id: itemId || null }));
   }
 }
 /** Cria os avisos da etapa (WhatsApp para enviar com um toque; e-mail sai sozinho quando o envio de e-mail estiver configurado). */
@@ -205,8 +270,8 @@ async function atAbrir(id) {
   const campo = (r, v) => v ? `<div><span>${r}</span><b>${esc(String(v))}</b></div>` : '';
   const acoes = {
     recebido: [['em_analise', '🔬 Iniciar análise', 'pri']],
-    em_analise: [['na_assistencia', '🏭 Enviar à assistência (RMA)', 'pri'], ['aguardando_cliente', '💬 Orçamento ao cliente', ''], ['aguardando_peca', '⏳ Aguardando peça', ''], ['pronto', '✅ Pronto (reparado / trocado / sem defeito)', '']],
-    aguardando_cliente: [['em_analise', '👍 Cliente aprovou', 'pri'], ['pronto', '👎 Cliente recusou: devolver', '']],
+    em_analise: [['na_assistencia', '🏭 Enviar à assistência / fábrica (RMA)', 'pri'], ['aguardando_cliente', '💬 Orçamento ao cliente', ''], ['aguardando_peca', '⏳ Aguardando peça', ''], ['pronto', '✅ Pronto (reparado / trocado / sem defeito)', '']],
+    aguardando_cliente: [['em_analise', '👍 Cliente aprovou (por telefone/loja)', 'pri'], ['pronto', '👎 Cliente recusou: devolver', '']],
     aguardando_peca: [['em_analise', '📦 Peça chegou', 'pri']],
     na_assistencia: [['retornou', '↩ Registrar retorno da assistência', 'pri']],
     retornou: [['pronto', '✅ Pronto para retirada', 'pri']],
@@ -215,7 +280,11 @@ async function atAbrir(id) {
   modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button>
     <small class="mut">${TIPOS_OS[o.tipo]} · aberta ${new Date(o.criado_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} por ${esc(nomeP(o.criado_por))}</small>
     <h2 style="margin:4px 0">OS ${esc(o.numero)} · ${esc(o.cliente_nome)} <span class="tag ${ST_OS[o.status][1]}">${ST_OS[o.status][0]}</span></h2>
-    ${itens.length ? `<table class="tabela mt"><thead><tr><th>#</th><th>Produto</th><th>Marca / modelo</th><th>Nº de série</th><th class="dir">Qtd</th><th>Defeito</th></tr></thead><tbody>${itens.map(i => `<tr><td>${i.seq}</td><td><b>${esc(i.descricao)}</b></td><td>${esc([i.marca, i.modelo].filter(Boolean).join(' '))}</td><td>${esc(i.numero_serie || '—')}</td><td class="dir">${N(i.quantidade)}</td><td><small>${esc(i.defeito || '')}</small></td></tr>`).join('')}</tbody></table>` : ''}
+    ${itens.length ? `<table class="tabela mt"><thead><tr><th>#</th><th>Produto</th><th>Marca / modelo</th><th>Nº de série</th><th class="dir">Qtd</th><th>Defeito</th><th>Compra</th></tr></thead><tbody>${itens.map(i => { const gi = garantiaDe(i.data_compra);
+      return `<tr><td>${i.seq}</td><td><b>${esc(i.descricao)}</b></td><td>${esc([i.marca, i.modelo].filter(Boolean).join(' '))}</td><td>${esc(i.numero_serie || '—')}</td><td class="dir">${N(i.quantidade)}</td><td><small>${esc(i.defeito || '')}</small></td>
+      <td>${gi ? `<small>${pd(i.data_compra).toLocaleDateString('pt-BR')}${i.pedido_numero ? ' · pedido ' + esc(i.pedido_numero) : ''}<br>há ${gi.dias} dia(s) · <span class="${gi.loja || gi.fabrica ? 'c-ok' : 'c-ruim'}">${gi.loja ? 'garantia loja' : gi.fabrica ? 'garantia fabricante' : 'fora da garantia'}</span></small>` : '<small class="mut">—</small>'}</td></tr>`; }).join('')}</tbody></table>` : ''}
+    <div id="osComprasFicha" class="mt"></div>
+    ${o.orcamento_resposta?.em ? `<div class="alerta ${o.orcamento_resposta.aprova ? 'ok' : 'ruim'} mt"><span class="ic">💬</span><span><b>Cliente ${o.orcamento_resposta.aprova ? 'APROVOU' : 'RECUSOU'} o orçamento pelo link</b> em ${new Date(o.orcamento_resposta.em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} · ${esc(o.orcamento_resposta.nome || '')} (CPF/CNPJ final ${esc(o.orcamento_resposta.doc_final || '')})${o.orcamento_resposta.obs ? '<br>Obs.: ' + esc(o.orcamento_resposta.obs) : ''}</span></div>` : ''}
     <div class="alerta ${o.tiny_os_id ? 'ok' : o.tiny_erro ? 'ruim' : 'med'} mt"><span class="ic">🧾</span><span>${o.tiny_os_id ? `<b>OS nº ${esc(o.tiny_os_numero || '')} no Tiny</b> · as mudanças de situação vão para lá sozinhas${o.tiny_erro ? `<br><small class="c-ruim">Última sincronização falhou: ${esc(o.tiny_erro)}</small>` : ''}` : o.tiny_erro ? `<b>Não foi criada no Tiny:</b> ${esc(o.tiny_erro)}` : 'Criando no Tiny…'}</span>
       ${!o.tiny_os_id ? `<button class="btn peq" data-a="atTinyEnviar" data-id="${o.id}">Enviar ao Tiny</button>` : o.tiny_erro ? `<button class="btn peq" data-a="atTinySinc" data-id="${o.id}">Sincronizar de novo</button>` : ''}</div>
     <div class="os-campos">${itens.length ? '' : campo('Equipamento', o.produto_descricao) + campo('Marca / modelo', [o.marca, o.modelo].filter(Boolean).join(' ')) + campo('Nº de série', o.numero_serie)}
@@ -228,14 +297,24 @@ async function atAbrir(id) {
       ${aberta ? `<button class="btn peq" data-a="atEditar" data-id="${o.id}">✎ Testes / diagnóstico</button>` : ''}${aberta && ehDono() ? `<button class="btn peq perigo" data-a="atMudar" data-id="${o.id}" data-v="cancelado">Cancelar OS</button>` : ''}</div>
     ${acoes.length ? `<div class="os-proximo"><b>Próximo passo:</b> ${acoes.map(([s, n, c]) => `<button class="btn ${c}" data-a="atMudar" data-id="${o.id}" data-v="${s}">${n}</button>`).join('')}</div>` : ''}
     <div class="grid g2 mt"><div>
-      <h3>📷 Fotos</h3><div class="anexos">${fotos.map((f, i) => urls?.[i]?.signedUrl ? `<a href="${esc(urls[i].signedUrl)}" target="_blank" rel="noopener" title="${esc(f.etapa)}"><img src="${esc(urls[i].signedUrl)}" alt="${esc(f.etapa)}" loading="lazy"></a>` : '').join('')}
-        <label class="novo">＋ Foto<select id="osFotoEtapa" style="margin-top:4px;font-size:11px"><option value="teste">teste</option><option value="envio">envio</option><option value="retorno">retorno</option><option value="saida">saída</option><option value="entrada">entrada</option></select><input type="file" accept="image/*" capture="environment" multiple hidden data-c="atFotos" data-id="${o.id}"></label></div>
+      <h3>📷 Fotos</h3>${[...itens.map(i => [i.id, `Produto ${i.seq}: ${i.descricao}`]), [null, itens.length ? 'Gerais' : '']].map(([iid, tit]) => { const fs = fotos.map((f, k) => [f, urls?.[k]?.signedUrl]).filter(([f, u]) => u && (iid ? f.item_id === iid : !itens.some(i => i.id === f.item_id)));
+        return fs.length ? `${tit ? `<small class="mut"><b>${esc(tit)}</b></small>` : ''}<div class="anexos">${fs.map(([f, u]) => `<a href="${esc(u)}" target="_blank" rel="noopener" title="${esc(f.etapa)}"><img src="${esc(u)}" alt="${esc(f.etapa)}" loading="lazy"></a>`).join('')}</div>` : ''; }).join('')}
+      <div class="anexos"><label class="novo">＋ Foto${itens.length > 1 ? `<select id="osFotoItem" style="margin-top:4px;font-size:11px">${itens.map(i => `<option value="${i.id}">produto ${i.seq}</option>`).join('')}<option value="">geral</option></select>` : itens.length ? `<input type="hidden" id="osFotoItem" value="${itens[0].id}">` : ''}<select id="osFotoEtapa" style="margin-top:4px;font-size:11px"><option value="teste">teste</option><option value="envio">envio</option><option value="retorno">retorno</option><option value="saida">saída</option><option value="entrada">entrada</option></select><input type="file" accept="image/*" capture="environment" multiple hidden data-c="atFotos" data-id="${o.id}"></label></div>
       ${rmas.length ? `<h3 class="mt">🏭 Assistência</h3>${rmas.map(r => `<div class="atv"><div><b>${esc(r.assistencia)}</b> · enviado ${fmtCurta(r.enviado_em)}${r.protocolo ? ' · protocolo ' + esc(r.protocolo) : ''}${r.rastreio ? ' · rastreio ' + esc(r.rastreio) : ''}<br>
         <small>${r.retornou_em ? `retornou ${fmtCurta(r.retornou_em)} · ${RES_OS[r.resultado] || ''}${r.laudo ? ' · ' + esc(r.laudo) : ''}${r.custo ? ' · custo ' + R(r.custo) : ''}` : r.previsao_retorno ? 'previsão ' + fmtCurta(r.previsao_retorno) : ''}</small></div></div>`).join('')}` : ''}
       <h3 class="mt">📲 Avisos ao cliente</h3>${avisos.map(a => `<div class="atv"><div style="flex:1"><b>${a.canal === 'whatsapp' ? '💬 WhatsApp' : '✉ E-mail'}</b> · <small>${{ pendente: 'pendente', enviado: 'enviado ✓', erro: 'erro', sem_config: 'aguardando configurar o e-mail', cancelado: 'cancelado' }[a.status]}</small><br><small>${esc(a.mensagem.slice(0, 140))}</small></div>
         ${a.canal === 'whatsapp' && a.status === 'pendente' ? `<button class="btn peq pri" data-a="atWa" data-id="${a.id}">Enviar</button>` : ''}</div>`).join('') || `<p class="mut">${o.cliente_fone || o.cliente_email ? 'Nenhum aviso ainda.' : 'Cadastre telefone ou e-mail do cliente para avisar.'}</p>`}
     </div><div><h3>Linha do tempo</h3>${ev.map(e => `<div class="tl ${e.publico ? '' : 'interno'}"><b>${esc(e.texto)}</b><small>${new Date(e.em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}${e.por ? ' · ' + esc(nomeP(e.por)) : ''}${e.publico ? '' : ' · interno'}</small></div>`).join('')}
       <div class="nova-atv"><input type="text" id="osNota" placeholder="Anotação na linha do tempo…"><label class="mut" style="font-size:12px"><input type="checkbox" id="osNotaPub"> cliente vê</label><button class="btn peq" data-a="atNota" data-id="${o.id}">+ Anotar</button></div></div></div>`, true);
+  atComprasFicha(o, itens);
+}
+/** Na ficha: compras do cliente para cada produto da OS (data da venda e unidades iguais compradas). */
+function atComprasFicha(o, itens) {
+  comprasDoCliente(o.cliente_chave, o.cliente_doc, o.cliente_nome).then(l => {
+    const box = $('#osComprasFicha'); if (!box || l == null) return;
+    const lista = itens.length ? itens : [{ seq: 1, descricao: o.produto_descricao, produto_codigo: o.produto_codigo }];
+    box.innerHTML = `<div class="alerta"><span class="ic">🛒</span><span><b>Compras do cliente</b> <small class="mut">(${l.length} pedido(s) nos últimos 3 anos)</small>${lista.map(i => `<br><b>Produto ${i.seq}:</b> ${esc(resumoIguais(comprasIguais(l, i.descricao, i.produto_codigo)))}`).join('')}</span></div>`;
+  }).catch(() => {});
 }
 
 // mudar de etapa: pede os dados da etapa e a mensagem ao cliente
@@ -243,12 +322,14 @@ function atMudarForm(id, status) {
   const o = AT.os.find(x => String(x.id) === String(id));
   const ass = AT.cfg?.assistencias || [];
   const extra = {
-    na_assistencia: `<label class="campo">Assistência *<input type="text" id="mdAss" list="mdListaAss" value="${esc(o.marca || '')}"></label><datalist id="mdListaAss">${ass.map(a => `<option value="${esc(a)}">`).join('')}</datalist>
+    na_assistencia: `<label class="campo">Assistência / fábrica *<input type="text" id="mdAss" list="mdListaAss" value="${esc(o.marca || '')}"></label><datalist id="mdListaAss">${ass.map(a => `<option value="${esc(a)}">`).join('')}</datalist>
       <label class="campo">Protocolo / RMA do fabricante<input type="text" id="mdProt"></label><label class="campo">NF de remessa<input type="text" id="mdNF"></label>
       <label class="campo">Rastreio<input type="text" id="mdRast"></label><label class="campo">Previsão de retorno<input type="date" id="mdPrev" value="${addDias(hoje(), +(AT.cfg?.assistencia_dias || 30))}"></label>`,
     retornou: `<label class="campo">Resultado *<select id="mdRes">${['reparado', 'trocado', 'negado', 'credito'].map(k => `<option value="${k}">${RES_OS[k]}</option>`).join('')}</select></label>
       <label class="campo">Custo (R$)<input type="number" step="0.01" id="mdCusto"></label><label class="campo inteiro">Laudo da assistência<textarea id="mdLaudo" rows="2"></textarea></label>`,
-    aguardando_cliente: `<label class="campo">Valor do orçamento (R$) *<input type="number" step="0.01" id="mdOrc"></label><label class="campo">Nº da OS no Tiny (cobrança)<input type="text" id="mdTiny"></label>`,
+    aguardando_cliente: `<label class="campo">Valor do orçamento (R$) *<input type="number" step="0.01" id="mdOrc"></label><label class="campo">Nº da OS no Tiny (cobrança)<input type="text" id="mdTiny"></label>
+      <label class="campo">CPF / CNPJ do cliente${o.cliente_doc ? '' : ' <small class="c-med">(sem ele o cliente não aprova pelo link)</small>'}<input type="text" id="mdDoc" inputmode="numeric" value="${esc(o.cliente_doc || '')}"></label>
+      <p class="explica inteiro">O cliente aprova ou recusa pelo link "Acompanhe sua OS", confirmando o CPF/CNPJ e o nome completo (<b>${esc(o.cliente_nome)}</b>). Se ele responder por telefone ou na loja, use os botões da ficha.</p>`,
     pronto: `<label class="campo">Resultado *<select id="mdRes">${['reparado', 'trocado', 'sem_defeito', 'negado', 'devolvido', 'credito'].map(k => `<option value="${k}" ${o.resultado === k ? 'selected' : ''}>${RES_OS[k]}</option>`).join('')}</select></label>
       <label class="campo inteiro">Solução / o que foi feito<textarea id="mdSol" rows="2">${esc(o.solucao || '')}</textarea></label>`,
     entregue: `<label class="campo">Retirado por *<input type="text" id="mdQuem" value="${esc(o.cliente_nome)}"></label>`,
@@ -256,7 +337,7 @@ function atMudarForm(id, status) {
   }[status] || '';
   modal(`<button class="btn peq fechar" data-a="atAbrirVolta" data-id="${o.id}">✕</button><h2>OS ${esc(o.numero)} → ${ST_OS[status][0]}</h2>
     <div class="form-grid">${extra}
-      <label class="campo inteiro">Mensagem ao cliente <small class="mut">(vai pelo WhatsApp/e-mail e aparece no "Acompanhe sua OS")</small><textarea id="mdMsg" rows="3">${esc(textoAviso(o, status, ''))}</textarea></label>
+      <label class="campo inteiro">Mensagem ao cliente <small class="mut">(vai pelo WhatsApp/e-mail e aparece no "Acompanhe sua OS")</small><textarea id="mdMsg" rows="3">${esc((t => status === 'aguardando_cliente' && !t.includes(linkOS(o)) ? `${t} Para aprovar ou recusar, acesse: ${linkOS(o)}`.trim() : t)(textoAviso(o, status, '')))}</textarea></label>
       <label class="campo"><span><input type="checkbox" id="mdAvisar" ${o.cliente_fone || o.cliente_email ? 'checked' : ''}> Avisar o cliente</span></label></div>
     <div class="mt"><button class="btn pri" data-a="atConfirmar" data-id="${o.id}" data-v="${status}">Confirmar</button></div>`, true);
 }
@@ -273,7 +354,7 @@ async function atConfirmar(id, status) {
     if (r) Object.assign(r, await ok(sb.from('at_rma').update({ retornou_em: hoje(), resultado: v('mdRes'), laudo: v('mdLaudo') || null, custo: Number(v('mdCusto')) || null }).eq('id', r.id).select().single()));
     upd.resultado = v('mdRes');
   }
-  if (status === 'aguardando_cliente') { if (!Number(v('mdOrc'))) return avisar('Informe o valor do orçamento.'); Object.assign(upd, { orcamento_valor: Number(v('mdOrc')), orcamento_status: 'aguardando', tiny_os_numero: v('mdTiny') || o.tiny_os_numero }); }
+  if (status === 'aguardando_cliente') { if (!Number(v('mdOrc'))) return avisar('Informe o valor do orçamento.'); Object.assign(upd, { orcamento_valor: Number(v('mdOrc')), orcamento_status: 'aguardando', orcamento_resposta: null, tiny_os_numero: v('mdTiny') || o.tiny_os_numero }); if (v('mdDoc').replace(/\D/g, '')) upd.cliente_doc = v('mdDoc').replace(/\D/g, ''); }
   if (status === 'em_analise' && o.status === 'aguardando_cliente') upd.orcamento_status = 'aprovado';
   if (status === 'pronto') { Object.assign(upd, { resultado: v('mdRes'), solucao: v('mdSol') || null }); if (o.status === 'aguardando_cliente') upd.orcamento_status = 'recusado'; }
   if (status === 'entregue') { if (!v('mdQuem')) return avisar('Informe quem retirou.'); upd.entregue_para = v('mdQuem'); }
@@ -314,7 +395,7 @@ async function atNota(id) {
 }
 async function atFotos(id, arquivos) {
   const o = AT.os.find(x => String(x.id) === String(id));
-  avisar(`Enviando ${arquivos.length} foto(s)…`); await enviarFotosOS(o, arquivos, $('#osFotoEtapa')?.value || 'teste'); avisar('Foto(s) anexada(s).'); atAbrir(id);
+  avisar(`Enviando ${arquivos.length} foto(s)…`); await enviarFotosOS(o, arquivos, $('#osFotoEtapa')?.value || 'teste', +($('#osFotoItem')?.value || 0) || null); avisar('Foto(s) anexada(s).'); atAbrir(id);
 }
 function atCopiarLink(id) { const o = AT.os.find(x => String(x.id) === String(id)); navigator.clipboard?.writeText(linkOS(o)).then(() => avisar('Link copiado: envie ao cliente.')).catch(() => prompt('Copie o link:', linkOS(o))); }
 
@@ -344,4 +425,56 @@ async function atTermo(id) {
       Equipamentos não retirados em até 90 dias após o aviso de "pronto para retirada" poderão ter destinação conforme a lei.</p>
     <div class="ass"><div>Cliente</div><div>${esc(c.empresa || '')}</div></div></body></html>`);
   w.document.close(); setTimeout(() => w.print(), 400);
+}
+
+// ─── reincidência: mesmo nº de série, mesmo cliente em 90 dias e produtos que mais voltam ───
+async function carregarHistAT() {
+  const [os, it] = await Promise.all([
+    todas(() => sb.from('at_os').select('id,numero,cliente_nome,cliente_chave,cliente_doc,produto_descricao,numero_serie,marca,criado_em,status,resultado').order('criado_em')),
+    todas(() => sb.from('at_os_itens').select('os_id,descricao,numero_serie,marca,quantidade')),
+  ]);
+  AT.hist = { os, it, em: Date.now() };
+}
+function abaReincidencia() {
+  if (!AT.hist || Date.now() - AT.hist.em > 5 * 60e3) { if (!AT.histCarregando) { AT.histCarregando = true; carregarHistAT().then(render).catch(e => avisar(e.message)).finally(() => { AT.histCarregando = false; }); } if (!AT.hist) return '<div class="card vazio mt">Carregando o histórico de OS…</div>'; }
+  const { os, it } = AT.hist, osPor = Object.fromEntries(os.map(o => [o.id, o])), comItens = new Set(it.map(i => i.os_id));
+  const prods = [...it.map(i => ({ ...i, o: osPor[i.os_id] })), ...os.filter(o => !comItens.has(o.id)).map(o => ({ os_id: o.id, descricao: o.produto_descricao, numero_serie: o.numero_serie, marca: o.marca, quantidade: 1, o }))].filter(x => x.o && x.o.status !== 'cancelado');
+  const series = Object.values(grupo(prods.filter(x => x.numero_serie), x => normTxt(x.numero_serie).replace(/ /g, ''))).filter(g => new Set(g.map(x => x.os_id)).size > 1);
+  const chaveCli = o => o.cliente_chave || (o.cliente_doc || '').replace(/\D/g, '') || normTxt(o.cliente_nome);
+  const clientes = Object.values(grupo(os.filter(o => o.status !== 'cancelado'), chaveCli)).map(g => g.sort((a, b) => a.criado_em.localeCompare(b.criado_em)))
+    .filter(g => g.some((o, k) => k > 0 && (new Date(o.criado_em) - new Date(g[k - 1].criado_em)) / 864e5 <= 90));
+  const produtos = Object.values(grupo(prods, x => normTxt(x.descricao))).filter(g => g.length > 1).sort((a, b) => b.length - a.length);
+  const osLink = o => `<a href="#" data-a="atAbrir" data-id="${o.id}">OS ${esc(o.numero)}</a> <small class="mut">${fmtCurta(o.criado_em.slice(0, 10))}</small>`;
+  return `<p class="explica mt">Produtos e clientes que voltam para a assistência. Mesmo nº de série em mais de uma OS indica conserto que não resolveu; muitas OS do mesmo produto indicam problema de modelo ou de fornecedor.</p>
+    <div class="grid g3 mt"><div class="card kpi-card"><div class="rot">Mesmo nº de série</div><div class="val ${series.length ? 'c-ruim' : 'c-ok'}">${series.length}</div><div class="sub">equipamento que voltou</div></div>
+      <div class="card kpi-card"><div class="rot">Cliente voltou em 90 dias</div><div class="val ${clientes.length ? 'c-med' : 'c-ok'}">${clientes.length}</div><div class="sub">cliente(s)</div></div>
+      <div class="card kpi-card"><div class="rot">Produtos com 2+ OS</div><div class="val">${produtos.length}</div><div class="sub">de ${os.length} OS no histórico</div></div></div>
+    <div class="card mt"><h2>🔁 Mesmo nº de série</h2>${series.length ? `<table class="tabela"><thead><tr><th>Nº de série</th><th>Produto</th><th>Cliente</th><th>OS</th></tr></thead><tbody>${series.map(g => `<tr><td><b>${esc(g[0].numero_serie)}</b></td><td>${esc(g[0].descricao)}</td><td>${esc(g[0].o.cliente_nome)}</td><td>${[...new Map(g.map(x => [x.os_id, x.o])).values()].map(osLink).join('<br>')}</td></tr>`).join('')}</tbody></table>` : '<div class="vazio">Nenhum nº de série repetido. 👏</div>'}</div>
+    <div class="card mt"><h2>👤 Cliente com nova OS em até 90 dias</h2>${clientes.length ? `<table class="tabela"><thead><tr><th>Cliente</th><th class="dir">OS</th><th>Histórico</th></tr></thead><tbody>${clientes.map(g => `<tr><td><b>${esc(g[0].cliente_nome)}</b></td><td class="dir">${g.length}</td><td>${g.map(o => `${osLink(o)} · <small>${esc(o.produto_descricao || '')}</small>`).join('<br>')}</td></tr>`).join('')}</tbody></table>` : '<div class="vazio">Nenhum cliente voltou em menos de 90 dias.</div>'}</div>
+    <div class="card mt"><h2>📦 Produtos que mais voltam</h2>${produtos.length ? `<table class="tabela"><thead><tr><th>Produto</th><th class="dir">OS</th><th class="dir">Clientes</th><th class="dir">Garantia negada</th></tr></thead><tbody>${produtos.slice(0, 30).map(g => `<tr><td><b>${esc(g[0].descricao)}</b>${g[0].marca ? ` <small class="mut">${esc(g[0].marca)}</small>` : ''}</td><td class="dir"><b>${g.length}</b></td><td class="dir">${new Set(g.map(x => x.o.cliente_nome)).size}</td><td class="dir">${g.filter(x => x.o.resultado === 'negado').length}</td></tr>`).join('')}</tbody></table>` : '<div class="vazio">Nenhum produto com mais de uma OS ainda.</div>'}</div>`;
+}
+
+// ─── lembretes internos (todo dia): o que está fora, prontas sem retirada, previsões vencidas, respostas de orçamento ───
+const veAssist = () => !!EU && (ehDono() || !!EU.permissoes?.suporte);
+function pendenciasAT() {
+  if (!AT.os) return null;
+  const h = hoje(), ab = AT.os.filter(o => !['entregue', 'cancelado'].includes(o.status));
+  const rmaPor = Object.fromEntries((AT.rma || []).filter(r => !r.retornou_em).map(r => [r.os_id, r]));
+  const fora = ab.filter(o => o.status === 'na_assistencia'), foraAtr = fora.filter(o => rmaPor[o.id]?.previsao_retorno && rmaPor[o.id].previsao_retorno < h);
+  const prontasVelhas = ab.filter(o => o.status === 'pronto' && diasDesde(o.status_em) >= 7);
+  const atrasadas = ab.filter(o => o.status !== 'na_assistencia' && o.status !== 'pronto' && o.previsao && o.previsao < h);
+  const respondidas = AT.os.filter(o => o.orcamento_resposta?.em && diasDesde(o.orcamento_resposta.em) <= 2);
+  return { fora, foraAtr, prontasVelhas, atrasadas, respondidas, rmaPor };
+}
+/** Faixa no Início / Meu dia de quem cuida da assistência. */
+function avisoAssistencia() {
+  if (!veAssist()) return '';
+  const p = pendenciasAT(); if (!p || !(p.fora.length || p.prontasVelhas.length || p.atrasadas.length || p.respondidas.length)) return '';
+  const diasFora = o => diasDesde(p.rmaPor[o.id]?.enviado_em ? p.rmaPor[o.id].enviado_em + 'T12:00' : o.status_em);
+  const det = p.fora.slice().sort((a, b) => diasFora(b) - diasFora(a)).slice(0, 8).map(o => { const r = p.rmaPor[o.id], atr = r?.previsao_retorno && r.previsao_retorno < hoje();
+    return `${atr ? '⚠ ' : ''}OS ${esc(o.numero)} · ${esc(o.produto_descricao || '')}${r ? ' · ' + esc(r.assistencia) : ''} · há ${diasFora(o)} dia(s)${r?.previsao_retorno ? ` · previsão ${fmtCurta(r.previsao_retorno)}` : ''}`; });
+  const partes = [p.fora.length && `${p.fora.length} produto(s) na assistência/fábrica${p.foraAtr.length ? ` (${p.foraAtr.length} passou da previsão: cobre a assistência)` : ''}`,
+    p.prontasVelhas.length && `${p.prontasVelhas.length} OS pronta(s) há 7+ dias sem retirada`, p.atrasadas.length && `${p.atrasadas.length} OS passou da previsão dada ao cliente`,
+    p.respondidas.length && `cliente respondeu orçamento: ${p.respondidas.map(o => `OS ${esc(o.numero)} ${o.orcamento_resposta.aprova ? '✔ aprovou' : '✕ recusou'}`).join(', ')}`].filter(Boolean);
+  return `<div class="alerta ${p.foraAtr.length || p.atrasadas.length ? 'ruim' : 'med'}" style="margin-bottom:14px;cursor:pointer" data-a="nav" data-v="suporte"><span class="ic">🏭</span><span><b>Assistência hoje:</b> ${partes.join(' · ')}.${det.length ? `<br><small>${det.join('<br>')}</small>` : ''} <u>Abrir assistência</u></span></div>`;
 }

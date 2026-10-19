@@ -75,7 +75,8 @@ function campoHtml([k, rot, tipo, obrig], val = '') {
 async function formSolicitacao(tipo, cliente) {
   if (!tipo) {
     modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>Nova solicitação</h2><p class="mut">O que você precisa?</p>
-      <div class="grid g2">${Object.entries(TIPOS_SOL).map(([k, t]) => `<div class="card clic" style="cursor:pointer" data-a="novaSolicitacao" data-tipo="${k}" ${cliente ? `data-chave="${esc(cliente.chave)}" data-nome="${esc(cliente.nome)}"` : ''}><h3>${t.ic} ${t.nome}</h3><small>${t.desc}</small></div>`).join('')}</div>`);
+      <div class="grid g2">${Object.entries(TIPOS_SOL).filter(([k]) => k !== 'rma').map(([k, t]) => `<div class="card clic" style="cursor:pointer" data-a="novaSolicitacao" data-tipo="${k}" ${cliente ? `data-chave="${esc(cliente.chave)}" data-nome="${esc(cliente.nome)}"` : ''}><h3>${t.ic} ${t.nome}</h3><small>${t.desc}</small></div>`).join('')}
+        <div class="card ${veAssist() ? 'clic' : ''}" ${veAssist() ? 'style="cursor:pointer" data-a="nav" data-v="suporte" data-fecha="1"' : ''}><h3>🔧 RMA / Garantia</h3><small>Produto com defeito agora vira uma OS na <b>Assistência</b> (assistência, fábrica e RMA em um lugar só)${veAssist() ? '.' : ': leve o produto ao suporte.'}</small></div></div>`);
     return;
   }
   if (!D.clientes) carregarClientes().catch(() => {});

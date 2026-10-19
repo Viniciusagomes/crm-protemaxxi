@@ -27,6 +27,11 @@
   .barra { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 14px 0 4px; } .barra i { height: 8px; border-radius: 99px; background: var(--borda); } .barra i.on { background: var(--verde); }
   .rotulos { display: grid; grid-template-columns: repeat(5, 1fr); font-size: 11px; color: var(--txt2); text-align: center; }
   .contato a { display: block; text-align: center; background: var(--verde); color: #fff; text-decoration: none; font-family: Archivo; font-weight: 800; padding: 14px; border-radius: 14px; box-shadow: 0 8px 20px -8px rgba(31,174,90,.7); }
+  .aprov { margin-top: 12px; border-top: 1px solid var(--borda); padding-top: 4px; } .aprov label { display: block; font-size: 13px; color: var(--txt2); margin: 8px 0; }
+  .aprov input { display: block; width: 100%; margin-top: 4px; padding: 11px 12px; border: 1px solid #CFC7B9; border-radius: 10px; font: inherit; color: var(--txt); }
+  .aprov-bts { display: grid; gap: 8px; margin-top: 12px; } .aprov-bts button { border: 0; border-radius: 12px; padding: 13px; font-family: Archivo; font-weight: 800; font-size: 15px; cursor: pointer; }
+  .aprov-bts .sim { background: var(--verde); color: #fff; } .aprov-bts .nao { background: #fff; color: #B42318; border: 1px solid #F1B5AE; } .aprov-bts button:disabled { opacity: .5; }
+  .ap-msg { margin-top: 10px; color: #B42318; font-weight: 600; } .ap-msg.ok { color: #178B47; }
   .vazio { text-align: center; padding: 30px 10px; color: var(--txt2); } footer { text-align: center; color: var(--txt2); font-size: 12.5px; padding-bottom: 30px; }
 </style>
 </head>
@@ -35,7 +40,7 @@
 <main id="conteudo"><div class="card vazio">Carregando…</div></main>
 <footer id="rodape"></footer>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" integrity="sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug" crossorigin="anonymous"></script>
-<script src="js/config.js?v=20261019r"></script>
-<script src="js/os-publica.js?v=20261019r"></script>
+<script src="js/config.js?v=20261019s"></script>
+<script src="js/os-publica.js?v=20261019s"></script>
 </body>
 </html>

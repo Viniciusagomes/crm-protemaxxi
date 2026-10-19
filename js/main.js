@@ -63,6 +63,7 @@ function render() {
   if (!CRM.em && !CRM.carregando && (EU.tiny || ehDono())) { CRM.em = 1; carregarCRM(true).then(render).catch(() => {}); }
   if (!CRE.em && !CRE.carregando) { CRE.em = 1; carregarCreditos(true).then(render).catch(() => {}); }
   if (!BOL.em && !BOL.carregando && veBoletos()) { BOL.em = 1; carregarBoletos(true).then(render).catch(() => {}); }   // aviso de boleto em atraso   // saldos e pendências em segundo plano
+  if (!AT.em && !AT.carregando && veAssist()) { AT.em = 1; carregarAT(true).then(render).catch(() => {}); }   // lembretes da assistência
   if (!COMP.em && !COMP.carregando && veCompras()) { COMP.em = 1; carregarCompras(true).then(render).catch(() => {}); }   // oportunidades para o contador do menu
   $('#nav').innerHTML = menu();
   $('#usuario').innerHTML = `${av(EU)}<div><b>${esc(EU.nome)}</b><small>${esc(EU.cargo)}</small></div>`;
@@ -106,7 +107,7 @@ function vInicio() {
   cards.push(`<div class="card kpi-card clic" style="cursor:pointer" data-a="nav" data-v="solicitacoes"><div class="rot">Solicitações para mim</div><div class="val ${paraMim.length ? 'c-med' : ''}">${paraMim.length}</div><div class="sub">${pedi.length} que eu pedi em aberto</div></div>`);
   const linhaSol = s => `<tr class="clic" data-a="verSolicitacao" data-id="${s.id}"><td>${(TIPOS_SOL[s.tipo] || TIPOS_SOL.outro).ic} <b>${esc(s.titulo)}</b><br><small>de ${esc(nomeP(s.solicitante_id))}${s.prazo ? ` · prazo ${fmtCurta(s.prazo)}` : ''}</small></td><td class="pri-${s.prioridade}">${PRIORIDADES[s.prioridade]}</td><td><span class="st st-${s.status}">${STATUS_SOL[s.status]}</span></td></tr>`;
   return topo(`${saud}, ${esc(primeiroNome(EU))}!`, `${fmtData(h)} · ${infoSync()}`, '<button class="btn pri" data-a="novaSolicitacao">+ Nova solicitação</button>')
-    + `${avisoBoletos()}<div class="grid g4">${cards.join('')}</div>
+    + `${avisoBoletos()}${avisoAssistencia()}<div class="grid g4">${cards.join('')}</div>
     <div class="grid g2 mt">
       <div class="card"><div class="secao-titulo"><h2>Para mim resolver</h2><a href="#/solicitacoes">ver todas</a></div>${paraMim.length ? `<table class="tabela"><tbody>${paraMim.slice(0, 8).map(linhaSol).join('')}</tbody></table>` : '<div class="vazio">Nenhuma solicitação pendente para você. 🎉</div>'}</div>
       <div class="card"><div class="secao-titulo"><h2>Follow-ups de hoje</h2><a href="#/clientes">clientes</a></div>${fus.length ? `<table class="tabela"><tbody>${fus.slice(0, 10).map(i => `<tr><td class="clic" data-a="verCliente" data-chave="${esc(i.cliente_chave)}" style="cursor:pointer"><b>${esc(i.cliente_nome || '')}</b><br><small>${TIPOS_INT[i.tipo] || ''} · ${esc(i.texto.slice(0, 80))}${ehDono() ? ' · ' + esc(nomeP(i.autor_id)) : ''}</small></td><td><span class="tag ${i.proximo_contato < h ? 'ruim' : 'ok'}">${fmtCurta(i.proximo_contato)}</span></td><td><button class="btn peq" data-a="followupFeito" data-id="${i.id}">✓ Feito</button></td></tr>`).join('')}</tbody></table>` : '<div class="vazio">Nenhum retorno marcado para hoje. Registre contatos na ficha do cliente e marque o próximo.</div>'}</div>

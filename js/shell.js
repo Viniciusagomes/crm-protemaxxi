@@ -87,6 +87,12 @@ function notificacoes() {
   const ruins = (AVA.lista || []).filter(a => a.nota && a.nota <= 3 && !a.tratado);
   if (ehDono() && ruins.length) add('ava:' + ruins.length, '⭐', `${ruins.length} cliente(s) insatisfeito(s) na avaliação`, 'nav', { v: 'avaliacoes' }, 'ruim');
   if (typeof BOL !== 'undefined' && BOL.lista) { const mb = ehDono() ? bolAbertos() : meusBoletos(); if (mb.length) add('bol:' + mb.map(b => b.id).join(','), '🧾', `${mb.length} boleto(s) em atraso${ehDono() ? '' : ' de clientes seus'} · ${R(soma(mb.map(b => +b.valor)))}`, 'nav', { v: 'boletos' }, 'ruim'); }
+  if (typeof veAssist === 'function' && veAssist()) { const p = pendenciasAT(); if (p) {   // lembrete diário (a chave tem a data: volta todo dia)
+    if (p.fora.length) add('atf:' + h, '🏭', `Lembrete do dia: ${p.fora.length} produto(s) na assistência/fábrica${p.foraAtr.length ? ` · ${p.foraAtr.length} passou da previsão` : ''}`, 'nav', { v: 'suporte' }, p.foraAtr.length ? 'ruim' : 'med');
+    if (p.prontasVelhas.length) add('atp:' + h, '✅', `${p.prontasVelhas.length} OS pronta(s) há 7+ dias aguardando retirada`, 'nav', { v: 'suporte' }, 'med');
+    if (p.atrasadas.length) add('ata:' + h, '⏰', `${p.atrasadas.length} OS passou da previsão dada ao cliente`, 'nav', { v: 'suporte' }, 'ruim');
+    if (p.respondidas.length) add('atr:' + p.respondidas.map(o => o.id).join(','), '💬', `Orçamento respondido pelo cliente: ${p.respondidas.map(o => `OS ${o.numero} ${o.orcamento_resposta.aprova ? 'aprovou' : 'recusou'}`).join(', ')}`, 'nav', { v: 'suporte' }, 'med');
+  } }
   const sols = minhasPendentes();
   if (sols.length) add('sol:' + sols.map(s => s.id).join(','), '📨', `${sols.length} solicitação(ões) para você`, 'nav', { v: 'solicitacoes' });
   const atv = (CRM.atv || []).filter(a => a.pessoa_id === EU.id && !a.feito);
