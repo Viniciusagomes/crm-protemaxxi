@@ -97,6 +97,8 @@ function tabelaItensTV(its, max, comValor) {
     ${its.length > max ? `<div class="tvmais">+ ${its.length - max} item(ns): veja no celular</div>` : ''}`;
 }
 
+/** Ocorrências em aberto de um pedido (item faltante, avaria, erro de separação…). */
+const ocsTV = p => (EXP.ocs || []).filter(o => !o.resolvido && (o.pedido_id === p.id || (o.pedido_numero && String(o.pedido_numero) === String(p.numero))));
 function comandaTV(x, agora) {
   const { p } = x, its = EXP.itens[p.id] || [], [cls, nome] = tipoTV(x);
   const hora = d => new Date(d).toLocaleString('pt-BR', dataSP(d) === hojeSP() ? { hour: '2-digit', minute: '2-digit' } : { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -106,6 +108,8 @@ function comandaTV(x, agora) {
     ${agora ? '<div class="tvagora">▶ SEPARAR AGORA</div>' : ''}
     <div class="tvcmdtopo">${tempo ? `<span class="tvbola ${corTempo(x) === 'r' ? 'r' : 'v'}" title="${corTempo(x) === 'r' ? 'Em atraso' : 'No tempo'}"></span>` : ''}<span class="tvnum">${esc(p.numero || '')}</span><span class="tvtipo">${esc(nome)}</span>${tempo ? `<span class="tvrel">${esc(tempo)}</span>` : ''}</div>
     <div class="tvcli">${esc(p.cliente_nome || '')}${p.vendedor_nome ? ` <small>· ${esc(p.vendedor_nome)}</small>` : ''}</div>
+    ${p.obs_interna ? `<div class="tvobs">📝 ${esc(p.obs_interna)}</div>` : ''}
+    ${ocsTV(p).map(o => `<div class="tvoc">${TIPOS_OC[o.tipo]?.[0] || '⚠'} ${esc(TIPOS_OC[o.tipo]?.[1] || o.tipo)}${o.produto ? ': ' + esc(o.produto) : ''}${o.quantidade ? ' (' + N(o.quantidade) + ')' : ''}${o.descricao ? ' · ' + esc(o.descricao) : ''}</div>`).join('')}
     ${tabelaItensTV(its, agora ? 40 : TV_MAX_ITENS)}
     ${x.faturamento ? `<div class="tvnf ${x.nfOk ? 'ok' : ''}">🧾 FATURAMENTO · ${x.nfOk ? 'NF OK' : 'SÓ SAI COM NOTA FISCAL'}</div>` : alertaDeposito(p) ? '<div class="tvnf aviso">🧾 DEPÓSITO · SE FOR FATURAMENTO, NF OBRIGATÓRIA</div>' : ''}
     ${brindesDoPedido(p.numero).map(b => `<div class="tvbrinde">🎁 BRINDE: ${b.qtd}× ${esc(CRE.brindes?.find(x => x.id === b.brinde_id)?.nome || 'brinde')}</div>`).join('')}
@@ -149,6 +153,8 @@ function vTVEstoque() {
       <div class="tvlado">
         <div class="tvpainel and"><div class="tvptit">🔄 EM ANDAMENTO</div>
           <div class="tvsenhas">${andamento.map(x => `<div class="tvsenha"><b>${esc(x.p.numero)}</b><small>${x.etapa === 'conferido' ? '✔ conferido' : 'separado'}</small></div>`).join('') || '<div class="tvnada">Nenhum</div>'}</div></div>
+        ${(() => { const ocs = (EXP.ocs || []).filter(o => !o.resolvido); return ocs.length ? `<div class="tvpainel ocs"><div class="tvptit">⚠ OCORRÊNCIAS EM ABERTO</div>
+          <div class="tvplista">${ocs.slice(0, 8).map(o => `<div class="tvpitem"><div class="tvpinfo"><b>${TIPOS_OC[o.tipo]?.[0] || '⚠'} ${esc(o.pedido_numero || 'sem pedido')}</b><span>${esc(TIPOS_OC[o.tipo]?.[1] || o.tipo)}${o.produto ? ': ' + esc(o.produto) : ''}</span>${o.descricao ? `<small>${esc(o.descricao)}</small>` : ''}</div></div>`).join('')}${ocs.length > 8 ? `<div class="tvnada">+ ${ocs.length - 8} na tela Expedição</div>` : ''}</div></div>` : ''; })()}
         <div class="tvpainel pag"><div class="tvptit">💳 AGUARDANDO APROVAÇÃO</div>
           <div class="tvplista">${pagamento.map(x => `<div class="tvpitem"><div class="tvpinfo"><b>${esc(x.p.numero)}</b><span>${esc((x.p.cliente_nome || '').split(' ').slice(0, 2).join(' '))}</span><small>${esc(x.p.pag_forma || '')} · ${R(x.p.valor)}</small></div>
             <button class="tvmaisbtn" data-a="tvDetalhe" data-id="${esc(x.p.id)}" title="Ver o pedido">+</button></div>`).join('') || '<div class="tvnada">Nenhum</div>'}</div></div>

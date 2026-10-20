@@ -655,3 +655,8 @@ body.tvestoque .barra-inf { display: none !important; }
 
 .bol-comp { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: var(--card2); border: 1px dashed var(--borda-forte); }
 .bol-comp span { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+.tvobs { background: #FFF6D6; color: #3B2F00; font-weight: 700; font-size: 20px; padding: 8px 14px; border-bottom: 2px solid #E8C547; white-space: pre-wrap; }
+.tvcmd.agora .tvobs { font-size: 24px; }
+.tvoc { background: #FDE7E4; color: #7A1A10; font-family: Archivo; font-weight: 800; font-size: 19px; padding: 7px 14px; border-bottom: 2px solid #E5533D; }
+.tvpainel.ocs .tvptit { background: #B42318; color: #fff; }

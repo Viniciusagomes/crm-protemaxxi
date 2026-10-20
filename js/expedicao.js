@@ -65,7 +65,7 @@ async function carregarExp(forcar, leve) {
     leve ? EXP.plano : chamarFuncao('estoque', { acao: 'plano' }).then(r => r.plano || []).catch(() => []),
   ]);
   const inicio = cfg.inicio && cfg.inicio > EXP_INICIO ? cfg.inicio : EXP_INICIO;
-  const peds = await todas(() => sb.from('pedidos').select('id,numero,numero_ecommerce,canal,data,cliente_nome,cliente_chave,vendedor_nome,valor,situacao,forma_pagamento,frete,envio_forma,envio_servico,pag_forma,pag_meio').gte('data', inicio).neq('situacao', 'Cancelado').order('data', { ascending: false }));
+  const peds = await todas(() => sb.from('pedidos').select('id,numero,numero_ecommerce,canal,data,cliente_nome,cliente_chave,vendedor_nome,valor,situacao,forma_pagamento,frete,envio_forma,envio_servico,pag_forma,pag_meio,obs_interna').gte('data', inicio).neq('situacao', 'Cancelado').order('data', { ascending: false }));
   const mlMapa = Object.fromEntries(mlp.flatMap(m => [[String(m.id), m], ...(m.pack_id ? [[String(m.pack_id), m]] : [])]));
   for (const p of peds) p.tipo = tipoExp(p, p.numero_ecommerce ? mlMapa[String(p.numero_ecommerce)] : null);
   const ecom = peds.filter(p => p.tipo);
