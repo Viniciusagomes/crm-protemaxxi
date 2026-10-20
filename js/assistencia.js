@@ -21,7 +21,7 @@ async function carregarAT(forcar) {
   try {
     const desde = new Date(Date.now() - 180 * 864e5).toISOString();
     const [os, rma, cfg] = await Promise.all([
-      todas(() => sb.from('at_os').select('*').or(`status.not.in.(entregue,cancelado),atualizado_em.gte.${desde}`).order('criado_em', { ascending: false })),
+      todas(() => sb.from('at_os').select('*').or(`status.not.in.(entregue,cancelado),criado_em.gte.${desde}`).order('criado_em', { ascending: false })),
       todas(() => sb.from('at_rma').select('*').order('enviado_em', { ascending: false })),
       sb.from('config').select('valor').eq('chave', 'assistencia').maybeSingle().then(r => r.data?.valor || {}),
     ]);
@@ -72,33 +72,51 @@ function textoAviso(o, status, extra) {
 // ─── tela principal ───
 function vAssistencia() {
   if (!AT.os) { if (!AT.carregando) carregarAT().then(render).catch(e => avisar(e.message)); return topo('Assistência técnica', '') + '<div class="card vazio">Carregando as OS…</div>'; }
-  UI.atAba ||= 'os';
+  if (!['visao', 'os'].includes(UI.atAba)) UI.atAba = 'os';
+  if (!AT.hist && !AT.histCarregando) { AT.histCarregando = true; carregarHistAT().then(render).catch(() => {}).finally(() => { AT.histCarregando = false; }); }   // marca as reincidentes
   const abertas = AT.os.filter(o => !['entregue', 'cancelado'].includes(o.status));
-  const naAssist = abertas.filter(o => o.status === 'na_assistencia');
-  const atrasadas = abertas.filter(o => o.previsao && o.previsao < hoje());
-  const rmaAbertos = (AT.rma || []).filter(r => !r.retornou_em);
-  const abas = [['os', '🛠 Ordens de serviço', abertas.length], ['rma', '🏭 Assistência / fábrica (RMA)', rmaAbertos.length], ['reincidencia', '🔁 Reincidência', ''], ['indicadores', '📊 Indicadores', ''], ['tiny', '🧾 OS do Tiny', '']];
-  const cab = topo('Assistência técnica', 'Garantia e manutenção: do recebimento do equipamento até a entrega, com aviso ao cliente em cada etapa.',
+  const cab = topo('Assistência técnica', 'Garantia, manutenção e RMA (assistência / fábrica): do recebimento do equipamento até a entrega, com aviso ao cliente em cada etapa. As OS do Tiny também estão aqui.',
       `<button class="btn" data-a="atAtualizar">↻ Atualizar</button><button class="btn pri" data-a="atNova">+ Nova OS</button>`)
-    + `<div class="grid g4"><div class="card kpi-card destaque"><div class="rot">OS em aberto</div><div class="val verde">${abertas.length}</div><div class="sub">${abertas.filter(o => o.status === 'recebido').length} aguardando análise</div></div>
-      <div class="card kpi-card"><div class="rot">Prontas para retirada</div><div class="val ${abertas.filter(o => o.status === 'pronto').length ? 'c-ok' : ''}">${abertas.filter(o => o.status === 'pronto').length}</div><div class="sub">avise o cliente</div></div>
-      <div class="card kpi-card"><div class="rot">Na assistência</div><div class="val">${naAssist.length}</div><div class="sub">assistência ou fábrica · ${rmaAbertos.filter(r => r.previsao_retorno && r.previsao_retorno < hoje()).length} passaram da previsão</div></div>
-      <div class="card kpi-card"><div class="rot">Atrasadas</div><div class="val ${atrasadas.length ? 'c-ruim' : 'c-ok'}">${atrasadas.length}</div><div class="sub">passaram da previsão para o cliente</div></div></div>
-    <div class="chips mt">${abas.map(([k, n, b]) => `<button class="chip ${UI.atAba === k ? 'on' : ''}" data-a="atAba" data-v="${k}">${n}${b !== '' ? `<span class="n">${b}</span>` : ''}</button>`).join('')}</div>`;
-  if (UI.atAba === 'rma') return cab + abaRMA();
-  if (UI.atAba === 'indicadores') return cab + abaIndicadoresAT();
-  if (UI.atAba === 'reincidencia') return cab + abaReincidencia();
-  if (UI.atAba === 'tiny') return cab + blocoOS();
-  const card = o => { const atr = o.previsao && o.previsao < hoje();
+    + `<div class="chips">${[['visao', '📊 Visão geral', ''], ['os', '🛠 Ordens de serviço', abertas.length]].map(([k, n, b]) => `<button class="chip ${UI.atAba === k ? 'on' : ''}" data-a="atAba" data-v="${k}">${n}${b !== '' ? `<span class="n">${b}</span>` : ''}</button>`).join('')}</div>`;
+  return cab + (UI.atAba === 'visao' ? visaoAT(abertas) : abaOS(abertas));
+}
+
+/** Visão geral: números, o que pede atenção hoje, indicadores e reincidência. */
+function visaoAT(abertas) {
+  const p = pendenciasAT(), rmaAbertos = (AT.rma || []).filter(r => !r.retornou_em);
+  const kpi = (rot, val, sub, cor, filtro) => `<div class="card kpi-card" style="cursor:pointer" data-a="atFiltro" data-v="${filtro}"><div class="rot">${rot}</div><div class="val ${cor}">${val}</div><div class="sub">${sub}</div></div>`;
+  const v3 = D.sync?.v3 || {};
+  return `${v3.conectado === false || v3.erro ? `<div class="alerta ruim mt"><span class="ic">🧾</span><span>A conexão com o Tiny v3 caiu: OS abertas no Tiny não entram e as situações não vão para lá. ${ehDono() ? '<a href="#/config" data-a="cfgTiny">Reconectar</a>' : 'Avise o administrador.'}</span></div>` : ''}
+    <div class="grid g4 mt">${kpi('OS em aberto', abertas.length, `${abertas.filter(o => o.status === 'recebido').length} aguardando análise`, 'verde', 'todas')}
+      ${kpi('Prontas para retirada', abertas.filter(o => o.status === 'pronto').length, `${p.prontasVelhas.length} há 7+ dias`, p.prontasVelhas.length ? 'c-med' : 'c-ok', 'prontas')}
+      ${kpi('Na assistência / fábrica', p.fora.length, `${p.foraAtr.length} passaram da previsão`, p.foraAtr.length ? 'c-ruim' : '', 'fabrica')}
+      ${kpi('Atrasadas', p.atrasadas.length, 'passaram da previsão ao cliente', p.atrasadas.length ? 'c-ruim' : 'c-ok', 'atrasadas')}</div>
+    <div class="mt">${avisoAssistencia() || '<div class="alerta ok"><span class="ic">👏</span><span>Nada pendente na assistência hoje.</span></div>'}</div>
+    <h2 class="mt2">📊 Indicadores</h2>${abaIndicadoresAT()}
+    <h2 class="mt2">🔁 Reincidência</h2>${abaReincidencia()}`;
+}
+
+/** Ordens de serviço: quadro por etapa + lista, com filtros (assistência/fábrica, Tiny, reincidentes, atrasadas). */
+function abaOS(abertas) {
+  UI.atFiltro ||= 'todas';
+  const rein = reincidencia()?.ids || new Set(), h = hoje();
+  const filtros = {
+    todas: ['🗂 Todas', () => true], fabrica: ['🏭 Na assistência / fábrica', o => o.status === 'na_assistencia' || (AT.rma || []).some(r => r.os_id === o.id)],
+    prontas: ['✅ Prontas', o => o.status === 'pronto'], atrasadas: ['⏰ Atrasadas', o => !['entregue', 'cancelado', 'pronto'].includes(o.status) && o.previsao && o.previsao < h],
+    reincidentes: ['🔁 Reincidentes', o => rein.has(o.id)], tiny: ['🧾 Vindas do Tiny', o => o.origem === 'tiny'],
+  };
+  const f = (filtros[UI.atFiltro] || filtros.todas)[1], lista = AT.os.filter(f), abertasF = abertas.filter(f);
+  const chips = `<div class="chips mt">${Object.entries(filtros).map(([k, [n, fn]]) => `<button class="chip ${UI.atFiltro === k ? 'on' : ''}" data-a="atFiltro" data-v="${k}">${n}<span class="n">${abertas.filter(fn).length}</span></button>`).join('')}</div>`;
+  const card = o => { const atr = o.previsao && o.previsao < h;
     return `<div class="kcard ${atr ? 'sem' : ''}" data-a="atAbrir" data-id="${o.id}"><div class="kcard-nome">OS ${esc(o.numero)} · ${esc(o.cliente_nome)}</div>
       <div class="kcard-tit">${esc(o.produto_descricao)}${o.numero_serie ? ` · SN ${esc(o.numero_serie)}` : ''}</div>
-      <div class="kcard-pe"><span>${TIPOS_OS[o.tipo]?.split(' ')[0] || ''} há ${diasDesde(o.criado_em)} dia(s)</span><span>${o.previsao ? (atr ? '⚠ ' : '') + fmtCurta(o.previsao) : ''}</span></div></div>`; };
-  return cab + `<div class="kanban-crm kanban-os mt">${COLUNAS_OS.map(k => { const l = abertas.filter(o => o.status === k);
-      return `<div class="kcol"><div class="kcol-cab"><b>${ST_OS[k][0]}</b><span>${l.length}</span></div><div class="kcol-lista">${l.map(card).join('') || '<div class="kvazio">—</div>'}</div></div>`; }).join('')}</div>
-    <div class="card mt"><div class="secao-titulo"><h2>Todas as OS</h2><small>últimos 180 dias</small></div>
+      <div class="kcard-pe"><span>${TIPOS_OS[o.tipo]?.split(' ')[0] || ''} há ${diasDesde(o.criado_em)} dia(s)${o.origem === 'tiny' ? ' · 🧾 Tiny' : ''}${rein.has(o.id) ? ' · 🔁' : ''}</span><span>${o.previsao ? (atr ? '⚠ ' : '') + fmtCurta(o.previsao) : ''}</span></div></div>`; };
+  const quadro = UI.atFiltro === 'fabrica' ? abaRMA() : `<div class="kanban-crm kanban-os mt">${COLUNAS_OS.map(k => { const l = abertasF.filter(o => o.status === k);
+      return `<div class="kcol"><div class="kcol-cab"><b>${ST_OS[k][0]}</b><span>${l.length}</span></div><div class="kcol-lista">${l.map(card).join('') || '<div class="kvazio">—</div>'}</div></div>`; }).join('')}</div>`;
+  return chips + quadro + `<div class="card mt"><div class="secao-titulo"><h2>${UI.atFiltro === 'todas' ? 'Todas as OS' : filtros[UI.atFiltro][0]}</h2><small>${lista.length} · abertas + últimos 180 dias</small></div>
       ${listaCurta('atLista', `<table class="tabela"><thead><tr><th>OS</th><th>Cliente</th><th>Equipamento</th><th>Tipo</th><th>Etapa</th><th>Aberta</th></tr></thead><tbody>
-      ${AT.os.map(o => `<tr class="clic" data-a="atAbrir" data-id="${o.id}"><td><b>${esc(o.numero)}</b></td><td>${esc(o.cliente_nome)}</td><td><small>${esc(o.produto_descricao)}${o.numero_serie ? '<br>SN ' + esc(o.numero_serie) : ''}</small></td>
-        <td><small>${TIPOS_OS[o.tipo] || ''}</small></td><td><span class="tag ${ST_OS[o.status][1]}">${ST_OS[o.status][0]}</span>${o.resultado ? `<br><small>${RES_OS[o.resultado]}</small>` : ''}</td><td><small>${new Date(o.criado_em).toLocaleDateString('pt-BR')}</small></td></tr>`).join('') || '<tr><td colspan="6" class="vazio">Nenhuma OS ainda. Clique em "+ Nova OS".</td></tr>'}
+      ${lista.map(o => `<tr class="clic" data-a="atAbrir" data-id="${o.id}"><td><b>${esc(o.numero)}</b>${o.origem === 'tiny' ? '<br><small class="mut">🧾 Tiny</small>' : ''}${rein.has(o.id) ? '<br><small class="c-med">🔁 reincidente</small>' : ''}</td><td>${esc(o.cliente_nome)}</td><td><small>${esc(o.produto_descricao)}${o.numero_serie ? '<br>SN ' + esc(o.numero_serie) : ''}</small></td>
+        <td><small>${TIPOS_OS[o.tipo] || ''}</small></td><td><span class="tag ${ST_OS[o.status][1]}">${ST_OS[o.status][0]}</span>${o.resultado ? `<br><small>${RES_OS[o.resultado]}</small>` : ''}</td><td><small>${new Date(o.criado_em).toLocaleDateString('pt-BR')}</small></td></tr>`).join('') || '<tr><td colspan="6" class="vazio">Nenhuma OS com esse filtro.</td></tr>'}
       </tbody></table>`, 'Buscar OS, cliente, produto, nº de série…', true)}</div>`;
 }
 
@@ -278,7 +296,7 @@ async function atAbrir(id) {
     pronto: [['entregue', '🏁 Entregue ao cliente', 'pri']],
   }[o.status] || [];
   modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button>
-    <small class="mut">${TIPOS_OS[o.tipo]} · aberta ${new Date(o.criado_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} por ${esc(nomeP(o.criado_por))}</small>
+    <small class="mut">${TIPOS_OS[o.tipo]} · aberta ${new Date(o.criado_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} ${o.origem === 'tiny' ? 'no Tiny (importada)' : 'por ' + esc(nomeP(o.criado_por))}</small>
     <h2 style="margin:4px 0">OS ${esc(o.numero)} · ${esc(o.cliente_nome)} <span class="tag ${ST_OS[o.status][1]}">${ST_OS[o.status][0]}</span></h2>
     ${itens.length ? `<table class="tabela mt"><thead><tr><th>#</th><th>Produto</th><th>Marca / modelo</th><th>Nº de série</th><th class="dir">Qtd</th><th>Defeito</th><th>Compra</th></tr></thead><tbody>${itens.map(i => { const gi = garantiaDe(i.data_compra);
       return `<tr><td>${i.seq}</td><td><b>${esc(i.descricao)}</b></td><td>${esc([i.marca, i.modelo].filter(Boolean).join(' '))}</td><td>${esc(i.numero_serie || '—')}</td><td class="dir">${N(i.quantidade)}</td><td><small>${esc(i.defeito || '')}</small></td>
@@ -430,28 +448,36 @@ async function atTermo(id) {
 // ─── reincidência: mesmo nº de série, mesmo cliente em 90 dias e produtos que mais voltam ───
 async function carregarHistAT() {
   const [os, it] = await Promise.all([
-    todas(() => sb.from('at_os').select('id,numero,cliente_nome,cliente_chave,cliente_doc,produto_descricao,numero_serie,marca,criado_em,status,resultado').order('criado_em')),
+    todas(() => sb.from('at_os').select('id,numero,origem,cliente_nome,cliente_chave,cliente_doc,produto_descricao,numero_serie,marca,criado_em,status,resultado').order('criado_em')),
     todas(() => sb.from('at_os_itens').select('os_id,descricao,numero_serie,marca,quantidade')),
   ]);
   AT.hist = { os, it, em: Date.now() };
 }
-function abaReincidencia() {
-  if (!AT.hist || Date.now() - AT.hist.em > 5 * 60e3) { if (!AT.histCarregando) { AT.histCarregando = true; carregarHistAT().then(render).catch(e => avisar(e.message)).finally(() => { AT.histCarregando = false; }); } if (!AT.hist) return '<div class="card vazio mt">Carregando o histórico de OS…</div>'; }
+/** Calcula a reincidência sobre todo o histórico (Intranet + Tiny). */
+function reincidencia() {
+  if (!AT.hist) return null;
+  if (AT.rein?.em === AT.hist.em) return AT.rein;
   const { os, it } = AT.hist, osPor = Object.fromEntries(os.map(o => [o.id, o])), comItens = new Set(it.map(i => i.os_id));
   const prods = [...it.map(i => ({ ...i, o: osPor[i.os_id] })), ...os.filter(o => !comItens.has(o.id)).map(o => ({ os_id: o.id, descricao: o.produto_descricao, numero_serie: o.numero_serie, marca: o.marca, quantidade: 1, o }))].filter(x => x.o && x.o.status !== 'cancelado');
-  const series = Object.values(grupo(prods.filter(x => x.numero_serie), x => normTxt(x.numero_serie).replace(/ /g, ''))).filter(g => new Set(g.map(x => x.os_id)).size > 1);
+  const series = Object.values(grupo(prods.filter(x => x.numero_serie && normTxt(x.numero_serie).length >= 4), x => normTxt(x.numero_serie).replace(/ /g, ''))).filter(g => new Set(g.map(x => x.os_id)).size > 1);
   const chaveCli = o => o.cliente_chave || (o.cliente_doc || '').replace(/\D/g, '') || normTxt(o.cliente_nome);
   const clientes = Object.values(grupo(os.filter(o => o.status !== 'cancelado'), chaveCli)).map(g => g.sort((a, b) => a.criado_em.localeCompare(b.criado_em)))
-    .filter(g => g.some((o, k) => k > 0 && (new Date(o.criado_em) - new Date(g[k - 1].criado_em)) / 864e5 <= 90));
+    .map(g => g.filter((o, k) => (k > 0 && (new Date(o.criado_em) - new Date(g[k - 1].criado_em)) / 864e5 <= 90) || (k < g.length - 1 && (new Date(g[k + 1].criado_em) - new Date(o.criado_em)) / 864e5 <= 90))).filter(g => g.length > 1);
   const produtos = Object.values(grupo(prods, x => normTxt(x.descricao))).filter(g => g.length > 1).sort((a, b) => b.length - a.length);
-  const osLink = o => `<a href="#" data-a="atAbrir" data-id="${o.id}">OS ${esc(o.numero)}</a> <small class="mut">${fmtCurta(o.criado_em.slice(0, 10))}</small>`;
-  return `<p class="explica mt">Produtos e clientes que voltam para a assistência. Mesmo nº de série em mais de uma OS indica conserto que não resolveu; muitas OS do mesmo produto indicam problema de modelo ou de fornecedor.</p>
-    <div class="grid g3 mt"><div class="card kpi-card"><div class="rot">Mesmo nº de série</div><div class="val ${series.length ? 'c-ruim' : 'c-ok'}">${series.length}</div><div class="sub">equipamento que voltou</div></div>
-      <div class="card kpi-card"><div class="rot">Cliente voltou em 90 dias</div><div class="val ${clientes.length ? 'c-med' : 'c-ok'}">${clientes.length}</div><div class="sub">cliente(s)</div></div>
-      <div class="card kpi-card"><div class="rot">Produtos com 2+ OS</div><div class="val">${produtos.length}</div><div class="sub">de ${os.length} OS no histórico</div></div></div>
-    <div class="card mt"><h2>🔁 Mesmo nº de série</h2>${series.length ? `<table class="tabela"><thead><tr><th>Nº de série</th><th>Produto</th><th>Cliente</th><th>OS</th></tr></thead><tbody>${series.map(g => `<tr><td><b>${esc(g[0].numero_serie)}</b></td><td>${esc(g[0].descricao)}</td><td>${esc(g[0].o.cliente_nome)}</td><td>${[...new Map(g.map(x => [x.os_id, x.o])).values()].map(osLink).join('<br>')}</td></tr>`).join('')}</tbody></table>` : '<div class="vazio">Nenhum nº de série repetido. 👏</div>'}</div>
-    <div class="card mt"><h2>👤 Cliente com nova OS em até 90 dias</h2>${clientes.length ? `<table class="tabela"><thead><tr><th>Cliente</th><th class="dir">OS</th><th>Histórico</th></tr></thead><tbody>${clientes.map(g => `<tr><td><b>${esc(g[0].cliente_nome)}</b></td><td class="dir">${g.length}</td><td>${g.map(o => `${osLink(o)} · <small>${esc(o.produto_descricao || '')}</small>`).join('<br>')}</td></tr>`).join('')}</tbody></table>` : '<div class="vazio">Nenhum cliente voltou em menos de 90 dias.</div>'}</div>
-    <div class="card mt"><h2>📦 Produtos que mais voltam</h2>${produtos.length ? `<table class="tabela"><thead><tr><th>Produto</th><th class="dir">OS</th><th class="dir">Clientes</th><th class="dir">Garantia negada</th></tr></thead><tbody>${produtos.slice(0, 30).map(g => `<tr><td><b>${esc(g[0].descricao)}</b>${g[0].marca ? ` <small class="mut">${esc(g[0].marca)}</small>` : ''}</td><td class="dir"><b>${g.length}</b></td><td class="dir">${new Set(g.map(x => x.o.cliente_nome)).size}</td><td class="dir">${g.filter(x => x.o.resultado === 'negado').length}</td></tr>`).join('')}</tbody></table>` : '<div class="vazio">Nenhum produto com mais de uma OS ainda.</div>'}</div>`;
+  const ids = new Set([...series.flatMap(g => g.map(x => x.os_id)), ...clientes.flatMap(g => g.map(o => o.id))]);
+  return (AT.rein = { em: AT.hist.em, series, clientes, produtos, ids, total: os.length });
+}
+function abaReincidencia() {
+  if (!AT.hist || Date.now() - AT.hist.em > 5 * 60e3) { if (!AT.histCarregando) { AT.histCarregando = true; carregarHistAT().then(render).catch(e => avisar(e.message)).finally(() => { AT.histCarregando = false; }); } if (!AT.hist) return '<div class="card vazio mt">Carregando o histórico de OS…</div>'; }
+  const { series, clientes, produtos, total } = reincidencia();
+  const osLink = o => `<a href="#" data-a="atAbrir" data-id="${o.id}">OS ${esc(o.numero)}</a> <small class="mut">${new Date(o.criado_em).toLocaleDateString('pt-BR')}</small>`;
+  return `<p class="explica">Produtos e clientes que voltam para a assistência (inclui o histórico do Tiny). Mesmo nº de série em mais de uma OS indica conserto que não resolveu; muitas OS do mesmo produto indicam problema de modelo ou de fornecedor.</p>
+    <div class="grid g3 mt"><div class="card kpi-card" style="cursor:pointer" data-a="atFiltro" data-v="reincidentes"><div class="rot">Mesmo nº de série</div><div class="val ${series.length ? 'c-ruim' : 'c-ok'}">${series.length}</div><div class="sub">equipamento que voltou</div></div>
+      <div class="card kpi-card" style="cursor:pointer" data-a="atFiltro" data-v="reincidentes"><div class="rot">Cliente voltou em 90 dias</div><div class="val ${clientes.length ? 'c-med' : 'c-ok'}">${clientes.length}</div><div class="sub">cliente(s)</div></div>
+      <div class="card kpi-card"><div class="rot">Produtos com 2+ OS</div><div class="val">${produtos.length}</div><div class="sub">de ${total} OS no histórico</div></div></div>
+    <div class="grid g2 mt"><div class="card"><h2>🔁 Mesmo nº de série</h2>${series.length ? listaCurta('reSerie', `<table class="tabela"><thead><tr><th>Nº de série</th><th>Produto / cliente</th><th>OS</th></tr></thead><tbody>${series.map(g => `<tr><td><b>${esc(g[0].numero_serie)}</b></td><td>${esc(g[0].descricao)}<br><small>${esc(g[0].o.cliente_nome)}</small></td><td>${[...new Map(g.map(x => [x.os_id, x.o])).values()].map(osLink).join('<br>')}</td></tr>`).join('')}</tbody></table>`, 'Buscar…') : '<div class="vazio">Nenhum nº de série repetido. 👏</div>'}</div>
+      <div class="card"><h2>👤 Cliente com nova OS em até 90 dias</h2>${clientes.length ? listaCurta('reCli', `<table class="tabela"><thead><tr><th>Cliente</th><th>Histórico</th></tr></thead><tbody>${clientes.map(g => `<tr><td><b>${esc(g[0].cliente_nome)}</b><br><small>${g.length} OS</small></td><td>${g.map(o => `${osLink(o)} · <small>${esc(o.produto_descricao || '')}</small>`).join('<br>')}</td></tr>`).join('')}</tbody></table>`, 'Buscar…') : '<div class="vazio">Nenhum cliente voltou em menos de 90 dias.</div>'}</div></div>
+    <div class="card mt"><h2>📦 Produtos que mais voltam</h2>${produtos.length ? `<table class="tabela"><thead><tr><th>Produto</th><th class="dir">OS</th><th class="dir">Clientes</th><th class="dir">Garantia negada</th></tr></thead><tbody>${produtos.slice(0, 20).map(g => `<tr><td><b>${esc(g[0].descricao)}</b>${g[0].marca ? ` <small class="mut">${esc(g[0].marca)}</small>` : ''}</td><td class="dir"><b>${g.length}</b></td><td class="dir">${new Set(g.map(x => x.o.cliente_nome)).size}</td><td class="dir">${g.filter(x => x.o.resultado === 'negado').length}</td></tr>`).join('')}</tbody></table>` : '<div class="vazio">Nenhum produto com mais de uma OS ainda.</div>'}</div>`;
 }
 
 // ─── lembretes internos (todo dia): o que está fora, prontas sem retirada, previsões vencidas, respostas de orçamento ───
