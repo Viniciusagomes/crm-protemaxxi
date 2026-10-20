@@ -660,3 +660,31 @@ body.tvestoque .barra-inf { display: none !important; }
 .tvcmd.agora .tvobs { font-size: 24px; }
 .tvoc { background: #FDE7E4; color: #7A1A10; font-family: Archivo; font-weight: 800; font-size: 19px; padding: 7px 14px; border-bottom: 2px solid #E5533D; }
 .tvpainel.ocs .tvptit { background: #B42318; color: #fff; }
+
+/* ─── Expedição: tela nova (duas trilhas) ─── */
+.exp-fretes { margin-top: 10px; } .chip.peq { font-size: 12px; padding: 4px 10px; }
+.exp-filas { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.exp-fila { text-align: left; background: var(--card); border: 2px solid var(--borda); border-radius: var(--raio); padding: 10px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; color: var(--txt); font: inherit; }
+.exp-fila span { font-family: Archivo; font-weight: 800; font-size: 13px; } .exp-fila b { font-family: Archivo; font-size: 28px; line-height: 1.1; } .exp-fila small { color: var(--txt2); font-size: 11.5px; }
+.exp-fila.on { border-color: var(--verde); box-shadow: 0 0 0 3px rgba(31,174,90,.18); } .exp-fila.quente b { color: var(--med); }
+@media (max-width: 760px) { .exp-filas { grid-template-columns: repeat(2, 1fr); } }
+.expc { background: var(--card); border: 1px solid var(--borda); border-left: 6px solid var(--borda-forte); border-radius: var(--raio); padding: 12px 14px; margin: 12px 0; }
+.expc.ml { border-left-color: #F2C200; } .expc.correios { border-left-color: #2B7BB9; } .expc.jadlog { border-left-color: #D93025; } .expc.rodonaves { border-left-color: #F28C28; }
+.expc.retirar { border-left-color: #7B4AB8; } .expc.uber { border-left-color: #111; } .expc.propria { border-left-color: #9AA3AB; } .expc.nd { border-left-color: #1FAE5A; }
+.expc.atrasado { box-shadow: 0 0 0 2px rgba(217,48,37,.35); }
+.expc-topo { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; } .expc-num { font-family: Archivo; font-size: 18px; }
+.expc-frete { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; background: var(--card2); border: 1px solid var(--borda); border-radius: 99px; padding: 1px 8px; margin: 0 4px; }
+.expc-prazo { text-align: right; } .expc-tags { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; margin-top: 4px; }
+.expc-obs { background: #FFF6D6; color: #3B2F00; border: 1px solid #E8C547; border-radius: 8px; padding: 6px 10px; margin-top: 8px; font-weight: 600; white-space: pre-wrap; }
+.expc-trilha { display: grid; grid-template-columns: 110px 1fr auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px dashed var(--borda); margin-top: 8px; }
+.expc-trilha .rot { font-family: Archivo; font-weight: 800; font-size: 12.5px; text-transform: uppercase; color: var(--txt2); }
+.expc-passos { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; } .expc-passos span { font-size: 12.5px; padding: 3px 9px; border-radius: 99px; background: var(--card2); border: 1px solid var(--borda); color: var(--txt2); }
+.expc-passos span.ok { background: rgba(31,174,90,.14); border-color: rgba(31,174,90,.4); color: #178B47; font-weight: 700; } .expc-passos i { color: var(--txt2); font-style: normal; }
+.expc-pag { font-size: 13px; } .expc-pag.ok { color: #178B47; } .expc-pag.med { color: var(--txt); } .expc-pag.ruim { color: var(--ruim); font-weight: 700; }
+.expc-acao { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.expc-falta { margin-top: 6px; font-weight: 700; font-size: 13px; background: var(--card2); border-radius: 8px; padding: 6px 10px; }
+.expc-itens { margin-top: 8px; } .expc-itens td.num { width: 56px; }
+.expc-av { margin-top: 6px; } .expc-pe { display: flex; justify-content: flex-end; align-items: flex-start; gap: 8px; margin-top: 8px; }
+.expc-mais summary { cursor: pointer; font-size: 13px; color: var(--txt2); padding: 4px 8px; border: 1px solid var(--borda); border-radius: 8px; list-style: none; text-align: right; }
+.expc-mais[open] summary { margin-bottom: 6px; }
+@media (max-width: 640px) { .expc-trilha { grid-template-columns: 1fr; gap: 4px; } .expc-acao { justify-content: flex-start; } .expc-topo { flex-direction: column; } .expc-prazo { text-align: left; } .expc-tags { justify-content: flex-start; } }

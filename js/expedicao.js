@@ -24,7 +24,8 @@ const ehRetirada = p => !p.envio_forma || /retir/i.test(p.envio_forma);
 const pagTxt = p => `${p.pag_forma || ''} ${p.pag_meio || ''} ${p.forma_pagamento || ''}`;
 /** Pedido do site (Tray): entra na expedição como pedido da loja, mas o pagamento precisa ser aprovado antes de separar. */
 const siteTray = p => /tray/i.test(p.canal || '');
-const precisaAprovar = p => siteTray(p) || (!p.numero_ecommerce && /dep[oó]sito|tray|boleto|m[uú]ltipl/i.test(pagTxt(p)));
+// precisa de aprovação: depósito (PIX no CNPJ), boleto e site Tray. PIX (maquininha), débito, crédito, dinheiro e múltiplas: pagos no balcão (20/10/2026)
+const precisaAprovar = p => siteTray(p) || (!p.numero_ecommerce && /dep[oó]sito|tray|boleto/i.test(pagTxt(p)));
 /** Faturamento (boleto, múltiplas): nota fiscal obrigatória antes de o material sair. Depósito só ganha um alerta. */
 const exigeNF = p => !p.numero_ecommerce && /boleto|m[uú]ltipl/i.test(pagTxt(p));
 const alertaDeposito = p => !p.numero_ecommerce && !exigeNF(p) && /dep[oó]sito/i.test(pagTxt(p));
@@ -162,18 +163,23 @@ function vExpedicao() {
   const atrasados = ativos.filter(x => x.atrasado);
   const daAba = UI.expFrete === 'todos' ? todos : todos.filter(x => freteDe(x) === UI.expFrete);
   return topo('Expedição', `Pedidos de loja e de marketplaces desde ${fmtCurta(EXP.cfg.inicio)} · atualizados do Tiny a cada 10 min`,
-    `<button class="btn" data-a="expAtualizar" ${EXP_ATUALIZANDO.v ? 'disabled' : ''}>${EXP_ATUALIZANDO.v ? '⏳ Atualizando…' : '↻ Atualizar'}</button><button class="btn" data-a="expOcorrencia">⚠ Registrar ocorrência</button>`)
-    + `<div class="grid g4">
+    `<button class="btn" data-a="expAtualizar" ${EXP_ATUALIZANDO.v ? 'disabled' : ''}>${EXP_ATUALIZANDO.v ? '⏳ Atualizando…' : '↻ Atualizar'}</button><button class="btn" data-a="expOcorrencia">⚠ Registrar ocorrência</button>
+     <button class="btn" data-a="expTela" title="${UI.expClassica ? 'Usar a tela nova, mais simples' : 'Voltar para a tela antiga da Expedição'}">${UI.expClassica ? '✨ Tela nova' : '↺ Tela antiga'}</button>`)
+    + (!UI.expClassica ? `<div class="chips exp-fretes">${FRETES_EXP.map(([k, n, ic]) => { const c = (k === 'todos' ? ativos : ativos.filter(x => freteDe(x) === k)).length;
+      return c || k === 'todos' || UI.expFrete === k ? `<button class="chip peq ${UI.expFrete === k ? 'on' : ''}" data-a="expFreteAba" data-v="${k}">${ic} ${n}<span class="n">${c}</span></button>` : ''; }).join('')}</div>
+      <div class="mt">${UI.expFrete === 'ml' ? abaMLExp(todos) : (['todos', 'correios', 'jadlog', 'rodonaves'].includes(UI.expFrete) ? faixaEnvioML() : '') + abaPedidos(daAba, UI.expFrete)}</div>` : '')
+    + (UI.expClassica ? `<div class="grid g4">
       <div class="card kpi-card"><div class="rot">Recebidos</div><div class="val">${ativos.filter(x => x.etapa === 'aguardando').length}</div><div class="sub">aguardando aprovação ou pagamento</div></div>
       <div class="card kpi-card"><div class="rot">A separar</div><div class="val ${ativos.some(x => x.etapa === 'a_separar') ? 'c-med' : ''}">${ativos.filter(x => x.etapa === 'a_separar').length}</div><div class="sub">${ativos.filter(x => x.etapa === 'a_separar' && x.loja).length} no balcão</div></div>
       <div class="card kpi-card"><div class="rot">Atrasados agora</div><div class="val ${atrasados.length ? 'c-ruim' : 'c-ok'}">${atrasados.length}</div><div class="sub">passaram do prazo</div></div>
       <div class="card kpi-card"><div class="rot">Concluídos hoje</div><div class="val c-ok">${todos.filter(x => x.despachoEm && dataSP(x.despachoEm) === hojeSP()).length}</div><div class="sub">entregues ou despachados</div></div></div>
     <div class="chips mt">${FRETES_EXP.map(([k, n, ic]) => { const c = (k === 'todos' ? ativos : ativos.filter(x => freteDe(x) === k)).length;
       return `<button class="chip ${UI.expFrete === k ? 'on' : ''}" data-a="expFreteAba" data-v="${k}">${ic} ${n}<span class="n">${c}</span></button>`; }).join('')}</div>
-    <div class="mt">${UI.expFrete === 'ml' ? abaMLExp(todos) : (['todos', 'correios', 'jadlog', 'rodonaves'].includes(UI.expFrete) ? faixaEnvioML() : '') + abaPedidos(daAba, UI.expFrete)}</div>`;
+    <div class="mt">${UI.expFrete === 'ml' ? abaMLExp(todos) : (['todos', 'correios', 'jadlog', 'rodonaves'].includes(UI.expFrete) ? faixaEnvioML() : '') + abaPedidos(daAba, UI.expFrete)}</div>` : '');
 }
 
 function abaPedidos(todos, modo) {
+  if (!UI.expClassica) return abaPedidos2(todos, modo);   // tela nova (expedicao2.js); a antiga fica de reserva
   const filtros = {
     recebido: ['📥 Recebido', x => !x.despachado && x.etapa === 'aguardando'],
     a_separar: ['📦 A separar', x => !x.despachado && x.etapa === 'a_separar'],
