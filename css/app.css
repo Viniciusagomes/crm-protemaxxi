@@ -688,3 +688,7 @@ body.tvestoque .barra-inf { display: none !important; }
 .expc-mais summary { cursor: pointer; font-size: 13px; color: var(--txt2); padding: 4px 8px; border: 1px solid var(--borda); border-radius: 8px; list-style: none; text-align: right; }
 .expc-mais[open] summary { margin-bottom: 6px; }
 @media (max-width: 640px) { .expc-trilha { grid-template-columns: 1fr; gap: 4px; } .expc-acao { justify-content: flex-start; } .expc-topo { flex-direction: column; } .expc-prazo { text-align: left; } .expc-tags { justify-content: flex-start; } }
+
+.cli-tels { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0 10px; }
+.tel-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 3px 10px; border-radius: 99px; background: var(--card2); border: 1px solid var(--borda); }
+.tel-chip.cel { border-color: rgba(31,174,90,.45); }
