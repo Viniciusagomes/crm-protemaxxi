@@ -12,7 +12,7 @@ const veBoletos = () => ehDono() || !!EU.tiny || !!EU?.permissoes?.vendas_todas;
 async function carregarBoletos(forcar) {
   if (BOL.carregando || (!forcar && BOL.lista && Date.now() - BOL.em < 60e3)) return;
   BOL.carregando = true;
-  try { BOL.lista = await ok(sb.from('boletos_atraso').select('*').order('vencimento')); BOL.em = Date.now(); }
+  try { BOL.lista = await ok(sb.from('boletos_atraso').select('*, comprovantes:boletos_comprovantes(id,caminho,nome_arquivo,tipo,por,em)').order('vencimento')); BOL.em = Date.now(); }
   finally { BOL.carregando = false; }
 }
 
@@ -46,10 +46,13 @@ function vBoletos() {
         <div><small class="mut">Pedido</small><b>${esc(b.pedido_numero || '—')}</b></div>
         <div><small class="mut">Nota fiscal</small><b>${esc(b.nf_numero || '—')}</b>${b.nf_situacao ? `<small>${esc(b.nf_situacao)}</small>` : ''}</div></div>
       ${b.obs ? `<p class="mut" style="margin:8px 0 0">📝 ${esc(b.obs)}</p>` : ''}
+      ${(b.comprovantes || []).length ? `<div class="bol-comp">${b.comprovantes.map(c => `<span><a href="#" data-a="bolCompVer" data-id="${c.id}">📎 ${esc(c.nome_arquivo || 'comprovante')}</a> <small class="mut">${esc(nomeP(c.por))} · ${dataHora(c.em)}</small>${ehDono() || c.por === EU.id ? ` <button class="icone-btn" data-a="bolCompExcluir" data-id="${c.id}" title="Remover comprovante">✕</button>` : ''}</span>`).join('')}
+        ${ehDono() && ['aberto', 'renegociado'].includes(b.status) ? '<small class="c-med"><b>Comprovante enviado: confira e marque como pago.</b></small>' : ''}</div>` : ''}
       ${b.status === 'pago' ? `<p class="c-ok" style="margin:8px 0 0"><small>Pago · baixa por ${esc(nomeP(b.baixado_por))} em ${b.baixado_em ? dataHora(b.baixado_em) : ''}</small></p>` : ''}
       <div class="acoes" style="margin-top:10px">
         ${b.pedido_id ? `<button class="btn peq" data-a="bolPedido" data-id="${b.id}">🧾 Ver pedido</button>` : ''}
         ${b.nf_id || b.pedido_id ? `<button class="btn peq" data-a="bolNF" data-id="${b.id}">📄 Baixar nota fiscal</button>` : ''}
+        ${b.status !== 'cancelado' ? `<label class="btn peq">📎 Anexar comprovante<input type="file" accept="image/*,application/pdf" hidden data-c="bolComp" data-id="${b.id}"></label>` : ''}
         ${ehDono() && ['aberto', 'renegociado'].includes(b.status) ? `<button class="btn pri peq" data-a="bolStatus" data-id="${b.id}" data-v="pago">✅ Marcar como pago</button><button class="btn peq" data-a="bolRenegociar" data-id="${b.id}">🔄 Renegociar</button><button class="btn peq" data-a="bolStatus" data-id="${b.id}" data-v="cancelado">✕ Cancelar</button>` : ''}
         ${ehDono() && ['pago', 'cancelado'].includes(b.status) ? `<button class="btn peq" data-a="bolStatus" data-id="${b.id}" data-v="aberto">↺ Reabrir</button>` : ''}
         ${ehDono() ? `<button class="icone-btn" data-a="bolExcluir" data-id="${b.id}" title="Excluir">🗑</button>` : ''}</div></div>`;
@@ -163,3 +166,34 @@ function bolImprimirPedido() {
     <p class="d">${+p.desconto ? `Desconto ${R(p.desconto)} · ` : ''}${+p.frete ? `Frete ${R(p.frete)} · ` : ''}<b>Total ${R(p.valor)}</b></p></body></html>`);
   w.document.close(); w.focus(); w.print();
 }
+
+// ─── comprovante de pagamento (foto ou PDF) ───
+async function bolCompEnviar(id, arq) {
+  const b = BOL.lista.find(x => String(x.id) === String(id)); if (!b || !arq) return;
+  const pdf = arq.type === 'application/pdf';
+  if (!pdf && !/^image\//.test(arq.type)) return alert('Envie uma foto ou um PDF do comprovante.');
+  if (pdf && arq.size > 5 * 1024 * 1024) return alert('O PDF passa de 5 MB. Envie uma foto ou um PDF menor.');
+  avisar('Enviando comprovante…');
+  const corpo = pdf ? arq : await reduzirFoto(arq), ext = pdf ? 'pdf' : 'jpg';
+  const caminho = `bol/${b.id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+  const { error } = await sb.storage.from('anexos').upload(caminho, corpo, { contentType: pdf ? 'application/pdf' : 'image/jpeg' });
+  if (error) throw new Error('Não enviou: ' + error.message);
+  const c = await ok(sb.from('boletos_comprovantes').insert({ boleto_id: b.id, caminho, nome_arquivo: arq.name.slice(0, 80), tipo: ext }).select().single());
+  b.comprovantes = [...(b.comprovantes || []), c];
+  avisar(`Comprovante anexado ✓ ${ehDono() ? '' : 'O financeiro vai conferir e dar baixa.'}`); render();
+}
+async function bolCompVer(id) {
+  const c = BOL.lista.flatMap(b => b.comprovantes || []).find(x => String(x.id) === String(id)); if (!c) return;
+  const w = window.open('', '_blank');
+  const { data, error } = await sb.storage.from('anexos').createSignedUrl(c.caminho, 600);
+  if (error || !data?.signedUrl) { if (w) w.close(); return alert('Não consegui abrir o comprovante.'); }
+  if (w) w.location = data.signedUrl; else location.href = data.signedUrl;
+}
+async function bolCompExcluir(id) {
+  const b = BOL.lista.find(x => (x.comprovantes || []).some(c => String(c.id) === String(id))); if (!b) return;
+  if (!confirm('Remover este comprovante?')) return;
+  await ok(sb.from('boletos_comprovantes').delete().eq('id', id));
+  b.comprovantes = b.comprovantes.filter(c => String(c.id) !== String(id)); render();
+}
+/** Boletos em aberto com comprovante enviado (para o dono conferir). */
+const bolComComprovante = () => (BOL.lista || []).filter(b => ['aberto', 'renegociado'].includes(b.status) && (b.comprovantes || []).length);

@@ -652,3 +652,6 @@ body.tvestoque .barra-inf { display: none !important; }
 
 /* OS com vários produtos */
 .os-item { border: 1px solid var(--borda); border-radius: 12px; padding: 10px 12px; margin: 8px 0; } .os-item-cab { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+
+.bol-comp { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: var(--card2); border: 1px dashed var(--borda-forte); }
+.bol-comp span { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }

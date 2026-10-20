@@ -86,6 +86,7 @@ function notificacoes() {
   if (veExp() && bAprov.length) add('brie:' + bAprov.length, '🎁', `${bAprov.length} brinde(s) aprovado(s) para separar`, 'nav', { v: 'brindes' });
   const ruins = (AVA.lista || []).filter(a => a.nota && a.nota <= 3 && !a.tratado);
   if (ehDono() && ruins.length) add('ava:' + ruins.length, '⭐', `${ruins.length} cliente(s) insatisfeito(s) na avaliação`, 'nav', { v: 'avaliacoes' }, 'ruim');
+  if (typeof BOL !== 'undefined' && BOL.lista && ehDono()) { const cc = bolComComprovante(); if (cc.length) add('bolc:' + cc.map(b => b.id + '.' + b.comprovantes.length).join(','), '📎', `${cc.length} comprovante(s) de boleto para conferir e dar baixa`, 'nav', { v: 'boletos' }, 'med'); }
   if (typeof BOL !== 'undefined' && BOL.lista) { const mb = ehDono() ? bolAbertos() : meusBoletos(); if (mb.length) add('bol:' + mb.map(b => b.id).join(','), '🧾', `${mb.length} boleto(s) em atraso${ehDono() ? '' : ' de clientes seus'} · ${R(soma(mb.map(b => +b.valor)))}`, 'nav', { v: 'boletos' }, 'ruim'); }
   if (typeof veAssist === 'function' && veAssist()) { const p = pendenciasAT(); if (p) {   // lembrete diário (a chave tem a data: volta todo dia)
     if (p.fora.length) add('atf:' + h, '🏭', `Lembrete do dia: ${p.fora.length} produto(s) na assistência/fábrica${p.foraAtr.length ? ` · ${p.foraAtr.length} passou da previsão` : ''}`, 'nav', { v: 'suporte' }, p.foraAtr.length ? 'ruim' : 'med');

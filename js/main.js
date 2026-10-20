@@ -276,6 +276,8 @@ const A = {
   bolNF: el => bolNF(el.dataset.id),
   bolPedido: el => bolPedido(el.dataset.id).catch(e => alert(e.message)),
   bolImprimirPedido: () => bolImprimirPedido(),
+  bolCompVer: el => bolCompVer(el.dataset.id),
+  bolCompExcluir: el => bolCompExcluir(el.dataset.id).catch(e => alert(e.message)),
   estAba: el => { UI.estAba = el.dataset.v; render(); },
   estIr: el => { UI.view = el.dataset.v; if (el.dataset.f) UI.expFiltro = el.dataset.f; if (el.dataset.fr) { UI.expFrete = el.dataset.fr; UI.expFiltro = 'a_separar'; } if (el.dataset.e) UI.estAba = el.dataset.e; render(); window.scrollTo(0, 0); },
   expFiltro: el => { UI.expFiltro = el.dataset.v; render(); },
@@ -555,6 +557,7 @@ const numOuVazio = v => v === '' ? '' : Number(v);
 
 let timerBusca = null;
 const C = {
+  bolComp: el => { const a = el.files?.[0]; if (a) bolCompEnviar(el.dataset.id, a).catch(e => alert(e.message)); el.value = ''; },
   atFotos: el => { const arqs = [...el.files]; if (arqs.length) atFotos(el.dataset.id, arqs).catch(e => avisar(e.message)); },
   crmEtapa: el => crmMover(el.dataset.id, el.value).then(() => crmAbrir(el.dataset.id)).catch(e => avisar(e.message)),
   monRevTodos: el => { UI.monRev = el.checked ? 'todos' : ''; render(); },
