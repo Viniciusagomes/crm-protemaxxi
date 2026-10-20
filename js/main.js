@@ -6,7 +6,7 @@ function menu() {
   const itens = [
     ['', 'inicio', '⌂', 'Início'],
     ['', 'meudia', '☀', 'Meu dia', CRM.atv ? CRM.atv.filter(a => a.pessoa_id === EU.id && !a.feito && a.quando <= hoje()).length : 0],
-    ['Comercial'], ['', 'crm', '🎯', 'Funil (CRM)'], ['', 'vendas', '📈', 'Vendas'], ['', 'pedidos', '🧾', 'Pedidos'], ['', 'situacao', '🚦', 'Situação dos pedidos', SIT.lista ? SIT.lista.filter(p => passosPedido(p).estado === 'problema').length : 0], ['', 'boletos', '🧾', 'Boletos em atraso', BOL.lista ? (ehDono() ? bolAbertos() : meusBoletos()).length : 0], ['', 'clientes', '👤', 'Clientes'],
+    ['Comercial'], ['', 'crm', '🎯', 'Funil (CRM)'], ['', 'vendas', '📈', 'Vendas'], ['', 'pedidos', '🧾', 'Pedidos'], ['', 'situacao', '🚦', 'Situação dos pedidos', SIT.lista ? SIT.lista.filter(p => !p.removido && passosPedido(p).estado === 'problema').length : 0], ['', 'boletos', '🧾', 'Boletos em atraso', BOL.lista ? (ehDono() ? bolAbertos() : meusBoletos()).length : 0], ['', 'clientes', '👤', 'Clientes'],
     ...(veMonitoria() ? [['', 'monitoria', '🏷', 'Monitoria de preços']] : []),
     ...(veTudoVendas() || EU.tiny ? [['', 'avaliacoes', '⭐', 'Avaliações', ehDono() && AVA.lista ? AVA.lista.filter(a => a.nota && a.nota <= 3 && !a.tratado).length : 0]] : []), ['', 'creditos', '💳', 'Créditos e vales', ehDono() && CRE.pend ? CRE.pend.length : 0], ['', 'brindes', '🎁', 'Brindes', ehDono() && CRE.bped ? CRE.bped.filter(b => b.status === 'pendente').length : 0],
     ...(veML() ? [['', 'ml', '🛍', 'Mercado Livre', D.ml ? D.ml.perguntas.filter(perguntaPendente).length : 0]] : []),
@@ -277,6 +277,8 @@ const A = {
   bolPedido: el => bolPedido(el.dataset.id).catch(e => alert(e.message)),
   bolImprimirPedido: () => bolImprimirPedido(),
   bolCompVer: el => bolCompVer(el.dataset.id),
+  sitRemover: el => sitRemover(el.dataset.id).catch(e => alert('Não removeu: ' + e.message)),
+  sitVoltar: el => sitVoltar(el.dataset.id).catch(e => alert(e.message)),
   bolCompExcluir: el => bolCompExcluir(el.dataset.id).catch(e => alert(e.message)),
   estAba: el => { UI.estAba = el.dataset.v; render(); },
   estIr: el => { UI.view = el.dataset.v; if (el.dataset.f) UI.expFiltro = el.dataset.f; if (el.dataset.fr) { UI.expFrete = el.dataset.fr; UI.expFiltro = 'a_separar'; } if (el.dataset.e) UI.estAba = el.dataset.e; render(); window.scrollTo(0, 0); },

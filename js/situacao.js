@@ -39,8 +39,10 @@ function vSituacao() {
   if (!SIT.lista) { if (!SIT.carregando) carregarSituacao().then(render).catch(e => { SIT.lista = []; avisar(e.message); }); return topo('Situação dos pedidos', '') + '<div class="card vazio">Carregando seus pedidos…</div>'; }
   if (Date.now() - SIT.em > 60e3 && !SIT.carregando) carregarSituacao(true).then(render).catch(() => {});
   const todos = SIT.lista.map(p => ({ p, s: passosPedido(p) }));
-  const filtros = { andamento: ['Em andamento', x => x.s.estado === 'andamento'], problema: ['Com problema', x => x.s.estado === 'problema'], concluido: ['Concluídos', x => x.s.estado === 'concluido'], todos: ['Todos', () => true] };
+  const ativo = x => !x.p.removido;
+  const filtros = { andamento: ['Em andamento', x => ativo(x) && x.s.estado === 'andamento'], problema: ['Com problema', x => ativo(x) && x.s.estado === 'problema'], concluido: ['Concluídos', x => ativo(x) && x.s.estado === 'concluido'], todos: ['Todos', ativo], removidos: ['🗑 Removidos', x => !ativo(x)] };
   UI.sitFiltro = filtros[UI.sitFiltro] ? UI.sitFiltro : (todos.some(filtros.problema[1]) ? 'problema' : 'andamento');
+  if (UI.sitFiltro === 'removidos' && !todos.some(filtros.removidos[1])) UI.sitFiltro = 'andamento';
   const lista = todos.filter(filtros[UI.sitFiltro][1]);
   const equipe = new Set(SIT.lista.map(p => p.vendedor_nome)).size > 1;
   const COR = { andamento: 'med', problema: 'ruim', concluido: 'ok', cancelado: '' };
@@ -51,9 +53,29 @@ function vSituacao() {
     ${s.estado === 'cancelado' ? '' : `<ol class="sit-passos">${s.passos.map(([n, ok, q]) => `<li class="${ok ? 'ok' : ''}"><b>${n}</b>${q ? `<small>${q}</small>` : ''}</li>`).join('')}</ol>`}
     ${s.problemas.map(t => `<div class="alerta ruim" style="margin-top:6px"><span class="ic">!</span><span>${esc(t)}</span></div>`).join('')}
     ${s.resolvidos.map(o => `<div class="alerta ok" style="margin-top:6px"><span class="ic">✓</span><span>Resolvido: ${esc((TIPOS_OC[o.tipo] || TIPOS_OC.outro)[1])}${o.produto ? ' · ' + esc(o.produto) : ''}${o.solucao ? ' → ' + esc(o.solucao) : ''}</span></div>`).join('')}
+    ${p.removido ? `<div class="alerta mt"><span class="ic">🗑</span><span style="flex:1">Removido da lista por ${esc(nomeP(p.removido.por))} em ${dataHora(p.removido.em)}${p.removido.motivo ? ' · ' + esc(p.removido.motivo) : ''}</span><button class="btn peq" data-a="sitVoltar" data-id="${esc(p.id)}">↺ Voltar para a lista</button></div>`
+      : s.estado !== 'concluido' ? `<div class="acoes" style="margin-top:8px;justify-content:flex-end"><button class="btn peq" data-a="sitRemover" data-id="${esc(p.id)}" title="Tira o pedido desta lista (não mexe no Tiny nem na Expedição)">🗑 Remover da lista</button></div>` : ''}
     <details class="mt"><summary class="mut">${(p.itens || []).length} item(ns)</summary><table class="tabela"><tbody>${(p.itens || []).map(i => `<tr><td class="num" style="width:50px"><b>${N(i.quantidade)}×</b></td><td><b>${esc(i.codigo || '')}</b> ${esc(i.descricao || '')}</td></tr>`).join('')}</tbody></table></details></div>`;
   return topo('Situação dos pedidos', `Acompanhe seus pedidos da loja na expedição: separação, conferência, saída e problemas · últimos 30 dias`, `<button class="btn" data-a="sitAtualizar">↻ Atualizar</button>`)
     + `<div class="filtros"><div class="chips">${Object.entries(filtros).map(([k, [n, f]]) => `<button class="chip ${UI.sitFiltro === k ? 'on' : ''}" data-a="sitFiltro" data-v="${k}">${n}<span class="n">${todos.filter(f).length}</span></button>`).join('')}</div>
       <input type="search" class="busca-lista" data-filtro="sitLista" placeholder="Buscar pedido ou cliente…" autocomplete="off"></div>
     <div id="sitLista">${lista.length ? lista.map(card).join('') : '<div class="card vazio">Nenhum pedido aqui. 👏</div>'}</div>`;
+}
+
+/** Tira o pedido da lista de acompanhamento (não mexe no Tiny nem na Expedição). */
+async function sitRemover(id) {
+  const p = SIT.lista.find(x => String(x.id) === String(id)); if (!p) return;
+  if (!confirm(`Remover o pedido ${p.numero} (${p.cliente_nome}) da lista de Situação dos pedidos?\n\nIsso NÃO cancela o pedido no Tiny nem tira da Expedição. Você pode voltar com ele pelo filtro "Removidos".`)) return;
+  const motivo = prompt('Motivo (opcional):', '');
+  if (motivo === null) return;
+  const { error } = await sb.rpc('sit_remover', { p_pedido: p.id, p_motivo: motivo });
+  if (error) throw error;
+  p.removido = { por: EU.id, em: new Date().toISOString(), motivo: motivo.trim() || null };
+  avisar(`Pedido ${p.numero} removido da lista.`); render();
+}
+async function sitVoltar(id) {
+  const p = SIT.lista.find(x => String(x.id) === String(id)); if (!p) return;
+  const { error } = await sb.rpc('sit_voltar', { p_pedido: p.id });
+  if (error) throw error;
+  p.removido = null; avisar(`Pedido ${p.numero} voltou para a lista.`); render();
 }
