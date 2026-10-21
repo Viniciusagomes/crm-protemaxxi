@@ -185,6 +185,20 @@ function trDescAcao(a) {
     const nomes = (al.asset_ids || []).map(i => TR.d.recursos.find(r => r.asset_id == i)?.texto || i);
     return `Colocar ${nomes.length} ${esc((TR_CAMPO[al.campo] || al.campo).toLowerCase())} (${nomes.map(n => '“' + esc(n) + '”').join(', ')}) em ${camps.length} campanha(s): ${camps.map(esc).join(', ')}`;
   }
+  if (a.tipo === 'anuncio_textos') {
+    const ad = TR.d.anuncios.find(x => x.id == al.anuncio_id && x.grupo_id == al.grupo_id), novos = l => new Set((l || []).map(h => String(h.t).toLowerCase()));
+    const lista = (l, ant, max) => (l || []).map(h => { const novo = !ant.has(String(h.t).toLowerCase()); return `<span class="tag ${novo ? 'ok' : ''}" style="margin:2px;display:inline-block;white-space:normal" title="${[...h.t].length} de ${max} caracteres">${novo ? '+ ' : ''}${esc(h.t)}</span>`; }).join('');
+    const saem = (velhos, l) => (velhos || []).filter(h => !novos(l).has(String(h.t).toLowerCase()));
+    const s1 = saem(ad?.titulos, al.titulos), s2 = saem(ad?.descricoes, al.descricoes);
+    return `Novos textos do anúncio <b>${esc(TR.d.cn[ad?.campanha_id] || '')} › ${esc(TR.d.gn[al.grupo_id] || al.grupo_id)}</b> (${(al.titulos || []).length} títulos, ${(al.descricoes || []).length} descrições; verde = novo)
+      <br><small class="mut">Títulos</small><br>${lista(al.titulos, novos(ad?.titulos), 30)}<br><small class="mut">Descrições</small><br>${lista(al.descricoes, novos(ad?.descricoes), 90)}
+      ${s1.length || s2.length ? `<br><small class="c-ruim">Saem: ${[...s1, ...s2].map(h => '“' + esc(h.t) + '”').join(', ')}</small>` : ''}`;
+  }
+  if (a.tipo === 'lance_campanha') {
+    const n = esc(TR.d.cn[al.campanha_id] || al.campanha_id);
+    if (al.estrategia === 'TARGET_IMPRESSION_SHARE') return `Lance de <b>${n}</b>: <b>parcela de impressões</b> — aparecer ${{ TOP_OF_PAGE: 'no topo da página', ABSOLUTE_TOP_OF_PAGE: 'em 1º lugar', ANYWHERE_ON_PAGE: 'em qualquer posição' }[al.local] || esc(al.local)} em ${P(al.parcela)} das buscas, pagando no máximo <b>${R(al.teto)}</b> por clique`;
+    return `Lance de <b>${n}</b>: <b>maximizar conversões</b>${al.cpa ? ` com CPA desejado de ${R(al.cpa)}` : ''}`;
+  }
   if (a.tipo === 'telefone_chamada') {
     const f = String(al.telefone || '').replace(/\D/g, ''), fmt = f.length === 11 ? `(${f.slice(0, 2)}) ${f.slice(2, 7)}-${f.slice(7)}` : f ? `(${f.slice(0, 2)}) ${f.slice(2, 6)}-${f.slice(6)}` : '';
     return `${fmt ? `Trocar o telefone da extensão de chamada para <b>${fmt}</b>` : '<b>Tirar</b> a extensão de chamada'} em ${camps.length} campanha(s): ${camps.map(esc).join(', ')}`;
