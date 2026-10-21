@@ -692,3 +692,5 @@ body.tvestoque .barra-inf { display: none !important; }
 .cli-tels { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0 10px; }
 .tel-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 3px 10px; border-radius: 99px; background: var(--card2); border: 1px solid var(--borda); }
 .tel-chip.cel { border-color: rgba(31,174,90,.45); }
+
+.cli-contato { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13.5px; margin: 2px 0 6px; } td.nowrap { white-space: nowrap; }

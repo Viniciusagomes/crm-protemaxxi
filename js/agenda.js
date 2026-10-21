@@ -4,7 +4,7 @@
    cobertura por vendedor e quem está sem celular; na ficha do cliente dá para ver, abrir no WhatsApp e incluir números. */
 
 const AGD = { cob: null, carregando: false, em: 0, tels: {} };
-const ORIGEM_TEL = { tiny_celular: 'Tiny (celular)', tiny_fone: 'Tiny (fone)', pedido: 'pedido', manual: 'incluído na Intranet', whatsapp_doc: 'confirmado no WhatsApp' };
+const ORIGEM_TEL = { tiny_celular: 'Tiny (celular)', tiny_fone: 'Tiny (fone)', tiny_adicional: 'Tiny (telefone adicional)', pedido: 'pedido', manual: 'incluído na Intranet', whatsapp_doc: 'confirmado no WhatsApp' };
 
 /** Mesma regra do banco (seg.fone_norm): 55 + DDD + número; celular antigo ganha o 9. Inválido ou sem DDD → ''. */
 function foneNorm(t) {
