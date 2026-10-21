@@ -180,6 +180,15 @@ function trDescAcao(a) {
   if (a.tipo === 'remover_negativa') return `Remover ${(al.recursos || []).length} negativa(s): ${esc((al.recursos || []).map(r => TR.d.negativas.find(n => n.recurso === r)?.texto || 'negativa').join(', '))}`;
   if (a.tipo === 'pausar_palavra') { const p = TR.d.palavras.find(x => x.grupo_id == al.grupo_id && x.criterio_id == al.criterio_id); return `${al.status === 'ENABLED' ? 'Reativar' : 'Pausar'} a palavra <b>${esc(p?.texto || al.criterio_id)}</b>`; }
   if (a.tipo === 'orcamento_dia') return `Orçamento diário de <b>${esc(TR.d.cn[al.campanha_id] || al.campanha_id)}</b> para <b>${R(al.novo_valor)}</b>`;
+  if (a.tipo === 'local_presenca') return `Segmentação de local <b>${al.valor === 'PRESENCE_OR_INTEREST' ? '“presença ou interesse”' : '“presença” (só quem está na região)'}</b> em ${camps.length} campanha(s): ${camps.map(esc).join(', ')}`;
+  if (a.tipo === 'vincular_extensoes') {
+    const nomes = (al.asset_ids || []).map(i => TR.d.recursos.find(r => r.asset_id == i)?.texto || i);
+    return `Colocar ${nomes.length} ${esc((TR_CAMPO[al.campo] || al.campo).toLowerCase())} (${nomes.map(n => '“' + esc(n) + '”').join(', ')}) em ${camps.length} campanha(s): ${camps.map(esc).join(', ')}`;
+  }
+  if (a.tipo === 'telefone_chamada') {
+    const f = String(al.telefone || '').replace(/\D/g, ''), fmt = f.length === 11 ? `(${f.slice(0, 2)}) ${f.slice(2, 7)}-${f.slice(7)}` : f ? `(${f.slice(0, 2)}) ${f.slice(2, 6)}-${f.slice(6)}` : '';
+    return `${fmt ? `Trocar o telefone da extensão de chamada para <b>${fmt}</b>` : '<b>Tirar</b> a extensão de chamada'} em ${camps.length} campanha(s): ${camps.map(esc).join(', ')}`;
+  }
   return esc(a.tipo);
 }
 
@@ -351,7 +360,8 @@ function trDiagnostico() {
   const repr = d.anuncios.filter(a => a.status === 'ENABLED' && a.aprovacao && !['APPROVED', 'APPROVED_LIMITED'].includes(a.aprovacao));
   if (repr.length) it.push(`<b class="c-ruim">${repr.length} anúncio(s) não aprovados</b> pelo Google. <a href="#/trafego" data-a="trAba" data-v="anuncios">Ver</a>`);
   const cid = trCidadesAgrupadas(), totC = soma(cid.map(c => c.c)), fora = cid.filter(c => c.uf !== 'SP' && c.uf !== 'SP?'), gFora = soma(fora.map(c => c.c));
-  if (gFora >= 50) it.push(`${R(gFora)} (${P(gFora / totC)}) foram gastos <b>fora de SP</b> (${fora.length} cidades, ex.: ${fora.slice(0, 3).map(c => esc(c.cidade)).join(', ')}). Sinal de que a segmentação está em “presença <b>ou interesse</b>”: trocar para “<b>presença</b>” (pessoas que estão na região). <a href="#/trafego" data-a="trAba" data-v="cidades">Ver cidades</a>`);
+  const interesse = d.campanhas.filter(c => c.status === 'ENABLED' && c.local_tipo === 'PRESENCE_OR_INTEREST');
+  if (gFora >= 50) it.push(`${R(gFora)} (${P(gFora / totC)}) foram gastos <b>fora de SP</b> (${fora.length} cidades, ex.: ${fora.slice(0, 3).map(c => esc(c.cidade)).join(', ')}). ${interesse.length ? `<b>${interesse.length} campanha(s)</b> estão em “presença <b>ou interesse</b>”` : 'Sinal de segmentação em “presença ou interesse”'}: trocar para “<b>presença</b>” (pessoas que estão na região). <a href="#/trafego" data-a="trAba" data-v="cidades">Ver cidades</a>`);
   const cidSem = cid.filter(c => c.cv === 0 && c.c >= 30);
   if (cidSem.length) it.push(`${cidSem.length} cidade(s) gastaram R$ 30 ou mais sem conversão: ${cidSem.slice(0, 5).map(c => `${esc(c.cidade)} (${R(c.c)})`).join(', ')}.`);
   const susp = d.recursos.filter(r => r.status === 'ENABLED' && trExtSuspeita(r));
