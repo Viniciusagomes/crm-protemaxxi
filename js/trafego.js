@@ -16,7 +16,7 @@ async function carregarTrafego(forcar) {
   TR.carregando = true;
   try {
     const h = hoje(), d90 = addDias(h, -90), d60 = addDias(h, -60), d30 = addDias(h, -30);
-    const [campanhas, dia, termos, palavras, negativas, conv, hora, acoes, est, leads] = await Promise.all([
+    const [campanhas, dia, termos, palavras, negativas, conv, hora, acoes, est, leads, grupos, anuncios, recursos, locais, recom, mudancas] = await Promise.all([
       ok(sb.from('gads_campanhas').select('*').order('nome')),
       todas(() => sb.from('gads_campanha_dia').select('*').gte('data', d90).order('data').order('campanha_id')),
       todas(() => sb.from('gads_termos').select('*').gte('data', d60).order('data').order('campanha_id').order('grupo_id').order('termo')),
@@ -27,9 +27,15 @@ async function carregarTrafego(forcar) {
       ok(sb.from('gads_acoes').select('*').order('id', { ascending: false }).limit(200)),
       ok(sb.from('sync_estado').select('*').in('chave', ['gads', 'gads_varredura'])),
       todas(() => sb.from('ads_leads').select('*').gte('criado_em', d90 + 'T00:00:00').order('criado_em', { ascending: false }).order('id', { ascending: false })),
+      ok(sb.from('gads_grupos').select('*').order('id')),
+      ok(sb.from('gads_anuncios').select('*').order('custo_30d', { ascending: false })),
+      ok(sb.from('gads_recursos').select('*').order('recurso')),
+      todas(() => sb.from('gads_locais').select('*').order('custo_30d', { ascending: false }).order('cidade_id')),
+      ok(sb.from('gads_recomendacoes').select('*').order('tipo')),
+      ok(sb.from('gads_mudancas').select('*').order('em', { ascending: false }).limit(300)),
     ]);
     for (const e of est) D.sync[e.chave] = { ...e.valor, em_db: e.atualizado_em };
-    TR.d = { campanhas, dia, termos, palavras, negativas, conv, hora, acoes, leads, cn: Object.fromEntries(campanhas.map(c => [c.id, c.nome])) };
+    TR.d = { campanhas, dia, termos, palavras, negativas, conv, hora, acoes, leads, grupos, anuncios, recursos, locais, recom, mudancas, gn: Object.fromEntries(grupos.map(g => [g.id, g.nome])), cn: Object.fromEntries(campanhas.map(c => [c.id, c.nome])) };
     return TR.d;
   } finally { TR.carregando = false; }
 }
@@ -54,8 +60,8 @@ function vTrafego() {
   const cab = topo('Tráfego — Google Ads', `Conta <b>${esc(st.conta || '')}</b>${st.email ? ` · acesso de ${esc(st.email)}` : ''} · ${st.ultima_sync ? 'atualizado há ' + tempoDesde(st.ultima_sync) : 'aguardando a primeira sincronização'}`,
     `<button class="btn" data-a="recarregarGads" ${TR.atualizando ? 'disabled' : ''}>${TR.atualizando ? '⏳ Atualizando…' : '↻ Sincronizar agora'}</button>`);
   const aviso = st.erro ? `<div class="card mt"><b class="c-ruim">⚠ O Google respondeu com erro:</b> ${esc(st.erro)}</div>` : '';
-  const abas = `<div class="acoes mt">${trAba('visao', 'Visão geral')}${trAba('termos', 'Termos de pesquisa')}${trAba('palavras', 'Palavras e negativas')}${trAba('leads', 'Leads (landing)')}${trAba('propostas', 'Propostas', trPendentes() || '')}${trAba('conv', 'Conversões e horários')}</div>`;
-  const corpo = { visao: trVisao, termos: trTermos, palavras: trPalavras, leads: trLeads, propostas: trPropostas, conv: trConv }[TR.aba] || trVisao;
+  const abas = `<div class="acoes mt">${trAba('visao', 'Visão geral')}${trAba('termos', 'Termos de pesquisa')}${trAba('palavras', 'Palavras e negativas')}${trAba('anuncios', 'Anúncios e extensões')}${trAba('cidades', 'Cidades')}${trAba('leads', 'Leads (landing)')}${trAba('propostas', 'Propostas', trPendentes() || '')}${trAba('conv', 'Conversões e horários')}${trAba('google', 'Sugestões e mudanças')}</div>`;
+  const corpo = { visao: trVisao, termos: trTermos, palavras: trPalavras, anuncios: trAnuncios, cidades: trCidades, google: trGoogle, leads: trLeads, propostas: trPropostas, conv: trConv }[TR.aba] || trVisao;
   return cab + aviso + abas + corpo(vs) + (ehDono() ? '<div class="mt"><button class="btn perigo peq" data-a="desconectarGads">Desconectar o Google Ads</button></div>' : '');
 }
 
@@ -118,6 +124,7 @@ function trAtencao(cur, linhas) {
   if (ult3.length && trSoma(ult3, 'custo') > 0 && trSoma(ult3, 'conversoes') === 0) itens.push(`Nos últimos 3 dias houve gasto de ${R(trSoma(ult3, 'custo'))} e nenhuma conversão (a conversão pode demorar até 72 h para aparecer).`);
   const muitas = d.conv.filter(c => c.principal && c.status === 'ENABLED' && c.contagem === 'MANY_PER_CLICK');
   if (muitas.length) itens.push(`A conversão principal <b>${esc(muitas.map(c => c.nome).join(', '))}</b> conta <b>todas</b> as ações por clique (um mesmo visitante pode contar várias vezes). Para lead, o normal é contar <b>uma</b>.`);
+  itens.push(...trDiagnostico());
   if (!itens.length) return '';
   return `<div class="card mt"><h2>⚠ Pontos de atenção</h2><ul style="margin:6px 0 0 18px">${itens.map(i => `<li>${i}</li>`).join('')}</ul></div>`;
 }
@@ -154,9 +161,9 @@ function trPalavras() {
   const d = TR.d;
   const ativas = d.palavras.filter(p => p.status !== 'REMOVED');
   return `<div class="card mt"><div class="secao-titulo"><h2>Palavras-chave</h2><small>${ativas.length} palavra(s) · dados dos últimos 30 dias</small></div>
-    ${ativas.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Palavra</th><th>Campanha</th><th class="dir" title="Índice de qualidade de 1 a 10">IQ</th><th class="dir">Gasto</th><th class="dir">Cliques</th><th class="dir">Conv.</th><th></th></tr></thead><tbody>
+    ${ativas.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Palavra</th><th>Campanha</th><th class="dir" title="Índice de qualidade de 1 a 10">IQ</th><th title="Os 3 componentes do índice: CTR esperada · relevância do anúncio · experiência na página">Componentes</th><th class="dir">Gasto</th><th class="dir">Cliques</th><th class="dir">Conv.</th><th></th></tr></thead><tbody>
     ${ativas.slice(0, 200).map(p => `<tr><td><b>${esc(p.texto)}</b><br><small>${TR_CORRESP[p.correspondencia] || esc(p.correspondencia || '')} · ${p.status === 'PAUSED' ? '<span class="c-med">pausada</span>' : 'ativa'}</small></td>
-      <td><small>${esc(d.cn[p.campanha_id] || p.campanha_id)}</small></td><td class="dir ${p.indice_qualidade && p.indice_qualidade < 5 ? 'c-ruim' : ''}">${p.indice_qualidade ?? '—'}</td>
+      <td><small>${esc(d.cn[p.campanha_id] || p.campanha_id)}</small></td><td class="dir ${p.indice_qualidade && p.indice_qualidade < 5 ? 'c-ruim' : ''}">${p.indice_qualidade ?? '—'}</td><td><small>${trIQ(p)}</small></td>
       <td class="dir">${R(p.custo_30d)}</td><td class="dir">${N(p.cliques_30d)}</td><td class="dir">${N(p.conversoes_30d)}</td>
       <td class="dir">${p.status === 'ENABLED' ? `<button class="btn peq" data-a="trPausar" data-g="${p.grupo_id}" data-k="${p.criterio_id}">Propor pausar</button>` : ''}</td></tr>`).join('')}
     </tbody></table></div>` : '<div class="vazio">Sem palavras sincronizadas ainda.</div>'}</div>
@@ -299,4 +306,120 @@ async function adsEtapa(id, etapa) {
   if (etapa === 'perdido') { motivo = prompt('Motivo da perda (vigilância, curioso, fora de área, preço, sem estoque…):'); if (motivo == null) return render(); }
   const r = await ok(sb.from('ads_leads').update({ etapa, motivo_perda: motivo, atualizado_em: new Date().toISOString() }).eq('id', id).select().single());
   Object.assign(l, r); avisar(`Lead ${l.codigo}: ${ADS_ETAPAS.find(e => e[0] === etapa)?.[1]}.`); render();
+}
+
+// ─── foto completa da conta: anúncios, extensões, cidades, sugestões do Google e histórico de mudanças ───
+const TR_IQ = { ABOVE_AVERAGE: ['c-ok', 'acima'], AVERAGE: ['', 'na média'], BELOW_AVERAGE: ['c-ruim', 'abaixo'] };
+const trIQ = p => [['iq_ctr', 'CTR'], ['iq_anuncio', 'anúncio'], ['iq_pagina', 'página']].map(([k, n]) => { const [cls, t] = TR_IQ[p[k]] || ['mut', '—']; return `${n} <span class="${cls}">${t}</span>`; }).join(' · ');
+const TR_FORCA = { EXCELLENT: ['ok', 'Excelente'], GOOD: ['ok', 'Boa'], AVERAGE: ['med', 'Média'], POOR: ['ruim', 'Fraca'], PENDING: ['', 'Calculando'], NO_ADS: ['', 'Sem anúncio'] };
+const TR_CAMPO = { SITELINK: 'Sitelinks', CALLOUT: 'Frases de destaque', CALL: 'Telefone', STRUCTURED_SNIPPET: 'Snippets estruturados', BUSINESS_NAME: 'Nome da empresa', BUSINESS_LOGO: 'Logo', AD_IMAGE: 'Imagens', MARKETING_IMAGE: 'Imagens', SQUARE_MARKETING_IMAGE: 'Imagens', LANDSCAPE_LOGO: 'Logo', LOGO: 'Logo', PRICE: 'Preços', PROMOTION: 'Promoção', LEAD_FORM: 'Formulário', MOBILE_APP: 'App', HEADLINE: 'Títulos', DESCRIPTION: 'Descrições', LONG_HEADLINE: 'Títulos longos', YOUTUBE_VIDEO: 'Vídeos', LOCATION: 'Local' };
+const TR_RECOM = {
+  KEYWORD: ['Adicionar palavras-chave', 'Avalie uma a uma: o Google sugere termos amplos que nem sempre são o seu cliente.'],
+  USE_BROAD_MATCH_KEYWORD: ['Trocar para correspondência ampla', '⚠ Cuidado: com conversão = clique no WhatsApp, a ampla tende a trazer curioso. Só depois da fase G4 (conversão de venda).'],
+  DISPLAY_EXPANSION_OPT_IN: ['Ligar a Rede de Display', '⚠ Não recomendado: mistura Display na campanha de Pesquisa e piora a qualidade dos leads.'],
+  SEARCH_PARTNERS_OPT_IN: ['Ligar parceiros de pesquisa', '⚠ Não recomendado agora: tráfego de sites parceiros costuma converter pior.'],
+  PERFORMANCE_MAX_OPT_IN: ['Criar Performance Max', 'Só faz sentido com conversão de venda (offline) — ver playbook.'],
+  CAMPAIGN_BUDGET: ['Aumentar orçamento', 'A campanha está limitada pelo orçamento.'], MARGINAL_ROI_CAMPAIGN_BUDGET: ['Ajustar orçamento (retorno marginal)', 'O Google estima mais conversões com mais verba.'],
+  SET_TARGET_CPA: ['Definir CPA desejado', 'Só quando a conversão principal medir venda/lead qualificado.'], MAXIMIZE_CONVERSIONS_OPT_IN: ['Maximizar conversões', ''],
+  SITELINK_ASSET: ['Adicionar sitelinks', 'Vale a pena: mais área do anúncio e mais caminhos para o cliente.'], CALLOUT_ASSET: ['Adicionar frases de destaque', 'Vale a pena.'],
+  CALL_ASSET: ['Adicionar telefone', 'Confira o número antes (a loja atende pelo WhatsApp).'], RESPONSIVE_SEARCH_AD_IMPROVE_AD_STRENGTH: ['Melhorar a força do anúncio', 'Mais títulos variados e com a palavra-chave.'],
+  RESPONSIVE_SEARCH_AD_ASSET: ['Adicionar títulos/descrições', ''], RESPONSIVE_SEARCH_AD: ['Adicionar anúncio responsivo', ''], IMAGE_ASSET: ['Adicionar imagens', ''], LEAD_FORM_ASSET: ['Adicionar formulário de lead', ''],
+};
+const TR_OP = { CREATE: 'criou', UPDATE: 'alterou', REMOVE: 'removeu' };
+const TR_REC_TIPO = { CAMPAIGN: 'campanha', CAMPAIGN_BUDGET: 'orçamento', AD_GROUP: 'grupo de anúncios', AD_GROUP_AD: 'anúncio', AD: 'anúncio', AD_GROUP_CRITERION: 'palavra-chave / segmentação do grupo', CAMPAIGN_CRITERION: 'segmentação / negativa da campanha', ASSET: 'recurso (extensão, imagem, texto)', CAMPAIGN_ASSET: 'extensão da campanha', CUSTOMER_ASSET: 'extensão da conta', AD_GROUP_ASSET: 'extensão do grupo', AD_GROUP_BID_MODIFIER: 'ajuste de lance', FEED: 'feed', FEED_ITEM: 'item de feed' };
+const TR_ORIGEM = { GOOGLE_ADS_WEB_CLIENT: 'painel do Google Ads', GOOGLE_ADS_RECOMMENDATIONS: 'recomendação aplicada', GOOGLE_ADS_AUTOMATED_RULE: 'regra automática', GOOGLE_ADS_SCRIPTS: 'script', GOOGLE_ADS_BULK_UPLOAD: 'envio em massa', GOOGLE_ADS_API: 'API (Intranet)', GOOGLE_ADS_EDITOR: 'Google Ads Editor', GOOGLE_ADS_MOBILE_APP: 'app do celular', INTERNAL_TOOL: 'equipe do Google', OTHER: 'outro' };
+/** Extensão que não combina com a loja (restos de outro negócio na mesma conta). */
+const trExtSuspeita = r => /curso|hotmart|aula|treinamento|apostila|certificado|m[oó]dulo/i.test(`${r.texto || ''} ${r.detalhe || ''}`);
+/** Cidades: o Google manda a mesma cidade com 2 IDs (cidade e município) — somo pelo nome. */
+function trCidadesAgrupadas() {
+  const m = new Map();
+  for (const l of TR.d.locais) { const uf = l.uf && l.uf.length === 2 ? l.uf : 'SP?', k = `${l.cidade}|${uf}`; const o = m.get(k) || { cidade: l.cidade, uf, c: 0, cl: 0, im: 0, cv: 0 };
+    o.c += +l.custo_30d; o.cl += +l.cliques_30d; o.im += +l.impressoes_30d; o.cv += +l.conversoes_30d; m.set(k, o); }
+  return [...m.values()].sort((a, b) => b.c - a.c);
+}
+
+/** Diagnóstico automático com a foto completa (entra nos Pontos de atenção da Visão geral). */
+function trDiagnostico() {
+  const d = TR.d, it = [];
+  const ativas = d.palavras.filter(p => p.status === 'ENABLED'), gasto = soma(ativas.map(p => +p.custo_30d));
+  const pagRuim = ativas.filter(p => p.iq_pagina === 'BELOW_AVERAGE'), gPag = soma(pagRuim.map(p => +p.custo_30d));
+  if (gasto && gPag / gasto > 0.3) it.push(`<b>${P(gPag / gasto)} do gasto das palavras</b> (${R(gPag)} em 30 dias) está com <b>experiência na página abaixo da média</b>. Todos os anúncios levam para a mesma página: uma página por assunto (portão, câmeras, alarme, monitoramento) com o mesmo texto da busca costuma baixar o CPC. <a href="#/trafego" data-a="trAba" data-v="palavras">Ver palavras</a>`);
+  const ctrRuim = ativas.filter(p => p.iq_ctr === 'BELOW_AVERAGE'), gCtr = soma(ctrRuim.map(p => +p.custo_30d));
+  if (gasto && gCtr / gasto > 0.3) it.push(`${P(gCtr / gasto)} do gasto está em palavras com <b>CTR esperada abaixo da média</b>: o título não está “respondendo” a busca. Colocar a palavra-chave no título 1 e usar mais sitelinks/frases ajuda.`);
+  const fracos = d.anuncios.filter(a => a.status === 'ENABLED' && ['AVERAGE', 'POOR'].includes(a.forca));
+  if (fracos.length) it.push(`<b>${fracos.length} anúncio(s)</b> com força <b>média ou fraca</b>, somando ${R(soma(fracos.map(a => +a.custo_30d)))} em 30 dias: ${fracos.map(a => esc(d.cn[a.campanha_id] || a.campanha_id) + ' › ' + esc(d.gn[a.grupo_id] || a.grupo_id)).join('; ')}. <a href="#/trafego" data-a="trAba" data-v="anuncios">Ver anúncios</a>`);
+  const repr = d.anuncios.filter(a => a.status === 'ENABLED' && a.aprovacao && !['APPROVED', 'APPROVED_LIMITED'].includes(a.aprovacao));
+  if (repr.length) it.push(`<b class="c-ruim">${repr.length} anúncio(s) não aprovados</b> pelo Google. <a href="#/trafego" data-a="trAba" data-v="anuncios">Ver</a>`);
+  const cid = trCidadesAgrupadas(), totC = soma(cid.map(c => c.c)), fora = cid.filter(c => c.uf !== 'SP' && c.uf !== 'SP?'), gFora = soma(fora.map(c => c.c));
+  if (gFora >= 50) it.push(`${R(gFora)} (${P(gFora / totC)}) foram gastos <b>fora de SP</b> (${fora.length} cidades, ex.: ${fora.slice(0, 3).map(c => esc(c.cidade)).join(', ')}). Sinal de que a segmentação está em “presença <b>ou interesse</b>”: trocar para “<b>presença</b>” (pessoas que estão na região). <a href="#/trafego" data-a="trAba" data-v="cidades">Ver cidades</a>`);
+  const cidSem = cid.filter(c => c.cv === 0 && c.c >= 30);
+  if (cidSem.length) it.push(`${cidSem.length} cidade(s) gastaram R$ 30 ou mais sem conversão: ${cidSem.slice(0, 5).map(c => `${esc(c.cidade)} (${R(c.c)})`).join(', ')}.`);
+  const susp = d.recursos.filter(r => r.status === 'ENABLED' && trExtSuspeita(r));
+  if (susp.length) it.push(`<b class="c-ruim">${susp.length} extensão(ões) parecem de outro negócio</b> (curso/aula): ${susp.slice(0, 3).map(r => '“' + esc(r.texto) + '”').join(', ')}. Elas aparecem nos anúncios da loja. <a href="#/trafego" data-a="trAba" data-v="anuncios">Ver extensões</a>`);
+  const temSL = id => d.recursos.some(r => r.status === 'ENABLED' && r.campo === 'SITELINK' && (r.nivel === 'conta' || r.campanha_id === id));
+  const semSL = d.campanhas.filter(c => c.status === 'ENABLED' && c.canal === 'SEARCH' && !temSL(c.id));
+  if (semSL.length) it.push(`${semSL.map(c => '<b>' + esc(c.nome) + '</b>').join(', ')} não tem <b>sitelinks</b>: o anúncio fica menor que o da concorrência. Vale criar 4 sitelinks (ex.: Câmeras, Portão, Alarme, Fale no WhatsApp).`);
+  const tels = [...new Set(d.recursos.filter(r => r.status === 'ENABLED' && r.campo === 'CALL').map(r => r.texto))];
+  if (tels.length) it.push(`Telefone(s) nas extensões de chamada: <b>${tels.map(esc).join(', ')}</b>. Confira se é o número que atende hoje.`);
+  const recentes = d.mudancas.filter(m => Date.now() - Date.parse(m.em) < 3 * 864e5 && ['CAMPAIGN', 'CAMPAIGN_BUDGET', 'AD_GROUP', 'AD_GROUP_AD'].includes(m.recurso_tipo));
+  if (recentes.length) it.push(`Houve ${recentes.length} mudança(s) em campanha/orçamento/anúncio nos últimos 3 dias: espere ~7 dias antes de julgar o resultado (o Google reaprende). <a href="#/trafego" data-a="trAba" data-v="google">Ver histórico</a>`);
+  const ruins = d.recom.filter(r => ['DISPLAY_EXPANSION_OPT_IN', 'SEARCH_PARTNERS_OPT_IN', 'USE_BROAD_MATCH_KEYWORD'].includes(r.tipo));
+  if (ruins.length) it.push(`O Google está sugerindo ${ruins.length} mudança(s) que <b>não</b> convém aceitar agora (Display, parceiros, correspondência ampla). <a href="#/trafego" data-a="trAba" data-v="google">Ver sugestões</a>`);
+  return it;
+}
+
+function trAnuncios() {
+  const d = TR.d;
+  const chips = (l, max) => (l || []).map(h => `<span class="tag" title="${h.fixo ? 'fixado em ' + esc(h.fixo) : ''}" style="margin:2px;display:inline-block;max-width:100%;white-space:normal;text-align:left">${esc(h.t)}${h.fixo ? ' 📌' : ''}</span>`).join('') + ((l || []).length < max ? ` <small class="c-med">(${(l || []).length} de ${max})</small>` : '');
+  const ads = d.anuncios.map(a => {
+    const [cls, f] = TR_FORCA[a.forca] || ['', a.forca || '—'];
+    const repr = (a.reprovacoes || []).filter(r => r.topico);
+    return `<div class="coment"><div class="meta"><b>${esc(d.cn[a.campanha_id] || a.campanha_id)}</b> › ${esc(d.gn[a.grupo_id] || a.grupo_id)} · <span class="tag ${cls}">força ${f}</span>
+        ${a.aprovacao && a.aprovacao !== 'APPROVED' ? `<span class="tag ${a.aprovacao === 'APPROVED_LIMITED' ? 'med' : 'ruim'}">${esc(a.aprovacao === 'APPROVED_LIMITED' ? 'aprovado com limitação' : a.aprovacao)}</span>` : ''}
+        ${a.status !== 'ENABLED' ? '<span class="tag">pausado</span>' : ''} · ${R(a.custo_30d)} · ${N(a.cliques_30d)} cliques · ${N(a.conversoes_30d)} conv.${a.conversoes_30d > 0 ? ' · ' + R(a.custo_30d / a.conversoes_30d) + '/conv.' : ''}</div>
+      ${a.titulos ? `<div style="margin-top:4px"><small class="mut">Títulos</small><br>${chips(a.titulos, 15)}</div><div style="margin-top:4px"><small class="mut">Descrições</small><br>${chips(a.descricoes, 4)}</div>` : `<small class="mut">${esc((a.tipo || '').replace(/_/g, ' ').toLowerCase())} (imagens/vídeo: veja no Google Ads)</small>`}
+      ${repr.length ? `<p class="c-ruim">Política: ${repr.map(r => esc(r.topico)).join(', ')}</p>` : ''}
+      <small class="mut">${(a.urls || []).map(esc).join(' · ')}</small></div>`;
+  }).join('');
+  const porCampo = {};
+  for (const r of d.recursos.filter(r => r.status !== 'REMOVED')) (porCampo[TR_CAMPO[r.campo] || r.campo] ||= []).push(r);
+  const ext = Object.entries(porCampo).sort((a, b) => b[1].length - a[1].length).map(([campo, l]) => `<tr><td><b>${esc(campo)}</b><br><small class="mut">${l.length}</small></td><td>${l.map(r =>
+    `<div style="margin:2px 0">${trExtSuspeita(r) ? '⚠ ' : ''}<span class="${trExtSuspeita(r) ? 'c-ruim' : ''}">${esc(r.texto || '—')}</span>${r.detalhe ? ` <small class="mut">${esc(r.detalhe)}</small>` : ''} <small class="tag">${r.nivel === 'conta' ? 'toda a conta' : esc(d.cn[r.campanha_id] || r.campanha_id)}</small>${r.status === 'PAUSED' ? ' <small class="tag med">pausada</small>' : ''}</div>`).join('')}</td></tr>`).join('');
+  return `<div class="card mt"><div class="secao-titulo"><h2>Anúncios</h2><small>${d.anuncios.length} anúncio(s) · gasto dos últimos 30 dias · 📌 = título fixado</small></div>
+      <p class="explica">A <b>força</b> é a nota do Google para a variedade de títulos (o ideal é 15 títulos diferentes, com a palavra-chave em alguns, e 4 descrições). Força “Média” ou “Fraca” aparece menos e paga mais caro.</p>
+      ${ads || '<div class="vazio">Sem anúncios sincronizados ainda (clique em “Sincronizar agora”).</div>'}</div>
+    <div class="card mt"><div class="secao-titulo"><h2>Extensões e recursos</h2><small>da conta (valem para todas as campanhas) e de cada campanha</small></div>
+      ${ext ? `<div class="rolagem"><table class="tabela"><tbody>${ext}</tbody></table></div>` : '<div class="vazio">Sem extensões sincronizadas ainda.</div>'}</div>`;
+}
+
+function trCidades() {
+  const cid = trCidadesAgrupadas(), tot = soma(cid.map(c => c.c)), totCv = soma(cid.map(c => c.cv));
+  const porUF = {}; for (const c of cid) { const o = porUF[c.uf] ||= { c: 0, cv: 0, n: 0 }; o.c += c.c; o.cv += c.cv; o.n++; }
+  const ufs = Object.entries(porUF).sort((a, b) => b[1].c - a[1].c);
+  return `<div class="grid g2 mt"><div class="card"><h2>Por estado</h2><table class="tabela"><thead><tr><th>UF</th><th class="dir">Cidades</th><th class="dir">Gasto</th><th class="dir">%</th><th class="dir">Conv.</th></tr></thead><tbody>
+      ${ufs.map(([uf, o]) => `<tr><td><b>${esc(uf)}</b></td><td class="dir">${o.n}</td><td class="dir">${R(o.c)}</td><td class="dir">${tot ? P(o.c / tot) : '—'}</td><td class="dir">${N(o.cv)}</td></tr>`).join('')}</tbody></table></div>
+    <div class="card"><h2>Como ler</h2><p class="explica">É onde a pessoa estava (ou o lugar que pesquisou) quando clicou, nos últimos 30 dias. Total: ${R(tot)} e ${N(totCv)} conversões.
+      Gasto fora da região de atendimento costuma vir da opção “presença <b>ou interesse</b>” na segmentação de local: a recomendação é “<b>presença</b>”.</p></div></div>
+    <div class="card mt"><div class="secao-titulo"><h2>Cidades</h2><small>${cid.length} cidades · ordenado pelo gasto</small></div>
+      <div class="rolagem"><table class="tabela"><thead><tr><th>Cidade</th><th>UF</th><th class="dir">Gasto</th><th class="dir">Cliques</th><th class="dir">Conv.</th><th class="dir">Custo/conv.</th></tr></thead><tbody>
+      ${cid.slice(0, 150).map(c => `<tr class="${c.uf !== 'SP' && c.uf !== 'SP?' ? 'c-med' : ''}"><td><b>${esc(c.cidade)}</b></td><td>${esc(c.uf)}</td><td class="dir">${R(c.c)}</td><td class="dir">${N(c.cl)}</td>
+        <td class="dir ${c.cv === 0 && c.c >= 30 ? 'c-ruim' : ''}">${N(c.cv)}</td><td class="dir">${c.cv ? R(c.c / c.cv) : '—'}</td></tr>`).join('')}
+      </tbody></table></div>${cid.length > 150 ? `<small class="mut">Mostrando 150 de ${cid.length}.</small>` : ''}</div>`;
+}
+
+function trGoogle() {
+  const d = TR.d;
+  const imp = r => { const b = r.impacto?.baseMetrics || {}, p = r.impacto?.potentialMetrics || {}; const n0 = v => +v || 0, dc = n0(p.conversions) - n0(b.conversions), dk = (n0(p.costMicros) - n0(b.costMicros)) / 1e6;
+    return dc || dk ? `${dc ? `${dc > 0 ? '+' : ''}${N(dc)} conv./semana` : ''}${dk ? ` · ${dk > 0 ? '+' : ''}${R(dk)}/semana` : ''}` : ''; };
+  const grupos = Object.values(d.recom.reduce((a, r) => { const k = r.tipo + '|' + (r.campanha_id || ''); (a[k] ||= { ...r, n: 0 }).n++; return a; }, {}));
+  const rec = grupos.sort((a, b) => b.n - a.n).map(r => { const [nome, nota] = TR_RECOM[r.tipo] || [r.tipo.replace(/_/g, ' ').toLowerCase(), ''];
+    return `<tr><td><b>${esc(nome)}</b>${r.n > 1 ? ` <span class="tag">${r.n}</span>` : ''}<br><small class="${nota.startsWith('⚠') ? 'c-med' : 'mut'}">${esc(nota)}</small></td><td><small>${r.campanha_id ? esc(d.cn[r.campanha_id] || r.campanha_id) : 'conta'}</small></td><td class="dir"><small>${imp(r)}</small></td></tr>`; }).join('');
+  const mud = d.mudancas.slice(0, 150).map(m => `<tr><td><small>${dataHora(m.em)}</small></td><td><small>${esc(m.usuario || '—')}<br><span class="mut">${esc(TR_ORIGEM[m.origem] || m.origem || '')}</span></small></td>
+      <td><small>${esc(TR_OP[m.operacao] || m.operacao || '')} ${esc(TR_REC_TIPO[m.recurso_tipo] || (m.recurso_tipo || '').toLowerCase())}${m.campanha ? ' · <b>' + esc(m.campanha) + '</b>' : ''}</small></td>
+      <td><small class="mut">${esc((m.campos || '').split(',').slice(0, 6).join(', '))}</small></td></tr>`).join('');
+  return `<div class="card mt"><div class="secao-titulo"><h2>Sugestões do Google</h2><small>o que o Google recomenda hoje (nada é aplicado daqui)</small></div>
+      <p class="explica">O Google ganha com mais gasto: parte das sugestões é boa (sitelinks, força do anúncio), parte só aumenta o alcance sem trazer cliente melhor. A nota em cada uma é a leitura do Brain.</p>
+      ${rec ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Sugestão</th><th>Onde</th><th class="dir">O Google estima</th></tr></thead><tbody>${rec}</tbody></table></div>` : '<div class="vazio">Nenhuma sugestão no momento.</div>'}</div>
+    <div class="card mt"><div class="secao-titulo"><h2>Histórico de mudanças na conta</h2><small>últimos 14 dias · quem mudou o quê</small></div>
+      ${mud ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Quando</th><th>Quem</th><th>O quê</th><th>Campos</th></tr></thead><tbody>${mud}</tbody></table></div>` : '<div class="vazio">Sem mudanças registradas.</div>'}</div>`;
 }
