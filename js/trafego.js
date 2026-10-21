@@ -16,7 +16,7 @@ async function carregarTrafego(forcar) {
   TR.carregando = true;
   try {
     const h = hoje(), d90 = addDias(h, -90), d60 = addDias(h, -60), d30 = addDias(h, -30);
-    const [campanhas, dia, termos, palavras, negativas, conv, hora, acoes, est] = await Promise.all([
+    const [campanhas, dia, termos, palavras, negativas, conv, hora, acoes, est, leads] = await Promise.all([
       ok(sb.from('gads_campanhas').select('*').order('nome')),
       todas(() => sb.from('gads_campanha_dia').select('*').gte('data', d90).order('data').order('campanha_id')),
       todas(() => sb.from('gads_termos').select('*').gte('data', d60).order('data').order('campanha_id').order('grupo_id').order('termo')),
@@ -26,9 +26,10 @@ async function carregarTrafego(forcar) {
       todas(() => sb.from('gads_hora').select('*').gte('data', d30).order('data').order('hora').order('aparelho')),
       ok(sb.from('gads_acoes').select('*').order('id', { ascending: false }).limit(200)),
       ok(sb.from('sync_estado').select('*').in('chave', ['gads', 'gads_varredura'])),
+      todas(() => sb.from('ads_leads').select('*').gte('criado_em', d90 + 'T00:00:00').order('criado_em', { ascending: false }).order('id', { ascending: false })),
     ]);
     for (const e of est) D.sync[e.chave] = { ...e.valor, em_db: e.atualizado_em };
-    TR.d = { campanhas, dia, termos, palavras, negativas, conv, hora, acoes, cn: Object.fromEntries(campanhas.map(c => [c.id, c.nome])) };
+    TR.d = { campanhas, dia, termos, palavras, negativas, conv, hora, acoes, leads, cn: Object.fromEntries(campanhas.map(c => [c.id, c.nome])) };
     return TR.d;
   } finally { TR.carregando = false; }
 }
@@ -53,8 +54,8 @@ function vTrafego() {
   const cab = topo('Tráfego — Google Ads', `Conta <b>${esc(st.conta || '')}</b>${st.email ? ` · acesso de ${esc(st.email)}` : ''} · ${st.ultima_sync ? 'atualizado há ' + tempoDesde(st.ultima_sync) : 'aguardando a primeira sincronização'}`,
     `<button class="btn" data-a="recarregarGads" ${TR.atualizando ? 'disabled' : ''}>${TR.atualizando ? '⏳ Atualizando…' : '↻ Sincronizar agora'}</button>`);
   const aviso = st.erro ? `<div class="card mt"><b class="c-ruim">⚠ O Google respondeu com erro:</b> ${esc(st.erro)}</div>` : '';
-  const abas = `<div class="acoes mt">${trAba('visao', 'Visão geral')}${trAba('termos', 'Termos de pesquisa')}${trAba('palavras', 'Palavras e negativas')}${trAba('propostas', 'Propostas', trPendentes() || '')}${trAba('conv', 'Conversões e horários')}</div>`;
-  const corpo = { visao: trVisao, termos: trTermos, palavras: trPalavras, propostas: trPropostas, conv: trConv }[TR.aba] || trVisao;
+  const abas = `<div class="acoes mt">${trAba('visao', 'Visão geral')}${trAba('termos', 'Termos de pesquisa')}${trAba('palavras', 'Palavras e negativas')}${trAba('leads', 'Leads (landing)')}${trAba('propostas', 'Propostas', trPendentes() || '')}${trAba('conv', 'Conversões e horários')}</div>`;
+  const corpo = { visao: trVisao, termos: trTermos, palavras: trPalavras, leads: trLeads, propostas: trPropostas, conv: trConv }[TR.aba] || trVisao;
   return cab + aviso + abas + corpo(vs) + (ehDono() ? '<div class="mt"><button class="btn perigo peq" data-a="desconectarGads">Desconectar o Google Ads</button></div>' : '');
 }
 
@@ -259,4 +260,43 @@ async function trSincronizar() {
   catch (e) { avisar(e.message); }
   TR.atualizando = false;
   await carregarTrafego(true).catch(() => {}); render();
+}
+
+// ─── Leads da landing (fase G2): cada clique no WhatsApp / formulário / chatbot com o código "(Ref XXXXX)" e a campanha de origem ───
+const ADS_ETAPAS = [['clique', 'Clicou'], ['conversa', 'Conversou'], ['qualificado', 'Qualificado'], ['orcamento', 'Orçamento'], ['venda', 'Venda'], ['perdido', 'Perdido']];
+const ADS_TIPO = { whatsapp: '💬 WhatsApp', formulario: '📝 Formulário', chatbot: '🤖 Chatbot' };
+function trLeads() {
+  const per = TR.per, desde = addDias(hoje(), -per), L = (TR.d.leads || []).filter(l => l.criado_em.slice(0, 10) >= desde);
+  const deAnuncio = L.filter(l => l.gclid || l.gbraid || l.wbraid || l.campanha_id);
+  const custo = id => trSoma(TR.d.dia.filter(d => d.campanha_id === id && d.data >= desde), 'custo');
+  const porCamp = Object.values(L.reduce((a, l) => { const k = l.campanha_id || (l.gclid || l.gbraid || l.wbraid ? 'sem_id' : 'organico');
+    (a[k] ||= { k, n: 0, qual: 0, venda: 0 }); a[k].n++; if (['qualificado', 'orcamento', 'venda'].includes(l.etapa)) a[k].qual++; if (l.etapa === 'venda') a[k].venda++; return a; }, {})).sort((a, b) => b.n - a.n);
+  const nomeK = k => k === 'organico' ? 'Sem anúncio (orgânico / direto)' : k === 'sem_id' ? 'Anúncio (campanha sem ID no link)' : (TR.d.cn[k] || `Campanha ${k}`);
+  const porVend = Object.entries(L.reduce((a, l) => { const k = l.vendedor_nome || '—'; a[k] = (a[k] || 0) + 1; return a; }, {})).sort((a, b) => b[1] - a[1]);
+  const botoesPer = [7, 30, 90].map(n => `<button class="btn peq ${per === n ? 'pri' : ''}" data-a="trPer" data-v="${n}">${n} dias</button>`).join('');
+  if (!(TR.d.leads || []).length) return `<div class="card mt"><h2>Leads da landing</h2><p class="explica">Ainda não chegou nenhum lead. Depois que a landing for publicada com o rastreio, cada clique em "Falar no WhatsApp", formulário ou chatbot aparece aqui com o código <b>(Ref XXXXX)</b> que vai no fim da mensagem, a campanha, a palavra-chave e o vendedor sorteado.
+    <br><br><b>Falta 1 passo no Google Ads:</b> em Administrador → Configurações da conta → Rastreamento → <b>Sufixo do URL final</b>, colar:<br><code>utm_source=google&amp;utm_medium=cpc&amp;utm_campaign={campaignid}&amp;utm_content={adgroupid}&amp;utm_term={keyword}&amp;mt={matchtype}&amp;dev={device}</code></p></div>`;
+  return `<div class="acoes mt">${botoesPer}</div>
+    <div class="grid g4 mt"><div class="card kpi-card"><div class="rot">Leads da landing</div><div class="val">${L.length}</div><div class="sub">${Object.entries(ADS_TIPO).map(([k, n]) => `${n} ${L.filter(l => l.tipo === k).length}`).join(' · ')}</div></div>
+      <div class="card kpi-card"><div class="rot">Vieram de anúncio</div><div class="val">${deAnuncio.length}</div><div class="sub">${L.length ? Math.round(deAnuncio.length / L.length * 100) : 0}% com clique do Google</div></div>
+      <div class="card kpi-card"><div class="rot">Com telefone</div><div class="val">${L.filter(l => l.fone).length}</div><div class="sub">${L.filter(l => l.cliente_chave).length} já são clientes</div></div>
+      <div class="card kpi-card"><div class="rot">Qualificados / vendas</div><div class="val">${L.filter(l => ['qualificado', 'orcamento', 'venda'].includes(l.etapa)).length} / ${L.filter(l => l.etapa === 'venda').length}</div><div class="sub">marcados pelos vendedores</div></div></div>
+    <div class="grid g2 mt"><div class="card"><h2>Por campanha</h2><table class="tabela"><thead><tr><th>Campanha</th><th class="dir">Leads</th><th class="dir">Qualif.</th><th class="dir">Vendas</th><th class="dir">Custo/lead</th></tr></thead><tbody>
+      ${porCamp.map(c => { const cu = typeof c.k === 'number' ? custo(c.k) : 0; return `<tr><td>${esc(nomeK(c.k))}</td><td class="dir"><b>${c.n}</b></td><td class="dir">${c.qual}</td><td class="dir">${c.venda}</td><td class="dir">${cu ? R(cu / c.n) : '—'}</td></tr>`; }).join('')}</tbody></table></div>
+      <div class="card"><h2>Por vendedor (roleta)</h2><table class="tabela"><tbody>${porVend.map(([v, n]) => `<tr><td>${esc(v)}</td><td class="dir"><b>${n}</b></td></tr>`).join('') || '<tr><td class="mut">—</td></tr>'}</tbody></table></div></div>
+    <div class="card mt"><div class="secao-titulo"><h2>Últimos leads</h2><small>o código é o mesmo que chega no fim da mensagem do WhatsApp</small></div>
+      ${listaCurta('adsLeads', `<table class="tabela"><thead><tr><th>Quando</th><th>Código</th><th>Origem</th><th>Campanha / palavra</th><th>Vendedor</th><th>Contato</th><th>Etapa</th></tr></thead><tbody>
+      ${L.slice(0, 300).map(l => `<tr><td><small>${dataHora(l.criado_em)}</small></td><td><b>${esc(l.codigo)}</b></td><td><small>${ADS_TIPO[l.tipo] || esc(l.tipo)}${l.botao ? '<br>' + esc(l.botao) : ''}</small></td>
+        <td><small>${l.campanha_id ? esc(TR.d.cn[l.campanha_id] || l.campanha_id) : l.gclid || l.gbraid || l.wbraid ? 'anúncio' : '<span class="mut">orgânico</span>'}${l.utm_term ? '<br>“' + esc(l.utm_term) + '”' : ''}${l.aparelho ? ' · ' + esc({ m: 'celular', c: 'computador', t: 'tablet' }[l.aparelho] || l.aparelho) : ''}</small></td>
+        <td><small>${esc(l.vendedor_nome || '—')}</small></td>
+        <td><small>${esc(l.nome || '')}${l.fone ? '<br>' + esc(foneFmt(l.fone)) : ''}${l.cliente_chave ? `<br><a href="#" data-a="verCliente" data-chave="${esc(l.cliente_chave)}">ver cliente</a>` : ''}${l.interesse || l.produto ? '<br>' + esc([l.interesse, l.produto].filter(Boolean).join(' · ')) : ''}</small></td>
+        <td><select data-c="adsEtapa" data-id="${l.id}">${ADS_ETAPAS.map(([k, n]) => `<option value="${k}" ${l.etapa === k ? 'selected' : ''}>${n}</option>`).join('')}</select></td></tr>`).join('') || '<tr><td colspan="7" class="vazio">Nenhum lead no período.</td></tr>'}
+      </tbody></table>`, 'Buscar código, nome, telefone, palavra…')}</div>`;
+}
+async function adsEtapa(id, etapa) {
+  const l = (TR.d?.leads || []).find(x => String(x.id) === String(id)); if (!l) return;
+  let motivo = null;
+  if (etapa === 'perdido') { motivo = prompt('Motivo da perda (vigilância, curioso, fora de área, preço, sem estoque…):'); if (motivo == null) return render(); }
+  const r = await ok(sb.from('ads_leads').update({ etapa, motivo_perda: motivo, atualizado_em: new Date().toISOString() }).eq('id', id).select().single());
+  Object.assign(l, r); avisar(`Lead ${l.codigo}: ${ADS_ETAPAS.find(e => e[0] === etapa)?.[1]}.`); render();
 }

@@ -583,6 +583,7 @@ const numOuVazio = v => v === '' ? '' : Number(v);
 
 let timerBusca = null;
 const C = {
+  adsEtapa: el => adsEtapa(el.dataset.id, el.value).catch(e => alert(e.message)),
   bolComp: el => { const a = el.files?.[0]; if (a) bolCompEnviar(el.dataset.id, a).catch(e => alert(e.message)); el.value = ''; },
   atFotos: el => { const arqs = [...el.files]; if (arqs.length) atFotos(el.dataset.id, arqs).catch(e => avisar(e.message)); },
   crmEtapa: el => crmMover(el.dataset.id, el.value).then(() => crmAbrir(el.dataset.id)).catch(e => avisar(e.message)),
