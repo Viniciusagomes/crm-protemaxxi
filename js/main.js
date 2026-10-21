@@ -10,6 +10,7 @@ function menu() {
     ...(veMonitoria() ? [['', 'monitoria', '🏷', 'Monitoria de preços']] : []),
     ...(veTudoVendas() || EU.tiny ? [['', 'avaliacoes', '⭐', 'Avaliações', ehDono() && AVA.lista ? AVA.lista.filter(a => a.nota && a.nota <= 3 && !a.tratado).length : 0]] : []), ['', 'creditos', '💳', 'Créditos e vales', ehDono() && CRE.pend ? CRE.pend.length : 0], ['', 'brindes', '🎁', 'Brindes', ehDono() && CRE.bped ? CRE.bped.filter(b => b.status === 'pendente').length : 0],
     ...(veML() ? [['', 'ml', '🛍', 'Mercado Livre', D.ml ? D.ml.perguntas.filter(perguntaPendente).length : 0]] : []),
+    ...(veTrafego() ? [['Marketing'], ['', 'trafego', '📣', 'Tráfego (Google Ads)', trPendentes()]] : []),
     ...(veExp() ? [['Operação'], ['', 'visaoestoque', '📋', 'Visão geral do estoque'], ['', 'expedicao', '📦', 'Expedição', EXP ? EXP.ecom.map(infoPedido).filter(x => !x.despachado && x.atrasado).length : 0], ['', 'estoque', '🏷', 'Estoque', EXP ? EXP.alertas.length : 0], ['', 'abrirTV', '📺', 'TV do estoque']] : []),
     ...(veCompras() ? [...(veExp() ? [] : [['Operação']]), ['', 'compras', '🤝', 'Compras e fornecedores', COMP.ops ? COMP.ops.filter(o => situacaoOp(o) === 'encerrada').length : 0]] : []),
     ['Comunicação'], ['', 'solicitacoes', '📨', 'Solicitações', minhasPendentes().length], ['', 'suporte', '🔧', 'Assistência (OS)', AT.os ? AT.os.filter(o => o.status === 'pronto' || (o.previsao && o.previsao < hoje() && !['entregue', 'cancelado'].includes(o.status))).length : 0],
@@ -26,7 +27,7 @@ function menu() {
     : `<button class="${UI.view === k ? 'on' : ''}" data-a="nav" data-v="${k}"><span class="ic">${ic}</span>${nome}${badge ? `<span class="badge">${badge}</span>` : ''}</button>`).join('');
 }
 const VIEWS_FN = {
-  inicio: () => vInicio(), vendas: () => vVendas(), ml: () => vML(), pedidos: () => vPedidos(), clientes: () => vClientes(),
+  inicio: () => vInicio(), vendas: () => vVendas(), ml: () => vML(), trafego: () => vTrafego(), pedidos: () => vPedidos(), clientes: () => vClientes(),
   solicitacoes: () => vIntranet(), suporte: () => vAssistencia(), expedicao: () => vExpedicao(), estoque: () => vEstoque(), visaoestoque: () => vVisaoEstoque(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(), creditos: () => vCreditos(), brindes: () => vBrindes(), crm: () => vCRM(), meudia: () => vMeuDia(), situacao: () => vSituacao(), boletos: () => vBoletos(), avaliacoes: () => vAvaliacoes(), compras: () => vCompras(),
   checklist: () => vChecklist(), supervisao: () => vSupervisao(), geral: () => vGeral(), metas: () => vMetas(),
   remuneracao: () => vRemuneracao(), feedbacks: () => vFeedbacks(), config: () => vConfig(), ajuda: () => vAjuda(),
@@ -43,6 +44,7 @@ function abasDoPerfil() {
   if (comercial) add('crm', 'vendas', 'situacao', 'boletos');
   if (P.ecommerce) add('vendas');
   if (veML()) add('ml');
+  if (veTrafego()) add('trafego');
   if (veExp()) add('visaoestoque', 'expedicao', 'estoque', 'abrirTV', 'tvestoque');
   if (veCompras()) add('compras');
   if (P.suporte) add('suporte');
@@ -54,7 +56,7 @@ const podeAba = k => { const s = abasDoPerfil(); return !s || s.has(k); };
 
 function render() {
   if (!D || !EU) return;
-  if (!podeAba(UI.view) || (SO_DONO.includes(UI.view) && !ehDono()) || (UI.view === 'ml' && !veML()) || (UI.view === 'monitoria' && !veMonitoria()) || (['expedicao', 'tvestoque', 'estoque', 'visaoestoque'].includes(UI.view) && !veExp()) || (UI.view === 'compras' && !veCompras())) UI.view = 'inicio';
+  if (!podeAba(UI.view) || (SO_DONO.includes(UI.view) && !ehDono()) || (UI.view === 'ml' && !veML()) || (UI.view === 'trafego' && !veTrafego()) || (UI.view === 'monitoria' && !veMonitoria()) || (['expedicao', 'tvestoque', 'estoque', 'visaoestoque'].includes(UI.view) && !veExp()) || (UI.view === 'compras' && !veCompras())) UI.view = 'inicio';
   document.body.classList.toggle('tvestoque', UI.view === 'tvestoque');
   if (UI.view === 'checklist' && !D.pessoas.find(p => p.id === UI.pessoa && p.ativo && pessoasQueVejo().includes(p.id))) UI.pessoa = EU.id;
   const fid = document.activeElement?.dataset?.fid;
@@ -128,7 +130,7 @@ function vConfigExtra(tab) {
         return `<div class="cfg-linha cfg-acesso"><div style="display:flex;gap:8px;align-items:center">${av(p)}<div><b>${esc(p.nome)}</b><br><small>${esc(p.cargo)}${p.ativo ? '' : ' · inativo'}</small></div></div>
         <select data-c="set" data-path="pessoas.${i}.papel">${Object.entries(PAPEIS).map(([k, v]) => `<option value="${k}" ${p.papel === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
         <select data-c="set" data-path="pessoas.${i}.tiny"><option value="">— não vende —</option>${D.vendedoresTiny.map(v => `<option value="${v.id}" ${p.tiny === v.id ? 'selected' : ''}>${esc(v.nome)}</option>`).join('')}${p.tiny && !D.vendedoresTiny.some(v => v.id === p.tiny) ? `<option value="${p.tiny}" selected>id ${p.tiny}</option>` : ''}</select>
-        <div style="display:flex;flex-direction:column;gap:2px;font-size:13px">${[['vendas_todas', 'Todas as vendas e clientes'], ['ecommerce', 'Pedidos do e-commerce'], ['expedicao', 'Expedição e estoque'], ['aprovar_pagamento', 'Aprovar pagamento (depósito/Tray)'], ['suporte', 'Ordens de serviço (suporte)'], ['admin', 'Configurações (admin)']].map(([k, n]) => `<label><input type="checkbox" ${p.permissoes?.[k] ? 'checked' : ''} data-c="perm" data-i="${i}" data-k="${k}"> ${n}</label>`).join('')}</div>
+        <div style="display:flex;flex-direction:column;gap:2px;font-size:13px">${[['vendas_todas', 'Todas as vendas e clientes'], ['ecommerce', 'Pedidos do e-commerce'], ['expedicao', 'Expedição e estoque'], ['aprovar_pagamento', 'Aprovar pagamento (depósito/Tray)'], ['suporte', 'Ordens de serviço (suporte)'], ['trafego', 'Tráfego (Google Ads)'], ['admin', 'Configurações (admin)']].map(([k, n]) => `<label><input type="checkbox" ${p.permissoes?.[k] ? 'checked' : ''} data-c="perm" data-i="${i}" data-k="${k}"> ${n}</label>`).join('')}</div>
         <div>${p.user_id ? `<b>${esc(p.email || u?.email || '')}</b><br><small>${u?.bloqueado ? '<span class="c-ruim">bloqueado</span>' : u?.ultimo_login ? 'último acesso ' + new Date(u.ultimo_login).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'nunca entrou'}</small>
           <br><small>2FA: ${u?.mfa ? '<span class="c-ok">ativo</span>' : (['dono', 'supervisor'].includes(p.papel) || p.permissoes?.admin || p.permissoes?.mfa) ? '<span class="c-med">obrigatório, cadastra no próximo acesso</span>' : 'não exigido'}</small>
           <div class="acoes" style="margin-top:4px"><button class="btn peq" data-a="loginSenha" data-p="${p.id}">Trocar senha</button>${u?.mfa && p.id !== EU.id ? `<button class="btn peq" data-a="zerar2fa" data-p="${p.id}" title="Use se a pessoa perdeu ou trocou de celular">Zerar 2FA</button>` : ''}${p.papel !== 'dono' ? `<button class="btn peq" data-a="loginBloq" data-p="${p.id}" data-v="${u?.bloqueado ? 'desbloquear' : 'bloquear'}">${u?.bloqueado ? 'Desbloquear' : 'Bloquear'}</button><button class="btn peq perigo" data-a="loginRemover" data-p="${p.id}">Remover login</button>` : ''}</div>`
@@ -261,6 +263,20 @@ const A = {
   emitirTodasNF: () => emitirTodasNF(),
   enviarXmlNF: el => enviarXmlNF(el.dataset.id, el.dataset.num),
   recarregarML: () => atualizarML(),
+  conectarGads: async () => { try { const r = await chamarFuncao('gads-oauth', { acao: 'iniciar' }); location.href = r.url; } catch (e) { avisar(e.message); } },
+  desconectarGads: async () => { if (!confirm('Desconectar o Google Ads? A Intranet para de acompanhar a conta.')) return; try { await chamarFuncao('gads-oauth', { acao: 'desconectar' }); D.sync.gads = { conectado: false }; TR.d = null; render(); } catch (e) { avisar(e.message); } },
+  recarregarGads: () => trSincronizar(),
+  trAba: el => { TR.aba = el.dataset.v; render(); },
+  trPer: el => { TR.per = +el.dataset.v; render(); },
+  trFiltro: el => { TR.termoFiltro = el.dataset.v; render(); },
+  trNeg: el => trNegativar(el.dataset.termo, el.dataset.c).catch(e => avisar(e.message)),
+  trPausar: el => trPausar(el.dataset.g, el.dataset.k).catch(e => avisar(e.message)),
+  trRemNeg: el => trRemoverNeg(el.dataset.r).catch(e => avisar(e.message)),
+  trOrc: el => trOrcamento(el.dataset.id).catch(e => avisar(e.message)),
+  trTestar: el => trDecidir('testar', el.dataset.id),
+  trAprovar: el => trDecidir('aprovar', el.dataset.id),
+  trRecusar: el => trDecidir('recusar', el.dataset.id),
+  trDesfazer: el => trDecidir('desfazer', el.dataset.id),
   imprimirEtiquetas: el => imprimirEtiquetas(el.dataset.envios),
   expAba: el => { UI.expAba = el.dataset.v; render(); },
   expFreteAba: el => { UI.expFrete = el.dataset.v; render(); },
@@ -727,6 +743,13 @@ async function iniciar() {
     const msg = { ok: '✓ Mercado Livre conectado! Os pedidos e as perguntas começam a chegar em poucos minutos.', negado: 'Você não autorizou o acesso no Mercado Livre.', expirado: 'O pedido de conexão expirou. Clique em Conectar de novo.', erro_token: 'O Mercado Livre recusou a conexão. Confira as chaves e a URL de redirect no app do ML.' }[retornoML] || 'Não foi possível conectar: ' + retornoML;
     setTimeout(() => avisar(msg), 400);
     if (retornoML === 'ok') D.sync.ml = { ...(D.sync.ml || {}), conectado: true };
+  }
+  const retornoGads = new URLSearchParams(location.search).get('gads');
+  if (retornoGads) {
+    history.replaceState(null, '', location.pathname + '#/trafego'); UI.view = 'trafego';
+    const msg = { ok: '✓ Google Ads conectado! A primeira sincronização traz 90 dias de histórico (pode levar alguns minutos).', negado: 'Você não autorizou o acesso no Google.', expirado: 'O pedido de conexão expirou. Clique em Conectar de novo.', erro_token: 'O Google recusou a conexão. Veja o aviso na aba Tráfego.', sem_refresh: 'O Google não deu a autorização permanente. Veja o aviso na aba Tráfego.', sem_codigo: 'O Google não devolveu o código de acesso.' }[retornoGads] || 'Retorno do Google Ads.';
+    setTimeout(() => avisar(msg), 400);
+    if (retornoGads === 'ok') { D.sync.gads = { ...(D.sync.gads || {}), conectado: true }; chamarFuncao('gads-sync', { acao: 'sincronizar', completo: true }).then(() => carregarTrafego(true)).then(render).catch(() => {}); }
   }
   const retornoV3 = new URLSearchParams(location.search).get('tinyv3');
   if (retornoV3) {
