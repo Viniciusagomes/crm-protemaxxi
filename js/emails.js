@@ -1,13 +1,14 @@
 'use strict';
 /* Caixa de e-mails: tudo que chega em @portalprotemaxxi.com.br (Cloudflare → função email-entrada) e o que a Intranet envia.
  * Caixas: OS Intelbras (os.intelbras@), Boletos (boletos@), Notas fiscais (nfe@), Outros e Enviados.
- * Os boletos lidos viram a lista "A pagar" (vencimento, valor, linha digitável, alertas de conferência). Quem vê: dono tudo;
- * permissão 'financeiro' → boletos e notas; 'suporte' → OS Intelbras. */
+ * Os boletos lidos viram a lista "A pagar" (vencimento, valor, linha digitável, alertas de conferência). Quem vê: o dono tudo; os outros
+ * só as caixas liberadas para a pessoa em config 'caixa_emails'.acessos ({pessoa_id: [caixas]}, "os" = todas as caixas de OS). */
 
 const EM = { lista: null, boletos: [], nfs: [], carregando: false, em: 0, caixa: 'todos', sel: null, corpo: {}, naoLidos: 0 };
-const veEmails = () => ehDono() || !!EU?.permissoes?.financeiro || !!EU?.permissoes?.suporte;
+const emAcessos = () => D?.config?.caixa_emails?.acessos?.[EU?.id] || [];
+const veEmails = () => ehDono() || emAcessos().length > 0;
 const EM_CAIXAS = { todos: ['📥', 'Todos'], os_intelbras: ['🔧', 'OS Intelbras'], boletos: ['🧾', 'Boletos'], nfe: ['📄', 'Notas fiscais'], outros: ['✉', 'Outros'], enviados: ['📤', 'Enviados'] };
-const emCaixasMinhas = () => ehDono() ? Object.keys(EM_CAIXAS) : ['todos', ...(EU?.permissoes?.suporte ? ['os_intelbras'] : []), ...(EU?.permissoes?.financeiro ? ['boletos', 'nfe'] : [])];
+const emCaixasMinhas = () => ehDono() ? Object.keys(EM_CAIXAS) : ['todos', ...Object.keys(EM_CAIXAS).filter(c => emAcessos().some(a => a === c || (a === 'os' && c.startsWith('os_'))))];
 const emTam = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
 
 async function carregarEmails(forcar) {
