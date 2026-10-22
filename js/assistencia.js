@@ -8,7 +8,7 @@
 const AT = { os: null, rma: null, cfg: null, carregando: false, em: 0 };
 const ST_OS = {
   recebido: ['📥 Recebido', ''], em_analise: ['🔬 Em análise', 'azul'], aguardando_cliente: ['💬 Aguardando cliente', 'med'], aguardando_peca: ['⏳ Aguardando peça', 'med'],
-  na_assistencia: ['🏭 Assistência/fábrica', 'azul'], retornou: ['↩ Retornou', 'azul'], pronto: ['✅ Pronto p/ retirada', 'ok'], entregue: ['🏁 Entregue', ''], cancelado: ['✕ Cancelada', 'ruim'],
+  na_assistencia: ['🏭 Assistência/fábrica', 'azul'], retornou: ['↩ Retornou', 'azul'], pronto: ['✅ Disponível p/ retirada', 'ok'], entregue: ['🏁 Entregue', ''], cancelado: ['✕ Cancelada', 'ruim'],
 };
 const TIPOS_OS = { garantia_fabrica: '🏭 Garantia do fabricante', garantia_loja: '🏪 Garantia da loja', manutencao: '🛠 Manutenção (paga)', troca: '🔁 Troca' };
 const RES_OS = { reparado: '🛠 Reparado', trocado: '🔁 Trocado', sem_defeito: '✔ Sem defeito constatado', negado: '🚫 Garantia negada', devolvido: '↩ Devolvido sem reparo', credito: '💳 Virou crédito' };
@@ -268,20 +268,20 @@ async function enviarFotosOS(o, arquivos, etapa, itemId) {
   }
 }
 /** Cria os avisos da etapa (WhatsApp para enviar com um toque; e-mail sai sozinho quando o envio de e-mail estiver configurado). */
-async function gerarAvisos(o, status, extra, texto) {
+async function gerarAvisos(o, status, extra, texto, assunto) {
   const msg = texto || textoAviso(o, status, extra); if (!msg) return;
   const linhas = [];
   if (o.avisar_whatsapp && o.cliente_fone) linhas.push({ os_id: o.id, canal: 'whatsapp', destino: o.cliente_fone, mensagem: msg, por: EU.id });
-  if (o.avisar_email && o.cliente_email) linhas.push({ os_id: o.id, canal: 'email', destino: o.cliente_email, assunto: `${AT.cfg?.empresa || ''} · OS ${o.numero}: ${ST_OS[status]?.[0].replace(/^\S+\s/, '') || ''}`, mensagem: msg, por: EU.id });
+  if (o.avisar_email && o.cliente_email) linhas.push({ os_id: o.id, canal: 'email', destino: o.cliente_email, assunto: assunto || `${AT.cfg?.empresa || ''} · OS ${o.numero}: ${ST_OS[status]?.[0].replace(/^\S+\s/, '') || ''}`, mensagem: msg, por: EU.id });
   if (linhas.length) await ok(sb.from('at_avisos').insert(linhas));
 }
 
 // ─── ficha da OS ───
 async function atAbrir(id) {
   const o = AT.os.find(x => String(x.id) === String(id)) || await ok(sb.from('at_os').select('*').eq('id', id).single());
-  const [ev, fotos, avisos, itens] = await Promise.all([
+  const [ev, fotos, avisos, itens, orcs] = await Promise.all([
     ok(sb.from('at_eventos').select('*').eq('os_id', o.id).order('em')), ok(sb.from('at_fotos').select('*').eq('os_id', o.id).order('em')), ok(sb.from('at_avisos').select('*').eq('os_id', o.id).order('criado_em', { ascending: false })),
-    ok(sb.from('at_os_itens').select('*').eq('os_id', o.id).order('seq')),
+    ok(sb.from('at_os_itens').select('*').eq('os_id', o.id).order('seq')), ok(sb.from('at_orcamentos').select('*').eq('os_id', o.id).order('criado_em', { ascending: false })),
   ]);
   const { data: urls } = fotos.length ? await sb.storage.from('anexos').createSignedUrls(fotos.map(f => f.caminho), 3600) : { data: [] };
   const rmas = (AT.rma || []).filter(r => r.os_id === o.id), g = garantiaOS(o), aberta = !['entregue', 'cancelado'].includes(o.status);
@@ -289,7 +289,7 @@ async function atAbrir(id) {
   const acoes = {
     recebido: [['em_analise', '🔬 Iniciar análise', 'pri']],
     em_analise: [['na_assistencia', '🏭 Enviar à assistência / fábrica (RMA)', 'pri'], ['aguardando_cliente', '💬 Orçamento ao cliente', ''], ['aguardando_peca', '⏳ Aguardando peça', ''], ['pronto', '✅ Pronto (reparado / trocado / sem defeito)', '']],
-    aguardando_cliente: [['em_analise', '👍 Cliente aprovou (por telefone/loja)', 'pri'], ['pronto', '👎 Cliente recusou: devolver', '']],
+    aguardando_cliente: o.orcamento_status === 'aguardando' ? [] : [['em_analise', '👍 Cliente aprovou (por telefone/loja)', 'pri'], ['pronto', '👎 Cliente recusou: devolver', '']],
     aguardando_peca: [['em_analise', '📦 Peça chegou', 'pri']],
     na_assistencia: [['retornou', '↩ Registrar retorno da assistência', 'pri']],
     retornou: [['pronto', '✅ Pronto para retirada', 'pri']],
@@ -301,7 +301,7 @@ async function atAbrir(id) {
     ${itens.length ? `<table class="tabela mt"><thead><tr><th>#</th><th>Produto</th><th>Marca / modelo</th><th>Nº de série</th><th class="dir">Qtd</th><th>Defeito</th><th>Compra</th></tr></thead><tbody>${itens.map(i => { const gi = garantiaDe(i.data_compra);
       return `<tr><td>${i.seq}</td><td><b>${esc(i.descricao)}</b></td><td>${esc([i.marca, i.modelo].filter(Boolean).join(' '))}</td><td>${esc(i.numero_serie || '—')}</td><td class="dir">${N(i.quantidade)}</td><td><small>${esc(i.defeito || '')}</small></td>
       <td>${gi ? `<small>${pd(i.data_compra).toLocaleDateString('pt-BR')}${i.pedido_numero ? ' · pedido ' + esc(i.pedido_numero) : ''}<br>há ${gi.dias} dia(s) · <span class="${gi.loja || gi.fabrica ? 'c-ok' : 'c-ruim'}">${gi.loja ? 'garantia loja' : gi.fabrica ? 'garantia fabricante' : 'fora da garantia'}</span></small>` : '<small class="mut">—</small>'}</td></tr>`; }).join('')}</tbody></table>` : ''}
-    <div id="osComprasFicha" class="mt"></div>
+    <div id="osComprasFicha" class="mt"></div>${blocoAssistencia(o)}${blocoOrcamento(o, orcs)}
     ${o.orcamento_resposta?.em ? `<div class="alerta ${o.orcamento_resposta.aprova ? 'ok' : 'ruim'} mt"><span class="ic">💬</span><span><b>Cliente ${o.orcamento_resposta.aprova ? 'APROVOU' : 'RECUSOU'} o orçamento pelo link</b> em ${new Date(o.orcamento_resposta.em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} · ${esc(o.orcamento_resposta.nome || '')} (CPF/CNPJ final ${esc(o.orcamento_resposta.doc_final || '')})${o.orcamento_resposta.obs ? '<br>Obs.: ' + esc(o.orcamento_resposta.obs) : ''}</span></div>` : ''}
     <div class="alerta ${o.tiny_os_id ? 'ok' : o.tiny_erro ? 'ruim' : 'med'} mt"><span class="ic">🧾</span><span>${o.tiny_os_id ? `<b>OS nº ${esc(o.tiny_os_numero || '')} no Tiny</b> · as mudanças de situação vão para lá sozinhas${o.tiny_erro ? `<br><small class="c-ruim">Última sincronização falhou: ${esc(o.tiny_erro)}</small>` : ''}` : o.tiny_erro ? `<b>Não foi criada no Tiny:</b> ${esc(o.tiny_erro)}` : 'Criando no Tiny…'}</span>
       ${!o.tiny_os_id ? `<button class="btn peq" data-a="atTinyEnviar" data-id="${o.id}">Enviar ao Tiny</button>` : o.tiny_erro ? `<button class="btn peq" data-a="atTinySinc" data-id="${o.id}">Sincronizar de novo</button>` : ''}</div>
@@ -337,6 +337,7 @@ function atComprasFicha(o, itens) {
 
 // mudar de etapa: pede os dados da etapa e a mensagem ao cliente
 function atMudarForm(id, status) {
+  if (status === 'aguardando_cliente') return atOrcForm(id);   // orçamento: tela própria (custo × margem)
   const o = AT.os.find(x => String(x.id) === String(id));
   const ass = AT.cfg?.assistencias || [];
   const extra = {
@@ -348,7 +349,7 @@ function atMudarForm(id, status) {
     aguardando_cliente: `<label class="campo">Valor do orçamento (R$) *<input type="number" step="0.01" id="mdOrc"></label><label class="campo">Nº da OS no Tiny (cobrança)<input type="text" id="mdTiny"></label>
       <label class="campo">CPF / CNPJ do cliente${o.cliente_doc ? '' : ' <small class="c-med">(sem ele o cliente não aprova pelo link)</small>'}<input type="text" id="mdDoc" inputmode="numeric" value="${esc(o.cliente_doc || '')}"></label>
       <p class="explica inteiro">O cliente aprova ou recusa pelo link "Acompanhe sua OS", confirmando o CPF/CNPJ e o nome completo (<b>${esc(o.cliente_nome)}</b>). Se ele responder por telefone ou na loja, use os botões da ficha.</p>`,
-    pronto: `<label class="campo">Resultado *<select id="mdRes">${['reparado', 'trocado', 'sem_defeito', 'negado', 'devolvido', 'credito'].map(k => `<option value="${k}" ${o.resultado === k ? 'selected' : ''}>${RES_OS[k]}</option>`).join('')}</select></label>
+    pronto: `<label class="campo">Resultado *<select id="mdRes">${['reparado', 'trocado', 'sem_defeito', 'negado', 'devolvido', 'credito'].map(k => `<option value="${k}" ${(o.resultado || (o.status === 'na_assistencia' ? (o.orcamento_status === 'recusado' ? 'devolvido' : 'reparado') : '')) === k ? 'selected' : ''}>${RES_OS[k]}</option>`).join('')}</select></label>
       <label class="campo inteiro">Solução / o que foi feito<textarea id="mdSol" rows="2">${esc(o.solucao || '')}</textarea></label>`,
     entregue: `<label class="campo">Retirado por *<input type="text" id="mdQuem" value="${esc(o.cliente_nome)}"></label>`,
     cancelado: `<label class="campo inteiro">Motivo *<input type="text" id="mdMotivo"></label>`,
@@ -375,6 +376,10 @@ async function atConfirmar(id, status) {
   if (status === 'aguardando_cliente') { if (!Number(v('mdOrc'))) return avisar('Informe o valor do orçamento.'); Object.assign(upd, { orcamento_valor: Number(v('mdOrc')), orcamento_status: 'aguardando', orcamento_resposta: null, tiny_os_numero: v('mdTiny') || o.tiny_os_numero }); if (v('mdDoc').replace(/\D/g, '')) upd.cliente_doc = v('mdDoc').replace(/\D/g, ''); }
   if (status === 'em_analise' && o.status === 'aguardando_cliente') upd.orcamento_status = 'aprovado';
   if (status === 'pronto') { Object.assign(upd, { resultado: v('mdRes'), solucao: v('mdSol') || null }); if (o.status === 'aguardando_cliente') upd.orcamento_status = 'recusado'; }
+  if (status === 'pronto' && o.status === 'na_assistencia') {   // buscamos na assistência: fecha o envio direto, sem passar por "retornou"
+    const r = AT.rma.find(x => x.os_id === o.id && !x.retornou_em);
+    if (r) Object.assign(r, await ok(sb.from('at_rma').update({ retornou_em: hoje(), resultado: v('mdRes') }).eq('id', r.id).select().single()));
+  }
   if (status === 'entregue') { if (!v('mdQuem')) return avisar('Informe quem retirou.'); upd.entregue_para = v('mdQuem'); }
   if (status === 'cancelado' && !v('mdMotivo')) return avisar('Informe o motivo.');
   Object.assign(o, await ok(sb.from('at_os').update(upd).eq('id', o.id).select().single()));
