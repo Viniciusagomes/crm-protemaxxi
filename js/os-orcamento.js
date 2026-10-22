@@ -6,7 +6,7 @@
  * Na assistência (OS em "na_assistencia"): enviado → recebido → em análise → orçamento → aprovado | recusado → manutenção finalizada
  * → (a loja busca) "Disponível para retirada". Cada etapa vira andamento público e aviso ao cliente. */
 
-const ETAPAS_RMA = {
+const ETAPAS_ASSIST = {
   enviado: ['📦 Enviado à assistência', ''], recebido: ['📥 Recebido pela assistência', 'azul'], em_analise: ['🔬 Em análise pela assistência', 'azul'],
   orcamento: ['💬 Orçamento com o cliente', 'med'], aprovado: ['🛠 Aprovado: em manutenção', 'azul'], recusado: ['↩ Recusado: devolvendo sem reparo', 'med'],
   finalizado: ['✅ Manutenção finalizada: buscar', 'ok'],
@@ -29,7 +29,7 @@ function blocoAssistencia(o) {
   const contato = AT.cfg?.contatos_assistencias?.[r.assistencia];
   return `<div class="card mt" style="background:var(--azul-claro, #EEF4FB)"><div class="secao-titulo" style="margin:0"><h3 style="margin:0">🏭 Na assistência: ${esc(r.assistencia)}</h3>
       <small>${r.protocolo ? 'protocolo ' + esc(r.protocolo) + ' · ' : ''}enviado ${fmtCurta(r.enviado_em)}${r.previsao_retorno ? ' · previsão ' + fmtCurta(r.previsao_retorno) : ''}</small></div>
-    <div class="chips" style="margin:8px 0">${ordem.map(k => `<span class="chip ${k === et ? 'on' : ''}" style="cursor:default">${ETAPAS_RMA[k][0]}</span>`).join('')}</div>
+    <div class="chips" style="margin:8px 0">${ordem.map(k => `<span class="chip ${k === et ? 'on' : ''}" style="cursor:default">${ETAPAS_ASSIST[k][0]}</span>`).join('')}</div>
     ${prox.length ? `<div class="acoes">${prox.map(([k, n, c]) => `<button class="btn ${c}" data-a="atEtapa" data-id="${o.id}" data-v="${k}">${n}</button>`).join('')}</div>` : ''}
     ${!contato?.email ? `<p class="mut" style="margin:8px 0 0"><small>⚠ Sem e-mail da ${esc(r.assistencia)} para o aviso automático de aprovado/recusado.
       ${ehDono() ? `<input type="email" id="assEmail" placeholder="e-mail da assistência" style="max-width:240px"> <button class="btn peq" data-a="atAssEmail" data-v="${esc(r.assistencia)}" data-id="${o.id}">Salvar</button>` : 'Peça ao administrador para cadastrar.'}</small></p>`
@@ -133,7 +133,7 @@ function atEtapaForm(id, etapa) {
   if (etapa === '_orc') return atOrcForm(id);
   if (etapa === '_pronto') return atMudarForm(id, 'pronto');
   const o = AT.os.find(x => String(x.id) === String(id)), chave = ETAPA_TEXTO[etapa];
-  modal(`<button class="btn peq fechar" data-a="atAbrirVolta" data-id="${o.id}">✕</button><h2>OS ${esc(o.numero)} → ${ETAPAS_RMA[etapa][0]}</h2>
+  modal(`<button class="btn peq fechar" data-a="atAbrirVolta" data-id="${o.id}">✕</button><h2>OS ${esc(o.numero)} → ${ETAPAS_ASSIST[etapa][0]}</h2>
     <div class="form-grid"><label class="campo inteiro">Mensagem ao cliente <small class="mut">(vai pelo WhatsApp/e-mail e aparece no "Acompanhe sua OS")</small><textarea id="etMsg" rows="3">${esc(chave ? textoAviso(o, chave, '') : '')}</textarea></label>
       <label class="campo"><span><input type="checkbox" id="etAvisar" ${(o.cliente_fone || o.cliente_email) && chave ? 'checked' : ''}> Avisar o cliente</span></label></div>
     <div class="mt"><button class="btn pri" data-a="atEtapaOk" data-id="${o.id}" data-v="${etapa}">Confirmar</button></div>`, true);
@@ -142,8 +142,8 @@ async function atEtapaSalvar(id, etapa) {
   const o = AT.os.find(x => String(x.id) === String(id)), r = rmaAberto(o); if (!r) return avisar('Não achei o envio à assistência desta OS.');
   Object.assign(r, await ok(sb.from('at_rma').update({ etapa }).eq('id', r.id).select().single()));
   const msg = ($('#etMsg')?.value || '').trim();
-  if ($('#etAvisar')?.checked && msg) await gerarAvisos(o, 'na_assistencia', '', msg, `${AT.cfg?.empresa || ''} · OS ${o.numero}: ${ETAPAS_RMA[etapa][0].replace(/^\S+\s/, '')}`);
-  avisar(`OS ${o.numero}: ${ETAPAS_RMA[etapa][0].replace(/^\S+\s/, '')}.`); render(); atAbrir(o.id);
+  if ($('#etAvisar')?.checked && msg) await gerarAvisos(o, 'na_assistencia', '', msg, `${AT.cfg?.empresa || ''} · OS ${o.numero}: ${ETAPAS_ASSIST[etapa][0].replace(/^\S+\s/, '')}`);
+  avisar(`OS ${o.numero}: ${ETAPAS_ASSIST[etapa][0].replace(/^\S+\s/, '')}.`); render(); atAbrir(o.id);
 }
 async function atAssEmail(nome, osId) {
   const email = ($('#assEmail')?.value || '').trim();
