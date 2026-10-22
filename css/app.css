@@ -694,3 +694,16 @@ body.tvestoque .barra-inf { display: none !important; }
 .tel-chip.cel { border-color: rgba(31,174,90,.45); }
 
 .cli-contato { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13.5px; margin: 2px 0 6px; } td.nowrap { white-space: nowrap; }
+
+/* caixa de e-mails */
+.em-grid { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); align-items: start; }
+.em-lista { max-height: 70vh; overflow-y: auto; }
+.em-item { padding: 9px 10px; border-bottom: 1px solid var(--borda, #E8DFD3); cursor: pointer; border-radius: 8px; }
+.em-item:hover { background: rgba(0,0,0,.03); }
+.em-item.on { background: rgba(31,174,90,.10); }
+.em-item.nao-lido b { font-weight: 800; }
+.em-item.nao-lido { border-left: 3px solid #1FAE5A; }
+.em-leitor { position: sticky; top: 12px; }
+.em-html { width: 100%; height: 62vh; border: 1px solid var(--borda, #E8DFD3); border-radius: 8px; background: #fff; }
+.em-texto { white-space: pre-wrap; word-break: break-word; font-family: inherit; font-size: 14px; max-height: 62vh; overflow: auto; margin: 0; }
+@media (max-width: 900px) { .em-grid { grid-template-columns: 1fr; } .em-leitor { position: static; } }

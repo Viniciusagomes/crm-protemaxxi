@@ -13,7 +13,7 @@ function menu() {
     ...(veTrafego() ? [['Marketing'], ['', 'trafego', '📣', 'Tráfego (Google Ads)', trPendentes()]] : []),
     ...(veExp() ? [['Operação'], ['', 'visaoestoque', '📋', 'Visão geral do estoque'], ['', 'expedicao', '📦', 'Expedição', EXP ? EXP.ecom.map(infoPedido).filter(x => !x.despachado && x.atrasado).length : 0], ['', 'estoque', '🏷', 'Estoque', EXP ? EXP.alertas.length : 0], ['', 'abrirTV', '📺', 'TV do estoque']] : []),
     ...(veCompras() ? [...(veExp() ? [] : [['Operação']]), ['', 'compras', '🤝', 'Compras e fornecedores', COMP.ops ? COMP.ops.filter(o => situacaoOp(o) === 'encerrada').length : 0]] : []),
-    ['Comunicação'], ['', 'solicitacoes', '📨', 'Solicitações', minhasPendentes().length], ['', 'suporte', '🔧', 'Assistência (OS)', AT.os ? AT.os.filter(o => o.status === 'pronto' || (o.previsao && o.previsao < hoje() && !['entregue', 'cancelado'].includes(o.status))).length : 0],
+    ['Comunicação'], ['', 'solicitacoes', '📨', 'Solicitações', minhasPendentes().length], ...(veEmails() ? [['', 'emails', '✉', 'Caixa de e-mails', EM.naoLidos]] : []), ['', 'suporte', '🔧', 'Assistência (OS)', AT.os ? AT.os.filter(o => o.status === 'pronto' || (o.previsao && o.previsao < hoje() && !['entregue', 'cancelado'].includes(o.status))).length : 0],
     ['Equipe'], ['', 'checklist', '☑', 'Checklist do dia'],
     ...(temEquipe() ? [['', 'supervisao', '👥', 'Supervisão']] : []),
     ...(ehDono() ? [['', 'geral', '◉', 'Visão da equipe']] : []),
@@ -28,7 +28,7 @@ function menu() {
 }
 const VIEWS_FN = {
   inicio: () => vInicio(), vendas: () => vVendas(), ml: () => vML(), trafego: () => vTrafego(), pedidos: () => vPedidos(), clientes: () => vClientes(),
-  solicitacoes: () => vIntranet(), suporte: () => vAssistencia(), expedicao: () => vExpedicao(), estoque: () => vEstoque(), visaoestoque: () => vVisaoEstoque(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(), creditos: () => vCreditos(), brindes: () => vBrindes(), crm: () => vCRM(), meudia: () => vMeuDia(), situacao: () => vSituacao(), boletos: () => vBoletos(), avaliacoes: () => vAvaliacoes(), compras: () => vCompras(),
+  solicitacoes: () => vIntranet(), suporte: () => vAssistencia(), expedicao: () => vExpedicao(), estoque: () => vEstoque(), visaoestoque: () => vVisaoEstoque(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(), creditos: () => vCreditos(), brindes: () => vBrindes(), crm: () => vCRM(), meudia: () => vMeuDia(), situacao: () => vSituacao(), boletos: () => vBoletos(), emails: () => vEmails(), avaliacoes: () => vAvaliacoes(), compras: () => vCompras(),
   checklist: () => vChecklist(), supervisao: () => vSupervisao(), geral: () => vGeral(), metas: () => vMetas(),
   remuneracao: () => vRemuneracao(), feedbacks: () => vFeedbacks(), config: () => vConfig(), ajuda: () => vAjuda(),
 };
@@ -48,6 +48,7 @@ function abasDoPerfil() {
   if (veExp()) add('visaoestoque', 'expedicao', 'estoque', 'abrirTV', 'tvestoque');
   if (veCompras()) add('compras');
   if (P.suporte) add('suporte');
+  if (veEmails()) add('emails');
   if (veMonitoria()) add('monitoria');
   if (temEquipe()) { add('supervisao', 'checklist', 'metas'); if (comercial) add('creditos', 'brindes'); }
   return s;
@@ -130,7 +131,7 @@ function vConfigExtra(tab) {
         return `<div class="cfg-linha cfg-acesso"><div style="display:flex;gap:8px;align-items:center">${av(p)}<div><b>${esc(p.nome)}</b><br><small>${esc(p.cargo)}${p.ativo ? '' : ' · inativo'}</small></div></div>
         <select data-c="set" data-path="pessoas.${i}.papel">${Object.entries(PAPEIS).map(([k, v]) => `<option value="${k}" ${p.papel === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
         <select data-c="set" data-path="pessoas.${i}.tiny"><option value="">— não vende —</option>${D.vendedoresTiny.map(v => `<option value="${v.id}" ${p.tiny === v.id ? 'selected' : ''}>${esc(v.nome)}</option>`).join('')}${p.tiny && !D.vendedoresTiny.some(v => v.id === p.tiny) ? `<option value="${p.tiny}" selected>id ${p.tiny}</option>` : ''}</select>
-        <div style="display:flex;flex-direction:column;gap:2px;font-size:13px">${[['vendas_todas', 'Todas as vendas e clientes'], ['ecommerce', 'Pedidos do e-commerce'], ['expedicao', 'Expedição e estoque'], ['aprovar_pagamento', 'Aprovar pagamento (depósito/Tray)'], ['suporte', 'Ordens de serviço (suporte)'], ['trafego', 'Tráfego (Google Ads)'], ['admin', 'Configurações (admin)']].map(([k, n]) => `<label><input type="checkbox" ${p.permissoes?.[k] ? 'checked' : ''} data-c="perm" data-i="${i}" data-k="${k}"> ${n}</label>`).join('')}</div>
+        <div style="display:flex;flex-direction:column;gap:2px;font-size:13px">${[['vendas_todas', 'Todas as vendas e clientes'], ['ecommerce', 'Pedidos do e-commerce'], ['expedicao', 'Expedição e estoque'], ['aprovar_pagamento', 'Aprovar pagamento (depósito/Tray)'], ['suporte', 'Ordens de serviço (suporte)'], ['financeiro', 'Financeiro (boletos a pagar e notas recebidas)'], ['trafego', 'Tráfego (Google Ads)'], ['admin', 'Configurações (admin)']].map(([k, n]) => `<label><input type="checkbox" ${p.permissoes?.[k] ? 'checked' : ''} data-c="perm" data-i="${i}" data-k="${k}"> ${n}</label>`).join('')}</div>
         <div>${p.user_id ? `<b>${esc(p.email || u?.email || '')}</b><br><small>${u?.bloqueado ? '<span class="c-ruim">bloqueado</span>' : u?.ultimo_login ? 'último acesso ' + new Date(u.ultimo_login).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'nunca entrou'}</small>
           <br><small>2FA: ${u?.mfa ? '<span class="c-ok">ativo</span>' : (['dono', 'supervisor'].includes(p.papel) || p.permissoes?.admin || p.permissoes?.mfa) ? '<span class="c-med">obrigatório, cadastra no próximo acesso</span>' : 'não exigido'}</small>
           <div class="acoes" style="margin-top:4px"><button class="btn peq" data-a="loginSenha" data-p="${p.id}">Trocar senha</button>${u?.mfa && p.id !== EU.id ? `<button class="btn peq" data-a="zerar2fa" data-p="${p.id}" title="Use se a pessoa perdeu ou trocou de celular">Zerar 2FA</button>` : ''}${p.papel !== 'dono' ? `<button class="btn peq" data-a="loginBloq" data-p="${p.id}" data-v="${u?.bloqueado ? 'desbloquear' : 'bloquear'}">${u?.bloqueado ? 'Desbloquear' : 'Bloquear'}</button><button class="btn peq perigo" data-a="loginRemover" data-p="${p.id}">Remover login</button>` : ''}</div>`
@@ -204,6 +205,14 @@ let timerTV = null;
 
 // ═══════════════════════════ ações ═══════════════════════════
 const A = {
+  emCaixa: el => { EM.caixa = el.dataset.v; EM.sel = null; render(); },
+  emAbrir: el => emAbrir(el.dataset.id).catch(e => avisar(e.message)),
+  emAnexo: el => emAnexo(el.dataset.id, el.dataset.e).catch(e => avisar(e.message)),
+  emCopiar: el => navigator.clipboard?.writeText(el.dataset.v).then(() => avisar('Linha digitável copiada.')).catch(() => prompt('Copie a linha digitável:', el.dataset.v)),
+  emBolPago: el => emBoleto(el.dataset.id, 'pago').catch(e => avisar(e.message)),
+  emBolIgnorar: el => emBoleto(el.dataset.id, 'ignorado').catch(e => avisar(e.message)),
+  emArquivar: el => emArquivar(el.dataset.id).catch(e => avisar(e.message)),
+  emAtualizar: () => carregarEmails(true).then(render).catch(e => avisar(e.message)),
   sitFiltro: el => { UI.sitFiltro = el.dataset.v; render(); },
   sitAtualizar: async () => { try { await carregarSituacao(true); avisar('Atualizado ✓'); } catch (e) { avisar(e.message); } render(); },
   nav: el => { if (el.dataset.v === 'abrirTV') return A.abrirTV(); UI.view = el.dataset.v; fecharModal(); render(); window.scrollTo(0, 0); },
