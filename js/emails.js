@@ -69,7 +69,9 @@ function emAPagar() {
   const ab = EM.boletos.filter(b => b.status === 'a_pagar'), h = hoje(), semana = addDias(h, 7);
   const venc = ab.filter(b => b.vencimento && b.vencimento < h), prox = ab.filter(b => b.vencimento && b.vencimento >= h && b.vencimento <= semana);
   const linha = b => `<tr class="${b.vencimento && b.vencimento < h ? 'c-ruim' : ''}"><td><b>${esc(b.beneficiario || 'Beneficiário não lido')}</b><br><small class="mut">${b.cnpj ? esc(b.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')) : ''}${b.banco ? ' · banco ' + esc(b.banco) : ''}</small>
-      ${b.alerta ? `<br><small class="c-med">⚠ ${esc(b.alerta)}</small>` : ''}</td>
+      ${b.alerta ? `<br><small class="c-med">⚠ ${esc(b.alerta)}</small>` : ''}
+      <br><small>${b.nf_numero ? `📄 NF ${esc(b.nf_numero)}${b.nf_valor ? ' de ' + R(b.nf_valor) : ''} <span class="tag ${b.vinculo === 'provavel' ? 'med' : 'ok'}">${{ certa: 'valor bate', provavel: 'provável', manual: 'ligada à mão' }[b.vinculo] || ''}</span>` : '<span class="c-med">sem nota ligada</span>'}
+        <a href="#" data-a="emBolNF" data-id="${b.id}">${b.nf_numero ? 'trocar' : 'ligar nota'}</a></small></td>
       <td class="dir">${b.vencimento ? fmtCurta(b.vencimento) : '—'}</td><td class="dir"><b>${b.valor ? R(b.valor) : '—'}</b></td>
       <td class="dir"><button class="btn peq" data-a="emCopiar" data-v="${esc(b.linha)}" title="Copiar a linha digitável">📋 Linha</button>
         ${b.email_id ? `<button class="btn peq" data-a="emAbrir" data-id="${b.email_id}">Ver e-mail</button>` : ''}
@@ -118,6 +120,28 @@ async function emAnexo(id, emailId) {
   const { data, error } = await sb.storage.from('emails').createSignedUrl(a.caminho, 600, { download: /pdf|image/.test(a.tipo || '') ? false : a.nome });
   if (error) return avisar(error.message);
   window.open(data.signedUrl, '_blank', 'noopener');
+}
+/** Liga o boleto à nota do mesmo CNPJ à mão (a ligação automática das 17h não troca o que foi ligado à mão). */
+async function emBolNF(id) {
+  const b = EM.boletos.find(x => x.id === Number(id)); if (!b?.cnpj) return avisar('Este boleto não tem CNPJ do beneficiário.');
+  const cnpjFmt = b.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+  const [tiny, email] = await Promise.all([
+    sb.from('nf_entradas').select('numero,chave,valor,emissao').or(`fornecedor_doc.eq.${b.cnpj},fornecedor_doc.eq.${cnpjFmt}`).order('emissao', { ascending: false }).limit(30).then(r => r.data || []),
+    sb.from('nfs_recebidas').select('numero,chave,valor,emissao').eq('cnpj', b.cnpj).order('emissao', { ascending: false }).limit(30).then(r => r.data || []),
+  ]);
+  const notas = [...email.map(n => ({ ...n, origem: 'email' })), ...tiny.filter(t => !email.some(e => e.chave && e.chave === t.chave)).map(n => ({ ...n, origem: 'tiny' }))];
+  if (!notas.length) return avisar('Nenhuma nota desse CNPJ na Intranet (nem por e-mail nem no Tiny).');
+  modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>Ligar nota ao boleto</h2>
+    <p class="explica">${esc(b.beneficiario || '')} · boleto de <b>${R(b.valor)}</b>${b.vencimento ? ' · vence ' + fmtCurta(b.vencimento) : ''}</p>
+    <div class="acoes" style="flex-direction:column;align-items:stretch">${notas.map((n, i) => `<button class="btn" data-a="emBolNFOk" data-id="${b.id}" data-i="${i}" style="text-align:left">NF <b>${esc(n.numero || '')}</b> · ${R(n.valor)} · emitida ${n.emissao ? fmtCurta(String(n.emissao).slice(0, 10)) : '—'} <small class="mut">(${n.origem === 'tiny' ? 'Tiny' : 'e-mail'})</small></button>`).join('')}
+      ${b.nf_numero ? `<button class="btn peq" data-a="emBolNFOk" data-id="${b.id}" data-i="-1">Tirar a ligação</button>` : ''}</div>`);
+  EM.notasEscolha = notas;
+}
+async function emBolNFSalvar(id, i) {
+  const b = EM.boletos.find(x => x.id === Number(id)), n = EM.notasEscolha?.[Number(i)];
+  const upd = n ? { nf_chave: n.chave || null, nf_numero: n.numero || null, nf_valor: n.valor || null, nf_origem: n.origem, vinculo: 'manual' } : { nf_chave: null, nf_numero: null, nf_valor: null, nf_origem: null, vinculo: null };
+  Object.assign(b, await ok(sb.from('boletos_pagar').update(upd).eq('id', b.id).select().single()));
+  fecharModal(); avisar(n ? `Boleto ligado à NF ${n.numero}.` : 'Ligação retirada.'); render();
 }
 async function emBoleto(id, status) {
   const b = EM.boletos.find(x => x.id === Number(id)); if (!b) return;
