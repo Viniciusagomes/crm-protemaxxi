@@ -22,7 +22,7 @@ async function scenario(mailConfig,person){
   const other=await scenario({acessos:{marcos:['os']}},'outro');
   const owner=await scenario({acessos:{marcos:['os']}},'dono');
   assert.equal(before.menu,false);assert.equal(before.route,false);
-  assert.equal(marcos.menu,true);assert.equal(marcos.route,true);assert.deepEqual(marcos.boxes,['todos','os_intelbras']);
+  assert.equal(marcos.menu,true);assert.equal(marcos.route,true);assert.deepEqual(marcos.boxes,['todos','os_intelbras','arquivados']);
   assert.equal(other.menu,false);assert.equal(other.route,false);
   assert.equal(owner.menu,true);assert.ok(owner.boxes.includes('boletos'));
   console.log(JSON.stringify({passed:true,marcos,other_user:other,owner_access_preserved:owner.menu,missing_config_denies_access:!before.menu},null,2));

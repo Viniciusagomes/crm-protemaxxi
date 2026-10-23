@@ -7,8 +7,10 @@
 const EM = { lista: null, boletos: [], nfs: [], carregando: false, em: 0, caixa: 'todos', sel: null, corpo: {}, naoLidos: 0 };
 const emAcessos = () => D?.config?.caixa_emails?.acessos?.[EU?.id] || [];
 const veEmails = () => ehDono() || emAcessos().length > 0;
-const EM_CAIXAS = { todos: ['📥', 'Todos'], os_intelbras: ['🔧', 'OS Intelbras'], boletos: ['🧾', 'Boletos'], nfe: ['📄', 'Notas fiscais'], outros: ['✉', 'Outros'], enviados: ['📤', 'Enviados'] };
-const emCaixasMinhas = () => ehDono() ? Object.keys(EM_CAIXAS) : ['todos', ...Object.keys(EM_CAIXAS).filter(c => emAcessos().some(a => a === c || (a === 'os' && c.startsWith('os_'))))];
+const emPodeArquivar = () => !!EU && EU.id !== 'marcos';
+const EM_CAIXAS = { todos: ['📥', 'Todos'], os_intelbras: ['🔧', 'OS Intelbras'], boletos: ['🧾', 'Boletos'], nfe: ['📄', 'Notas fiscais'], outros: ['✉', 'Outros'], enviados: ['📤', 'Enviados'], arquivados: ['🗃', 'Arquivados'] };
+const emCaixasMinhas = () => ehDono() ? Object.keys(EM_CAIXAS) : ['todos', ...Object.keys(EM_CAIXAS).filter(c => !['todos', 'arquivados'].includes(c) && emAcessos().some(a => a === c || (a === 'os' && c.startsWith('os_')))), 'arquivados'];
+const emListaDaCaixa = c => (EM.lista || []).filter(e => c === 'arquivados' ? e.arquivado : !e.arquivado && (c === 'todos' ? e.direcao === 'entrada' : e.caixa === c));
 const emTam = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
 
 async function carregarEmails(forcar) {
@@ -16,13 +18,15 @@ async function carregarEmails(forcar) {
   EM.carregando = true;
   try {
     const desde = addDias(hoje(), -120) + 'T00:00:00';
-    const [lista, boletos, nfs] = await Promise.all([
-      ok(sb.from('emails').select('id,direcao,caixa,de,de_nome,para,assunto,recebido_em,lido_em,arquivado,processado,erro,ref_tipo,ref_id,tamanho,anexos:email_anexos(id,nome,tipo,tamanho,caminho)')
+    const campos = 'id,direcao,caixa,de,de_nome,para,assunto,recebido_em,lido_em,arquivado,processado,erro,ref_tipo,ref_id,tamanho,anexos:email_anexos(id,nome,tipo,tamanho,caminho)';
+    const [lista, arquivados, boletos, nfs] = await Promise.all([
+      ok(sb.from('emails').select(campos).eq('arquivado', false)
         .gte('recebido_em', desde).order('recebido_em', { ascending: false }).limit(600)),
+      todas(() => sb.from('emails').select(campos).eq('arquivado', true).order('recebido_em', { ascending: false }).order('id', { ascending: false })),
       sb.from('boletos_pagar').select('*').or(`status.eq.a_pagar,criado_em.gte.${addDias(hoje(), -60)}`).order('vencimento').then(r => r.data || []),
       sb.from('nfs_recebidas').select('*').gte('criado_em', addDias(hoje(), -120)).order('criado_em', { ascending: false }).then(r => r.data || []),
     ]);
-    Object.assign(EM, { lista, boletos, nfs, em: Date.now(), naoLidos: lista.filter(e => e.direcao === 'entrada' && !e.lido_em && !e.arquivado).length });
+    Object.assign(EM, { lista: [...lista, ...arquivados], boletos, nfs, em: Date.now(), naoLidos: lista.filter(e => e.direcao === 'entrada' && !e.lido_em && !e.arquivado).length });
   } finally { EM.carregando = false; }
 }
 
@@ -46,20 +50,20 @@ function vEmails() {
   if (!EM.lista) { if (!EM.carregando) carregarEmails().then(render).catch(e => avisar(e.message)); return topo('Caixa de e-mails', '') + '<div class="card vazio">Carregando…</div>'; }
   const minhas = emCaixasMinhas();
   if (!minhas.includes(EM.caixa)) EM.caixa = 'todos';
-  const daCaixa = c => EM.lista.filter(e => !e.arquivado && (c === 'todos' ? e.direcao === 'entrada' : e.caixa === c));
-  const chips = minhas.map(c => { const n = daCaixa(c).filter(e => e.direcao === 'entrada' && !e.lido_em).length;
+  const daCaixa = emListaDaCaixa;
+  const chips = minhas.map(c => { const n = c === 'arquivados' ? daCaixa(c).length : daCaixa(c).filter(e => e.direcao === 'entrada' && !e.lido_em).length;
     return `<button class="btn peq ${EM.caixa === c ? 'pri' : ''}" data-a="emCaixa" data-v="${c}">${EM_CAIXAS[c][0]} ${EM_CAIXAS[c][1]}${n ? ` <b>${n}</b>` : ''}</button>`; }).join('');
   const lista = daCaixa(EM.caixa);
   const linha = e => `<div class="item-lista em-item ${EM.sel === e.id ? 'on' : ''} ${e.direcao === 'entrada' && !e.lido_em ? 'nao-lido' : ''}" data-a="emAbrir" data-id="${e.id}">
       <div class="secao-titulo" style="margin:0"><b>${esc(e.direcao === 'saida' ? 'Para: ' + (e.para || '') : (e.de_nome || e.de || ''))}</b><small class="mut">${dataHora(e.recebido_em)}</small></div>
-      <div>${EM.caixa === 'todos' ? `<small class="mut">${EM_CAIXAS[e.caixa]?.[0] || ''}</small> ` : ''}${esc(e.assunto || '(sem assunto)')}${e.anexos?.length ? ` <small class="mut">📎 ${e.anexos.length}</small>` : ''}</div>
+      <div>${['todos', 'arquivados'].includes(EM.caixa) ? `<small class="mut">${EM_CAIXAS[e.caixa]?.[0] || ''}</small> ` : ''}${esc(e.assunto || '(sem assunto)')}${e.anexos?.length ? ` <small class="mut">📎 ${e.anexos.length}</small>` : ''}</div>
       <div style="margin-top:3px">${emLido(e)}${e.erro ? ' <span class="tag ruim" title="' + esc(e.erro) + '">erro na leitura</span>' : ''}</div></div>`;
   const pagar = EM.caixa === 'boletos' ? emAPagar() : '';
   const config = !EM.lista.some(e => e.direcao === 'entrada') ? `<div class="card mt"><h2>Ainda não chegou nenhum e-mail</h2><p class="explica">Os endereços <b>boletos@</b>, <b>nfe@</b> e <b>os.intelbras@</b>portalprotemaxxi.com.br começam a funcionar depois do passo a passo no Cloudflare
     (arquivo <code>crm-protemaxxi/cloudflare/PASSO-A-PASSO-EMAIL.md</code>). Os enviados pela Intranet (avisos de OS e convites de avaliação) aparecem em "Enviados".</p></div>` : '';
   return topo('Caixa de e-mails', 'Tudo que chega em @portalprotemaxxi.com.br e o que a Intranet envia', `<button class="btn" data-a="emAtualizar">↻ Atualizar</button>`)
     + `<div class="acoes mt">${chips}</div>${config}${pagar}
-    <div class="grid g2 mt em-grid"><div class="card"><div class="secao-titulo"><h2>${EM_CAIXAS[EM.caixa][1]}</h2><small>${lista.length} e-mail(s) · últimos 120 dias</small></div>
+    <div class="grid g2 mt em-grid"><div class="card"><div class="secao-titulo"><h2>${EM_CAIXAS[EM.caixa][1]}</h2><small>${lista.length} e-mail(s) · ${EM.caixa === 'arquivados' ? 'todos os arquivados disponíveis' : 'últimos 120 dias'}</small></div>
         <input type="search" placeholder="Buscar remetente, assunto…" data-filtro="emLista" style="width:100%;margin:6px 0">
         <div id="emLista" class="em-lista">${lista.map(linha).join('') || '<div class="vazio">Nada por aqui.</div>'}</div></div>
       <div class="card em-leitor">${emLeitor()}</div></div>`;
@@ -92,7 +96,7 @@ function emLeitor() {
     : `<pre class="em-texto">${esc(c.texto || '(sem texto)')}</pre>`;
   return `<div class="secao-titulo" style="margin:0;align-items:flex-start"><div><h2 style="margin:0">${esc(e.assunto || '(sem assunto)')}</h2>
       <small class="mut">${e.direcao === 'saida' ? 'Enviado para' : 'De'} <b>${esc(e.direcao === 'saida' ? e.para || '' : `${e.de_nome ? e.de_nome + ' · ' : ''}${e.de || ''}`)}</b>${e.direcao === 'entrada' ? ` · para ${esc(e.para || '')}` : ''} · ${dataHora(e.recebido_em)}</small></div>
-      <div class="acoes">${e.direcao === 'entrada' ? `<button class="btn peq" data-a="emArquivar" data-id="${e.id}">${e.arquivado ? 'Desarquivar' : 'Arquivar'}</button>` : ''}</div></div>
+      <div class="acoes">${e.direcao === 'entrada' && emPodeArquivar() ? `<button class="btn peq" data-a="emArquivar" data-id="${e.id}">${e.arquivado ? 'Desarquivar' : 'Arquivar'}</button>` : ''}</div></div>
     ${e.processado ? `<div style="margin:8px 0">${emLido(e, true)}</div>` : ''}
     ${(e.processado || []).filter(p => p.tipo === 'os').flatMap(p => p.os || []).map(o => `<button class="btn peq" data-a="verOS" data-id="${o.id}">Abrir OS ${esc(o.numero)}</button>`).join(' ')}
     ${e.anexos?.length ? `<div class="acoes" style="margin:8px 0">${e.anexos.map(a => `<button class="btn peq" data-a="emAnexo" data-id="${a.id}" data-e="${e.id}">📎 ${esc(a.nome)} <small class="mut">${emTam(a.tamanho || 0)}</small></button>`).join('')}</div>` : ''}
@@ -111,7 +115,7 @@ async function emAbrir(id) {
   }
   const x = EM.lista.find(y => y.id === id);
   if (x && x.direcao === 'entrada' && !x.lido_em) {
-    x.lido_em = new Date().toISOString(); EM.naoLidos = Math.max(0, EM.naoLidos - 1);
+    x.lido_em = new Date().toISOString(); if (!x.arquivado) EM.naoLidos = Math.max(0, EM.naoLidos - 1);
     await sb.from('emails').update({ lido_em: x.lido_em, lido_por: EU.id }).eq('id', id); render();
   }
 }
@@ -152,7 +156,10 @@ async function emBoleto(id, status) {
   Object.assign(b, r); avisar(status === 'pago' ? 'Boleto marcado como pago.' : 'Boleto ignorado.'); render();
 }
 async function emArquivar(id) {
+  if (!emPodeArquivar()) return avisar('Seu acesso permite consultar os e-mails, mas não arquivar ou desarquivar.');
   const e = EM.lista.find(x => x.id === Number(id)); if (!e) return;
   await ok(sb.from('emails').update({ arquivado: !e.arquivado }).eq('id', e.id).select('id'));
-  e.arquivado = !e.arquivado; if (e.arquivado) EM.sel = null; render();
+  e.arquivado = !e.arquivado; EM.sel = null;
+  EM.naoLidos = EM.lista.filter(x => x.direcao === 'entrada' && !x.lido_em && !x.arquivado).length;
+  render();
 }
