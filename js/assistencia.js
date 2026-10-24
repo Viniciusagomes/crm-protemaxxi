@@ -12,7 +12,7 @@ const ST_OS = {
 };
 const TIPOS_OS = { garantia_fabrica: '🏭 Garantia do fabricante', garantia_loja: '🏪 Garantia da loja', manutencao: '🛠 Manutenção (paga)', troca: '🔁 Troca' };
 const RES_OS = { reparado: '🛠 Reparado', trocado: '🔁 Trocado', sem_defeito: '✔ Sem defeito constatado', negado: '🚫 Garantia negada', devolvido: '↩ Devolvido sem reparo', credito: '💳 Virou crédito' };
-const COLUNAS_OS = ['recebido', 'em_analise', 'aguardando_cliente', 'aguardando_peca', 'na_assistencia', 'retornou', 'pronto'];
+const COLUNAS_OS = ['recebido', 'em_analise', 'na_assistencia', 'aguardando_peca', 'retornou', 'aguardando_cliente', 'pronto'];
 const linkOS = o => `${location.origin}${location.pathname.replace(/[^/]*$/, '')}os.html?t=${o.token}`;
 
 async function carregarAT(forcar) {

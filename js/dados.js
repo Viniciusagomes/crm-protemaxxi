@@ -54,7 +54,7 @@ async function carregarTudo() {
   const c = Object.fromEntries(cfg.map(x => [x.chave, x.valor]));
   D = {
     empresa: c.empresa || 'Protemaxxi / CFTV Clube',
-    config: { encargos: c.encargos ?? 37, dsr: c.dsr ?? true, feriados: c.feriados || [], solicitacoes: c.solicitacoes || {}, inicioUso: c.inicio_uso || '', caixa_emails: c.caixa_emails || {} },
+    config: { encargos: c.encargos ?? 37, dsr: c.dsr ?? true, feriados: c.feriados || [], solicitacoes: c.solicitacoes || {}, inicioUso: c.inicio_uso || '', caixa_emails: c.caixa_emails || {}, prospeccao: c.prospeccao || {} },
     pessoas: ps, reg: {}, sem: {}, mes: {}, feedbacks: [], vendedoresTiny: vend,
     sync: Object.fromEntries(est.map(x => [x.chave, { ...x.valor, em_db: x.atualizado_em }])),
     pedidos: [], vendas: {}, ecom: {}, clientes: null, solicitacoes: [], interacoes: [],

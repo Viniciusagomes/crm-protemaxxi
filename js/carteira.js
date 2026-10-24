@@ -8,7 +8,8 @@ const SEGMENTOS = {
   promissores: { n: '🌟 Promissores', d: 'Compraram recentemente, ainda pouco', acao: 'Mostrar o mix: câmeras, alarmes, acessórios' },
   novos: { n: '🌱 Novos', d: 'Primeira compra nos últimos 60 dias', acao: 'Pós-venda e segunda compra' },
   em_risco: { n: '⚠️ Em risco', d: 'Compravam bem e estão sumindo', acao: 'Ligar já: oferta personalizada' },
-  atencao: { n: '👀 Precisam de atenção', d: 'No meio do caminho', acao: 'Ofertas da semana' },
+  atencao: { n: '👀 Precisam de atenção', d: 'Sem contato registrado nos últimos 30 dias', acao: 'Retomar a última compra e oferecer reposição ou complemento' },
+  acompanhamento: { n: '💬 Em acompanhamento', d: 'Precisavam de atenção e receberam contato nos últimos 30 dias', acao: 'Acompanhar a conversa e cumprir o próximo retorno' },
   hibernando: { n: '💤 Hibernando', d: 'Pouco e há muito tempo', acao: 'Campanha de reativação' },
 };
 const TIPOS_CLI = { instalador: '🛠 Instalador', revenda: '🏪 Revenda', condominio: '🏢 Condomínio', empresa: '🏭 Empresa', orgao_publico: '🏛 Órgão público', consumidor: '🏠 Consumidor final' };
@@ -23,10 +24,23 @@ function tipoCli(c) {
 }
 const ehInstalador = c => ['instalador', 'revenda'].includes(tipoCli(c));
 
+/** Contato comercial registrado; anotações e clientes apenas pulados não contam como abordagem. */
+function contatosRecentes() {
+  const desde = addDias(hoje(), -30), ate = hoje(), mapa = {};
+  const guardar = (chave, data) => { const dia = String(data || '').slice(0, 10); if (chave && dia >= desde && dia <= ate && (!mapa[chave] || dia > mapa[chave])) mapa[chave] = dia; };
+  for (const i of D.interacoes || []) if (['ligacao', 'whatsapp', 'visita', 'email'].includes(i.tipo)) guardar(i.cliente_chave, i.criado_em);
+  for (const x of PRO.hist || []) if (x.resultado && x.resultado !== 'pular') guardar(x.cliente_chave, x.resultado_em || x.data);
+  return mapa;
+}
+function acompanharRFM(mapa) {
+  const contatos = contatosRecentes();
+  return Object.fromEntries(Object.entries(mapa).map(([chave, x]) => [chave, { ...x, seg: x.seg === 'atencao' && contatos[chave] ? 'acompanhamento' : x.seg, ultimo_contato: contatos[chave] }]));
+}
+
 /** Calcula RFM, segmento e curva ABC para a carteira carregada (D.clientes). Guarda o resultado em cache por tamanho da lista. */
 function rfm() {
   const l = D.clientes || [];
-  if (rfm.cache && rfm.cache.n === l.length && rfm.cache.ref === l) return rfm.cache.mapa;
+  if (rfm.cache && rfm.cache.n === l.length && rfm.cache.ref === l && rfm.cache.dia === hoje()) return acompanharRFM(rfm.cache.mapa);
   const nota = (vals, inverso) => { const ord = [...vals].sort((a, b) => a - b); return v => { let i = ord.findIndex(x => x >= v); if (i < 0) i = ord.length - 1; const q = Math.min(5, 1 + Math.floor(i / ord.length * 5)); return inverso ? 6 - q : q; }; };
   const nR = nota(l.map(c => +c.dias_sem_comprar), true), nF = nota(l.map(c => +c.pedidos)), nM = nota(l.map(c => +c.total));
   const totalGeral = soma(l.map(c => +c.total)) || 1;
@@ -40,8 +54,8 @@ function rfm() {
       : r <= 2 && (f >= 3 || m >= 4) ? 'em_risco' : r <= 2 ? 'hibernando' : 'atencao';
     mapa[c.chave] = { r, f, m, seg, abc: abc[c.chave] };
   }
-  rfm.cache = { n: l.length, ref: l, mapa };
-  return mapa;
+  rfm.cache = { n: l.length, ref: l, mapa, dia: hoje() };
+  return acompanharRFM(mapa);
 }
 const seloSeg = k => k ? `<span class="tag seg-${k}" title="${esc(SEGMENTOS[k].d)}">${SEGMENTOS[k].n}</span>` : '';
 
@@ -90,7 +104,7 @@ async function carregarProspeccao(forcar) {
   try {
     const [hojeL, hist] = await Promise.all([
       ok(sb.from('prospeccao').select('*').eq('data', hoje()).eq('pessoa_id', quem).order('id')),
-      todas(() => sb.from('prospeccao').select('id,data,pessoa_id,cliente_chave,lista,resultado').gte('data', addDias(hoje(), -30))),
+      todas(() => sb.from('prospeccao').select('id,data,pessoa_id,cliente_chave,lista,resultado,resultado_em').gte('data', addDias(hoje(), -30))),
     ]);
     PRO.dados = hojeL; PRO.hist = hist; PRO.chave = chave;
   } finally { PRO.carregando = false; }
@@ -100,12 +114,14 @@ const nomeCurtoCli = n => { const s = (n || '').trim(); if (!s || /LTDA|EIRELI|\
 function mensagemPro(x, vendedor) {
   const ola = nomeCurtoCli(x.cliente_nome) ? `Olá, ${nomeCurtoCli(x.cliente_nome)}!` : 'Olá, tudo bem?';
   const eu = `Aqui é o ${vendedor} da Protemaxxi.`, d = x.dados || {};
+  const produto = (d.produto_ultima_compra || d.produto || d.itens || '').slice(0, 90);
+  const compra = produto ? `Na sua última compra você levou ${produto}.` : 'Quero acompanhar o material que você comprou com a gente.';
   return {
-    complemento: `${ola} ${eu} Vi que você levou ${(d.produto || 'um equipamento').slice(0, 60)} com a gente. Já tem ${d.sugestao || 'os acessórios'}? Temos em estoque e posso separar pra você. 😉`,
-    recompra: `${ola} ${eu} Faz uns ${d.dias || ''} dias que você repôs ${d.itens || 'material'} com a gente. Precisa de reposição? Tenho em estoque pra retirar hoje.`,
-    reativacao: `${ola} ${eu} Faz um tempo que não nos falamos! Chegaram novidades em câmeras, alarmes e acessórios. Posso te mandar as ofertas da semana?`,
-    indicacao: `${ola} ${eu} Obrigado pela parceria! Conhece alguém (vizinho, síndico, empresa) que precise de câmeras ou alarme? Vou atender sua indicação com todo cuidado.`,
-    instalador: `${ola} ${eu} Separei as novidades da semana para instaladores, com condição especial. Quer que eu te mande a lista?`,
+    complemento: `${ola} ${eu} Vi que você levou ${(d.produto || produto || 'um equipamento').slice(0, 90)} com a gente. Já tem ${d.sugestao || 'os acessórios para completar a instalação'}? Posso conferir as opções compatíveis para você.`,
+    recompra: `${ola} ${eu} ${compra} Como está o estoque de ${d.itens || 'material para as próximas instalações'}? Posso montar uma reposição para você.`,
+    reativacao: `${ola} ${eu} ${compra} Está precisando repor esse material ou completar a instalação com acessórios? Me conte o que falta para eu preparar uma opção para você.`,
+    indicacao: `${ola} ${eu} ${compra} Deu tudo certo com a instalação? Se precisar ampliar ou complementar o sistema, posso ajudar. E, se conhecer alguém precisando, será um prazer atender sua indicação.`,
+    instalador: `${ola} ${eu} ${compra} Tem alguma instalação em andamento que precise de reposição ou complemento? Posso montar a lista de materiais com você.`,
     novo: `${ola} ${eu} Somos revenda autorizada de segurança eletrônica em Campinas. Posso te apresentar as soluções para o seu negócio?`,
   }[x.lista] || `${ola} ${eu}`;
 }
@@ -117,26 +133,32 @@ function abaProspeccao() {
   const chave = hoje() + UI.proPessoa;
   if (!PRO.dados || PRO.chave !== chave) { if (!PRO.carregando) carregarProspeccao().then(render).catch(e => avisar(e.message)); return '<div class="card vazio">Carregando a campanha de hoje…</div>'; }
   const quem = pessoa(UI.proPessoa), cli = Object.fromEntries((D.clientes || []).map(c => [c.chave, c])), mapa = rfm();
-  const feitos = PRO.dados.filter(x => x.resultado), pct = PRO.dados.length ? feitos.length / PRO.dados.length : 0;
+  const feitos = PRO.dados.filter(x => x.resultado && x.resultado !== 'pular'), pct = PRO.dados.length ? feitos.length / PRO.dados.length : 0;
+  const filtro = UI.proFiltro || 'todos';
+  const filtros = [['todos', 'Todos'], ['pendentes', 'Não contatados'], ['contatados', 'Contatados'], ['pulados', 'Pulados']];
+  const doFiltro = (x, f) => f === 'todos' || (f === 'pendentes' ? !x.resultado : f === 'pulados' ? x.resultado === 'pular' : !!x.resultado && x.resultado !== 'pular');
+  const lista = PRO.dados.filter(x => doFiltro(x, filtro));
   // resultados dos últimos 30 dias: venda = pedido do cliente em até 15 dias depois do contato
   const comprou = x => x.resultado === 'comprou' || D.pedidos.some(p => p.cliente_chave === x.cliente_chave && valido(p) && p.data >= x.data && p.data <= addDias(x.data, 15));
   const ind = vends.map(v => { const h = PRO.hist.filter(x => x.pessoa_id === v.id && x.resultado && x.resultado !== 'pular');
     const vend = h.filter(comprou); const fat = soma(vend.map(x => somaV(D.pedidos.filter(p => p.cliente_chave === x.cliente_chave && valido(p) && p.data >= x.data && p.data <= addDias(x.data, 15)))));
     return { v, n: h.length, resp: h.filter(x => ['respondeu', 'orcamento', 'comprou'].includes(x.resultado)).length, orc: h.filter(x => x.resultado === 'orcamento').length, vendas: vend.length, fat }; });
   const card = x => { const c = cli[x.cliente_chave] || {}, l = LISTAS_PRO[x.lista] || [x.lista, ''], fone = c.fone || '', msg = mensagemPro(x, quem?.nome?.split(' ')[0] || ''), wa = linkWa(fone);
-    return `<div class="pro-card ${x.resultado ? 'feito' : ''}" id="pro_${x.id}">
+    return `<div class="pro-card ${x.resultado === 'pular' ? 'pulado' : x.resultado ? 'feito' : ''}" id="pro_${x.id}">
       <div class="pro-topo"><span class="tag ${l[1]}">${l[0]}</span>${seloSeg(mapa[x.cliente_chave]?.seg)}${seloCredito(x.cliente_chave)}${x.resultado ? `<span class="tag ok">${RES_PRO[x.resultado]}</span>` : ''}</div>
       <div class="pro-nome"><a href="#" data-a="verCliente" data-chave="${esc(x.cliente_chave)}">${esc(x.cliente_nome || c.nome || '')}</a> <small class="mut">${esc(c.cidade || '')}</small></div>
       <div class="pro-motivo">${esc(x.motivo || '')}</div>
+      <small class="${x.resultado && x.resultado !== 'pular' ? 'c-ok' : 'mut'}">${x.resultado === 'pular' ? '↷ Pulado · não conta como contato' : x.resultado ? `✓ Contato registrado${x.resultado_em ? ' · ' + fmtCurta(x.resultado_em.slice(0, 10)) : ''}` : '○ Ainda não contatado'}</small>
       ${fone ? `<div class="pro-fone">📱 ${esc(fone)}</div>` : `<div class="pro-fone sem"><input type="tel" placeholder="Sem telefone: digite com DDD" id="proFone_${x.id}"><button class="btn peq" data-a="proFone" data-id="${x.id}" data-chave="${esc(x.cliente_chave)}">Salvar</button></div>`}
       <textarea class="pro-msg" id="proMsg_${x.id}" rows="3">${esc(msg)}</textarea>
       <div class="acoes">${wa ? `<a class="btn pri peq" href="#" data-a="proWa" data-id="${x.id}" data-fone="${esc(fone)}">💬 Chamar no WhatsApp</a><a class="btn peq" href="tel:${esc(fone.replace(/\D/g, ''))}">📞 Ligar</a>` : ''}</div>
       <div class="pro-res">${Object.entries(RES_PRO).map(([k, n]) => `<button class="chip ${x.resultado === k ? 'on' : ''}" data-a="proRes" data-id="${x.id}" data-v="${k}">${n}</button>`).join('')}</div></div>`; };
   return `<div class="filtros">${vends.length > 1 ? `<div class="chips">${vends.map(v => `<button class="chip ${UI.proPessoa === v.id ? 'on' : ''}" data-a="proPessoa" data-v="${v.id}">${esc(v.nome)}</button>`).join('')}</div>` : ''}
       ${ehDono() ? `<button class="btn peq" data-a="proGerar">↻ Gerar listas que faltam hoje</button>` : ''}</div>
-    <div class="card"><div class="secao-titulo"><div><div class="eyebrow">Campanha de hoje · ${fmtData(hoje())}</div><h2 style="margin:4px 0 0">${esc(quem?.nome || '')}: ${feitos.length} de ${PRO.dados.length} contatos</h2></div>
+    <div class="card"><div class="secao-titulo"><div><div class="eyebrow">Campanha de hoje · ${fmtData(hoje())} · meta: ${Number(D.config.prospeccao?.por_dia) || 50} clientes</div><h2 style="margin:4px 0 0">${esc(quem?.nome || '')}: ${feitos.length} de ${PRO.dados.length} contatos</h2></div>
       <small>Máx. 1 abordagem por cliente a cada 30 dias · "Sem interesse" sai por 90 dias</small></div>${barra(pct)}</div>
-    ${PRO.dados.length ? `<div class="pro-grid mt">${[...PRO.dados].sort((a, b) => !!a.resultado - !!b.resultado).map(card).join('')}</div>`
+    <div class="chips mt">${filtros.map(([k, n]) => `<button class="chip ${filtro === k ? 'on' : ''}" data-a="proFiltro" data-v="${k}">${n} <b>${PRO.dados.filter(x => doFiltro(x, k)).length}</b></button>`).join('')}</div>
+    ${PRO.dados.length ? `<div class="pro-grid mt">${[...lista].sort((a, b) => !!a.resultado - !!b.resultado).map(card).join('') || '<div class="card vazio">Nenhum cliente neste filtro.</div>'}</div>${PRO.dados.length < (Number(D.config.prospeccao?.por_dia) || 50) ? '<p class="mut">Lista menor que a meta: foram mantidos os limites de frequência e as restrições de contato dos clientes elegíveis.</p>' : ''}`
       : `<div class="card vazio mt">A lista de hoje ainda não foi gerada. Ela sai sozinha às 7h (segunda a sábado).<br><br><button class="btn pri" data-a="proGerar">Gerar a minha lista agora</button></div>`}
     <div class="card mt"><div class="secao-titulo"><h2>Resultado da prospecção</h2><small>últimos 30 dias · venda = pedido em até 15 dias depois do contato</small></div>
       <div class="rolagem"><table class="tabela"><thead><tr><th>Vendedor</th><th class="dir">Contatos</th><th class="dir">Responderam</th><th class="dir">Orçamentos</th><th class="dir">Vendas</th><th class="dir">Faturamento gerado</th></tr></thead><tbody>
@@ -148,7 +170,7 @@ async function proRes(id, res) {
   const x = PRO.dados.find(r => String(r.id) === String(id)); if (!x) return;
   const novo = x.resultado === res ? null : res;
   await ok(sb.from('prospeccao').update({ resultado: novo, resultado_em: novo ? new Date().toISOString() : null }).eq('id', x.id));
-  x.resultado = novo;
+  x.resultado = novo; x.resultado_em = novo ? new Date().toISOString() : null;
   if (novo && !['pular'].includes(novo)) {
     const prox = novo === 'orcamento' ? addDias(hoje(), 2) : novo === 'sem_resposta' ? addDias(hoje(), 3) : null;
     const int = await ok(sb.from('interacoes').insert({ cliente_chave: x.cliente_chave, cliente_nome: x.cliente_nome, autor_id: EU.id, tipo: 'whatsapp',
@@ -157,7 +179,7 @@ async function proRes(id, res) {
     if (novo === 'numero_errado' || novo === 'sem_interesse') avisar(novo === 'sem_interesse' ? 'Ok: este cliente sai das campanhas por 90 dias.' : 'Ok: corrija o telefone na ficha do cliente quando puder.');
     if (prox) avisar(`Follow-up marcado para ${fmtCurta(prox)}.`);
   }
-  const h = PRO.hist.find(r => r.id === x.id); if (h) h.resultado = novo; else PRO.hist.push({ ...x });
+  const h = PRO.hist.find(r => r.id === x.id); if (h) Object.assign(h, { resultado: novo, resultado_em: x.resultado_em }); else PRO.hist.push({ ...x });
   render();
 }
 function proWa(id, fone) {

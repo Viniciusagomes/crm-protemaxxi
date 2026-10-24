@@ -418,6 +418,7 @@ const A = {
   proPessoa: el => { UI.proPessoa = el.dataset.v; render(); },
   proRes: el => proRes(el.dataset.id, el.dataset.v).catch(e => avisar(e.message)),
   proWa: el => proWa(el.dataset.id, el.dataset.fone),
+  proFiltro: el => { UI.proFiltro = el.dataset.v; render(); },
   proFone: el => proFone(el.dataset.id, el.dataset.chave).catch(e => avisar(e.message)),
   proGerar: () => proGerar().catch(e => avisar(e.message)),
   fichaSalvar: el => fichaSalvar(el.dataset.chave).catch(e => avisar(e.message)),
