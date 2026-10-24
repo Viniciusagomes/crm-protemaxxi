@@ -147,4 +147,3 @@ from (
 
   return (select count(*)::int from public.prospeccao x where x.data=p_data and (auth.uid() is null or dono or x.pessoa_id=eu));
 end $function$;
-
