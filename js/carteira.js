@@ -95,7 +95,31 @@ const LISTAS_PRO = {
   indicacao: ['🤝 Indicação', ''], instalador: ['🛠 Instalador', ''], novo: ['🏢 Cliente novo', ''],
 };
 const RES_PRO = { respondeu: '💬 Respondeu', orcamento: '📝 Pediu orçamento', comprou: '✅ Comprou', sem_resposta: '⏳ Sem resposta', sem_interesse: '🚫 Sem interesse', numero_errado: '☎️ Número errado', pular: '↷ Pular' };
-const PRO = { dados: null, chave: '', carregando: false, hist: null };
+const PRO = { dados: null, chave: '', carregando: false, hist: null, resumo: null, resumoDia: '', resumoEm: 0, resumoErro: false, resumoPromise: null, gravando: new Set(), rascunhos: {} };
+const contatoPro = x => !!x.resultado && x.resultado !== 'pular';
+function resumoPro(lista) {
+  return { total: lista.length, contatos: lista.filter(contatoPro).length, pulados: lista.filter(x => x.resultado === 'pular').length, pendentes: lista.filter(x => !x.resultado).length };
+}
+async function carregarResumoPro(forcar = false) {
+  if (PRO.resumoPromise) return PRO.resumoPromise;
+  if (!forcar && PRO.resumoDia === hoje() && Date.now() - PRO.resumoEm < 60e3) return;
+  const dia = hoje(); PRO.resumoEm = Date.now(); PRO.resumoErro = false;
+  PRO.resumoPromise = (async () => {
+    try {
+      const l = await todas(() => sb.from('prospeccao').select('id,pessoa_id,resultado').eq('data', dia).order('id'));
+      PRO.resumo = l; PRO.resumoDia = dia;
+    } catch (e) { PRO.resumoErro = true; throw e; }
+    finally { PRO.resumoPromise = null; }
+  })();
+  return PRO.resumoPromise;
+}
+function campanhaHoje(quem) {
+  if (PRO.resumoDia !== hoje() || Date.now() - PRO.resumoEm >= 60e3) {
+    if (!PRO.resumoPromise && (!PRO.resumoErro || Date.now() - PRO.resumoEm >= 60e3)) carregarResumoPro().then(render).catch(e => { avisar('Não foi possível atualizar a campanha: ' + e.message); render(); });
+  }
+  if (PRO.resumoDia !== hoje() || PRO.resumoErro) return null;
+  return resumoPro(PRO.resumo.filter(x => x.pessoa_id === quem));
+}
 
 async function carregarProspeccao(forcar) {
   const quem = UI.proPessoa || EU.id, chave = hoje() + quem;
@@ -104,24 +128,45 @@ async function carregarProspeccao(forcar) {
   try {
     const [hojeL, hist] = await Promise.all([
       ok(sb.from('prospeccao').select('*').eq('data', hoje()).eq('pessoa_id', quem).order('id')),
-      todas(() => sb.from('prospeccao').select('id,data,pessoa_id,cliente_chave,lista,resultado,resultado_em').gte('data', addDias(hoje(), -30))),
+      todas(() => sb.from('prospeccao').select('id,data,pessoa_id,cliente_chave,lista,resultado,resultado_em').gte('data', addDias(hoje(), -30)).order('id')),
     ]);
     PRO.dados = hojeL; PRO.hist = hist; PRO.chave = chave;
+    if (PRO.resumoDia === hoje()) PRO.resumo = PRO.resumo.filter(x => x.pessoa_id !== quem).concat(hojeL.map(x => ({ id: x.id, pessoa_id: x.pessoa_id, resultado: x.resultado })));
   } finally { PRO.carregando = false; }
 }
 const nomeCurtoCli = n => { const s = (n || '').trim(); if (!s || /LTDA|EIRELI|\bME\b|S\/A|CONDOM|COMERCIO|SERVI[CÇ]OS|EMPREENDIMENTOS/i.test(s)) return ''; const p = s.split(/\s+/)[0]; return p.charAt(0).toUpperCase() + p.slice(1).toLowerCase(); };
+/** Tempo natural, calculado por dias civis. Data ausente, inválida ou futura não vira afirmação. */
+function tempoCompra(data, referencia = hoje()) {
+  const dia = String(data || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dia) || ds(pd(dia)) !== dia) return '';
+  const utc = s => { const [a,m,d] = s.split('-').map(Number); return Date.UTC(a,m-1,d); };
+  const dias = Math.round((utc(referencia) - utc(dia)) / 864e5);
+  if (dias < 0 || !Number.isFinite(dias)) return '';
+  if (!dias) return 'hoje';
+  if (dias === 1) return 'ontem';
+  if (dias < 14) return 'há alguns dias';
+  if (dias < 45) return 'há algumas semanas';
+  if (dias < 330) return 'há alguns meses';
+  if (dias < 550) return 'há cerca de um ano';
+  if (dias < 730) return 'há mais de um ano';
+  return 'há alguns anos';
+}
 /** Mensagem pronta (o vendedor revisa antes de enviar). */
 function mensagemPro(x, vendedor) {
   const ola = nomeCurtoCli(x.cliente_nome) ? `Olá, ${nomeCurtoCli(x.cliente_nome)}!` : 'Olá, tudo bem?';
-  const eu = `Aqui é o ${vendedor} da Protemaxxi.`, d = x.dados || {};
-  const produto = (d.produto_ultima_compra || d.produto || d.itens || '').slice(0, 90);
-  const compra = produto ? `Na sua última compra você levou ${produto}.` : 'Quero acompanhar o material que você comprou com a gente.';
+  const eu = vendedor ? `Aqui é ${vendedor}, da Protemaxxi.` : 'Aqui é da Protemaxxi.', d = x.dados || {};
+  const limpar = v => String(v || '').replace(/\s+/g, ' ').trim().slice(0, 90);
+  const produto = limpar(d.produto_ultima_compra || d.produto || d.itens);
+  const tempo = tempoCompra(d.ultima_compra);
+  // Só usa a data com o produto da compra correspondente; não mistura um complemento antigo com a última compra.
+  const compra = produto ? `Você comprou ${produto} com a gente${tempo && d.produto_ultima_compra ? ' ' + tempo : ''}.` : '';
+  const inicio = `${ola} ${eu}${compra ? ' ' + compra : ''}`;
   return {
-    complemento: `${ola} ${eu} Vi que você levou ${(d.produto || produto || 'um equipamento').slice(0, 90)} com a gente. Já tem ${d.sugestao || 'os acessórios para completar a instalação'}? Posso conferir as opções compatíveis para você.`,
-    recompra: `${ola} ${eu} ${compra} Como está o estoque de ${d.itens || 'material para as próximas instalações'}? Posso montar uma reposição para você.`,
-    reativacao: `${ola} ${eu} ${compra} Está precisando repor esse material ou completar a instalação com acessórios? Me conte o que falta para eu preparar uma opção para você.`,
-    indicacao: `${ola} ${eu} ${compra} Deu tudo certo com a instalação? Se precisar ampliar ou complementar o sistema, posso ajudar. E, se conhecer alguém precisando, será um prazer atender sua indicação.`,
-    instalador: `${ola} ${eu} ${compra} Tem alguma instalação em andamento que precise de reposição ou complemento? Posso montar a lista de materiais com você.`,
+    complemento: `${inicio} Está pensando em ampliar o sistema ou precisa de algum acessório?${d.sugestao ? ' Posso conferir se ' + limpar(d.sugestao) + ' faz sentido para o seu projeto.' : ' Posso conferir as opções compatíveis com o seu projeto.'}`,
+    recompra: `${inicio} Está precisando repor material para os próximos serviços? Se me disser o que está faltando, preparo uma cotação para você.`,
+    reativacao: `${inicio} Estou retomando nosso contato para saber como posso ajudar hoje. Tem alguma instalação, reposição ou ampliação em vista?`,
+    indicacao: `${inicio} Como tem sido sua experiência com o material? Se precisar de algo, estou por aqui. E, se conhecer alguém que precise de segurança eletrônica, pode passar meu contato.`,
+    instalador: `${inicio} Tem algum projeto em andamento ou previsto? Posso ajudar a conferir os equipamentos e acessórios para montar a lista de materiais.`,
     novo: `${ola} ${eu} Somos revenda autorizada de segurança eletrônica em Campinas. Posso te apresentar as soluções para o seu negócio?`,
   }[x.lista] || `${ola} ${eu}`;
 }
@@ -133,7 +178,7 @@ function abaProspeccao() {
   const chave = hoje() + UI.proPessoa;
   if (!PRO.dados || PRO.chave !== chave) { if (!PRO.carregando) carregarProspeccao().then(render).catch(e => avisar(e.message)); return '<div class="card vazio">Carregando a campanha de hoje…</div>'; }
   const quem = pessoa(UI.proPessoa), cli = Object.fromEntries((D.clientes || []).map(c => [c.chave, c])), mapa = rfm();
-  const feitos = PRO.dados.filter(x => x.resultado && x.resultado !== 'pular'), pct = PRO.dados.length ? feitos.length / PRO.dados.length : 0;
+  const feitos = PRO.dados.filter(contatoPro), pct = PRO.dados.length ? feitos.length / PRO.dados.length : 0;
   const filtro = UI.proFiltro || 'todos';
   const filtros = [['todos', 'Todos'], ['pendentes', 'Não contatados'], ['contatados', 'Contatados'], ['pulados', 'Pulados']];
   const doFiltro = (x, f) => f === 'todos' || (f === 'pendentes' ? !x.resultado : f === 'pulados' ? x.resultado === 'pular' : !!x.resultado && x.resultado !== 'pular');
@@ -150,7 +195,7 @@ function abaProspeccao() {
       <div class="pro-motivo">${esc(x.motivo || '')}</div>
       <small class="${x.resultado && x.resultado !== 'pular' ? 'c-ok' : 'mut'}">${x.resultado === 'pular' ? '↷ Pulado · não conta como contato' : x.resultado ? `✓ Contato registrado${x.resultado_em ? ' · ' + fmtCurta(x.resultado_em.slice(0, 10)) : ''}` : '○ Ainda não contatado'}</small>
       ${fone ? `<div class="pro-fone">📱 ${esc(fone)}</div>` : `<div class="pro-fone sem"><input type="tel" placeholder="Sem telefone: digite com DDD" id="proFone_${x.id}"><button class="btn peq" data-a="proFone" data-id="${x.id}" data-chave="${esc(x.cliente_chave)}">Salvar</button></div>`}
-      <textarea class="pro-msg" id="proMsg_${x.id}" rows="3">${esc(msg)}</textarea>
+      <textarea class="pro-msg" id="proMsg_${x.id}" data-fid="proMsg_${x.id}" data-pro-rascunho="${x.id}" rows="4">${esc(PRO.rascunhos[x.id] ?? msg)}</textarea><small class="mut">Sugestão para revisar antes de enviar. Abrir o WhatsApp não registra contato.</small>
       <div class="acoes">${wa ? `<a class="btn pri peq" href="#" data-a="proWa" data-id="${x.id}" data-fone="${esc(fone)}">💬 Chamar no WhatsApp</a><a class="btn peq" href="tel:${esc(fone.replace(/\D/g, ''))}">📞 Ligar</a>` : ''}</div>
       <div class="pro-res">${Object.entries(RES_PRO).map(([k, n]) => `<button class="chip ${x.resultado === k ? 'on' : ''}" data-a="proRes" data-id="${x.id}" data-v="${k}">${n}</button>`).join('')}</div></div>`; };
   return `<div class="filtros">${vends.length > 1 ? `<div class="chips">${vends.map(v => `<button class="chip ${UI.proPessoa === v.id ? 'on' : ''}" data-a="proPessoa" data-v="${v.id}">${esc(v.nome)}</button>`).join('')}</div>` : ''}
@@ -168,19 +213,22 @@ function abaProspeccao() {
 
 async function proRes(id, res) {
   const x = PRO.dados.find(r => String(r.id) === String(id)); if (!x) return;
+  if (PRO.gravando.has(x.id)) return;
   const novo = x.resultado === res ? null : res;
-  await ok(sb.from('prospeccao').update({ resultado: novo, resultado_em: novo ? new Date().toISOString() : null }).eq('id', x.id));
-  x.resultado = novo; x.resultado_em = novo ? new Date().toISOString() : null;
-  if (novo && !['pular'].includes(novo)) {
-    const prox = novo === 'orcamento' ? addDias(hoje(), 2) : novo === 'sem_resposta' ? addDias(hoje(), 3) : null;
-    const int = await ok(sb.from('interacoes').insert({ cliente_chave: x.cliente_chave, cliente_nome: x.cliente_nome, autor_id: EU.id, tipo: 'whatsapp',
-      texto: `Prospecção (${LISTAS_PRO[x.lista]?.[0] || x.lista}): ${RES_PRO[novo]}. ${x.motivo || ''}`.trim(), proximo_contato: prox }).select().single()).catch(() => null);
-    if (int) D.interacoes.unshift(int);
-    if (novo === 'numero_errado' || novo === 'sem_interesse') avisar(novo === 'sem_interesse' ? 'Ok: este cliente sai das campanhas por 90 dias.' : 'Ok: corrija o telefone na ficha do cliente quando puder.');
-    if (prox) avisar(`Follow-up marcado para ${fmtCurta(prox)}.`);
+  PRO.gravando.add(x.id);
+  try {
+    const anterior = x.interacao_id;
+    const r = await ok(sb.rpc('prospeccao_registrar', { p_id: x.id, p_resultado: novo, p_esperado: x.resultado || null }));
+    Object.assign(x, r.prospeccao);
+    const velha = D.interacoes.find(i => i.id === anterior); if (velha) velha.feito = true;
+    if (r.interacao && !D.interacoes.some(i => i.id === r.interacao.id)) D.interacoes.unshift(r.interacao);
+    const h = (PRO.hist || []).find(r => r.id === x.id); if (h) Object.assign(h, x); else (PRO.hist ||= []).push({ ...x });
+    if (PRO.resumoDia === hoje()) { const s = PRO.resumo.find(r => r.id === x.id); if (s) s.resultado = x.resultado; else PRO.resumo.push({ id: x.id, pessoa_id: x.pessoa_id, resultado: x.resultado }); }
+    avisar(r.interacao?.proximo_contato ? `Contato salvo e retorno marcado para ${fmtCurta(r.interacao.proximo_contato)}.` : novo === 'pular' ? 'Pulado, sem contar como contato.' : novo === 'sem_interesse' ? 'Registrado. Cliente fora da campanha por 90 dias.' : 'Resultado salvo.');
+    render();
+  } finally {
+    PRO.gravando.delete(x.id);
   }
-  const h = PRO.hist.find(r => r.id === x.id); if (h) Object.assign(h, { resultado: novo, resultado_em: x.resultado_em }); else PRO.hist.push({ ...x });
-  render();
 }
 function proWa(id, fone) {
   const msg = $('#proMsg_' + id)?.value || '';

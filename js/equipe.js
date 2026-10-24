@@ -512,6 +512,7 @@ function vSupervisao() {
         ${crH.length ? `<li class="mut" title="${esc(crH.map(t => t.titulo).join(' · '))}">Hoje: ${crH.length} tarefa(s) crítica(s) ainda em aberto</li>` : ''}
       </ul></div>` : '<div class="mt"><span class="tag ok">Nada pendente para cobrar</span></div>'}
       ${kpis ? `<div class="mt">${kpis}</div>` : ''}
+      ${p.tiny ? (() => { const pro = campanhaHoje(p.id); return `<div class="mt"><b>Prospecção de hoje</b><br><small>${pro ? `${pro.contatos} de ${pro.total} contatos · ${pro.pulados} pulado(s) · ${pro.pendentes} pendente(s)` : PRO.resumoErro ? 'Resumo indisponível. Atualize para tentar novamente.' : 'Carregando campanha…'}</small><br><button class="btn peq" data-a="irProspeccao" data-pessoa="${p.id}">Ver campanha</button></div>`; })() : ''}
     </div>`;
   }).join('');
   return topo('Supervisão', 'O que cada supervisor precisa cobrar da equipe, hoje e no mês.', `<div class="seg">${sups.map(x => `<button class="${x.id === s.id ? 'on' : ''}" data-a="sup" data-p="${x.id}">${esc(x.nome)}</button>`).join('')}</div><button class="btn" data-a="print">🖨 Imprimir</button>`)

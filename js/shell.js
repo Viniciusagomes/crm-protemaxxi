@@ -96,7 +96,7 @@ function notificacoes() {
   } }
   const sols = minhasPendentes();
   if (sols.length) add('sol:' + sols.map(s => s.id).join(','), '📨', `${sols.length} solicitação(ões) para você`, 'nav', { v: 'solicitacoes' });
-  const atv = (CRM.atv || []).filter(a => a.pessoa_id === EU.id && !a.feito);
+  const atv = (CRM.atv || []).filter(a => a.pessoa_id === EU.id && atvPendente(a));
   const atras = atv.filter(a => a.quando < h), hojeA = atv.filter(a => a.quando === h);
   if (atras.length) add('atv-a:' + atras.length, '⏰', `${atras.length} atividade(s) atrasada(s)`, 'nav', { v: 'meudia' }, 'ruim');
   if (hojeA.length) add('atv-h:' + hojeA.length, '📅', `${hojeA.length} atividade(s) para hoje`, 'nav', { v: 'meudia' });

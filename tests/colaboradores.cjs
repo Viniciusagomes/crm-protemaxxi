@@ -50,7 +50,7 @@ for (const lista of ['reativacao','recompra','indicacao','instalador']) {
   assert.ok(msg.includes('Câmera VIP 1230'));
   assert.ok(!/ofertas da semana|em estoque|retirar hoje/i.test(msg));
 }
-assert.ok(run(`mensagemPro({lista:'reativacao',cliente_nome:'Leandro',dados:{}},'Pedro')`).includes('material que você comprou'));
+assert.ok(run(`mensagemPro({lista:'reativacao',cliente_nome:'Leandro',dados:{}},'Pedro')`).includes('retomando nosso contato'));
 
 // Filtros e marcação distinguem contatos de pulos; pular não soma no progresso.
 run(`PRO.hist=[]; PRO.chave=hoje()+'pedro'; PRO.dados=[
