@@ -1,7 +1,8 @@
 'use strict';
 /* CRM Protemaxxi — Intranet: solicitações (informação, compra, cotação, cadastro de produto, RMA) e Suporte. */
 
-const ETAPAS_RMA = ['Recebido do cliente', 'Em análise', 'Enviado ao fabricante', 'Retornou do fabricante', 'Trocado / devolvido ao cliente', 'Negado'];
+const ETAPAS_RMA = ['Recebido do cliente', 'Análise', 'Envio assistência', 'Aguardando peça', 'Retorno técnica', 'Aguardando cliente', 'Trocado / devolvido ao cliente', 'Negado'];
+const etapaRMA = etapa => ({ 'Em análise': 'Análise', 'Enviado ao fabricante': 'Envio assistência', 'Retornou do fabricante': 'Retorno técnica' }[etapa] || etapa || ETAPAS_RMA[0]);
 const TIPOS_SOL = {
   informacao: { nome: 'Pedido de informação', ic: '❓', desc: 'Pergunte algo a um colega: situação de um cliente, de um pedido, de uma negociação.', campos: [['cliente', 'Cliente (se for sobre um cliente)', 'cliente']] },
   compra: { nome: 'Solicitação de compra', ic: '🛒', desc: 'Pedir para comprar um produto: para um cliente que está esperando ou para repor o estoque.',
@@ -41,7 +42,7 @@ function vSolicitacoes(soTipo) {
       <select data-c="ui" data-k="solStatus">${[['abertas', 'Em aberto'], ['fechadas', 'Concluídas/canceladas'], ['todas', 'Todas']].map(([v, nm]) => `<option value="${v}" ${UI.solStatus === v ? 'selected' : ''}>${nm}</option>`).join('')}</select></div>
     <div class="card rolagem"><table class="tabela"><thead><tr><th>#</th><th>Assunto</th><th>De → Para</th><th>Prioridade</th><th>Prazo</th><th>Situação</th><th>Atualizada</th></tr></thead><tbody>
       ${lista.map(s => { const t = TIPOS_SOL[s.tipo] || TIPOS_SOL.outro; const atrasada = s.prazo && s.prazo < h && ABERTAS.includes(s.status);
-        return `<tr class="clic" data-a="verSolicitacao" data-id="${s.id}"><td><small>#${s.id}</small></td><td><b>${t.ic} ${esc(s.titulo)}</b><br><small>${t.nome}${s.dados?.cliente_nome ? ' · ' + esc(s.dados.cliente_nome) : ''}${s.tipo === 'rma' && s.dados?.etapa ? ' · ' + esc(s.dados.etapa) : ''}</small></td>
+        return `<tr class="clic" data-a="verSolicitacao" data-id="${s.id}"><td><small>#${s.id}</small></td><td><b>${t.ic} ${esc(s.titulo)}</b><br><small>${t.nome}${s.dados?.cliente_nome ? ' · ' + esc(s.dados.cliente_nome) : ''}${s.tipo === 'rma' && s.dados?.etapa ? ' · ' + esc(etapaRMA(s.dados.etapa)) : ''}</small></td>
           <td>${esc(nomeP(s.solicitante_id))} → <b>${esc(nomesResp(s))}</b>${respDe(s).length > 1 ? `<br><small>cuidando: ${esc(nomeP(s.responsavel_id))}</small>` : ''}${(s.anexos || []).length ? ` <small title="fotos">📷${s.anexos.length}</small>` : ''}</td><td class="pri-${s.prioridade}">${PRIORIDADES[s.prioridade]}</td>
           <td>${s.prazo ? `<span class="${atrasada ? 'c-ruim' : ''}">${fmtCurta(s.prazo)}${atrasada ? ' · atrasada' : ''}</span>` : '—'}</td><td><span class="st st-${s.status}">${STATUS_SOL[s.status]}</span></td>
           <td><small>${new Date(s.atualizado_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</small></td></tr>`; }).join('') || '<tr><td colspan="7" class="vazio">Nada por aqui.</td></tr>'}
@@ -55,10 +56,10 @@ function vSuporte() {
   const abertos = rmas.filter(s => ABERTAS.includes(s.status));
   return topo('Suporte e RMA', 'Garantias e trocas: do recebimento do cliente até a solução.', '<button class="btn pri" data-a="novaSolicitacao" data-tipo="rma">+ Novo RMA</button>')
     + `<div class="grid g4"><div class="card kpi-card"><div class="rot">RMAs em aberto</div><div class="val">${abertos.length}</div></div>
-      <div class="card kpi-card"><div class="rot">No fabricante</div><div class="val">${abertos.filter(s => s.dados?.etapa === 'Enviado ao fabricante').length}</div></div>
+      <div class="card kpi-card"><div class="rot">No fabricante</div><div class="val">${abertos.filter(s => etapaRMA(s.dados?.etapa) === 'Envio assistência').length}</div></div>
       <div class="card kpi-card"><div class="rot">Resolvidos no mês</div><div class="val c-ok">${rmas.filter(s => s.status === 'concluida' && (s.concluido_em || '').startsWith(mesDe(hoje()))).length}</div></div>
       <div class="card kpi-card"><div class="rot">Tempo médio aberto</div><div class="val">${abertos.length ? Math.round(soma(abertos.map(s => (Date.now() - new Date(s.criado_em)) / 864e5)) / abertos.length) + ' dias' : '—'}</div></div></div>
-    <div class="card mt"><h2>Quadro de RMA</h2><div class="kanban" style="grid-template-columns:repeat(${ETAPAS_RMA.length}, minmax(190px,1fr))">${ETAPAS_RMA.map(et => `<div class="col"><h4>${et}</h4>${abertos.filter(s => (s.dados?.etapa || ETAPAS_RMA[0]) === et).map(s => `<div class="item" data-a="verSolicitacao" data-id="${s.id}"><b>#${s.id} ${esc(s.dados?.produto || s.titulo)}</b><br><small>${esc(s.dados?.cliente_nome || '')}</small><br><small class="mut">há ${Math.round((Date.now() - new Date(s.criado_em)) / 864e5)} dia(s) · ${esc(nomesResp(s))}</small></div>`).join('')}</div>`).join('')}</div></div>
+    <div class="card mt"><h2>Quadro de RMA</h2><div class="kanban" style="grid-template-columns:repeat(${ETAPAS_RMA.length}, minmax(190px,1fr))">${ETAPAS_RMA.map(et => `<div class="col"><h4>${et}</h4>${abertos.filter(s => etapaRMA(s.dados?.etapa) === et).map(s => `<div class="item" data-a="verSolicitacao" data-id="${s.id}"><b>#${s.id} ${esc(s.dados?.produto || s.titulo)}</b><br><small>${esc(s.dados?.cliente_nome || '')}</small><br><small class="mut">há ${Math.round((Date.now() - new Date(s.criado_em)) / 864e5)} dia(s) · ${esc(nomesResp(s))}</small></div>`).join('')}</div>`).join('')}</div></div>
     <div class="card mt em-breve"><h2>Em breve: atendimento integrado</h2><p class="explica">Este módulo vai receber o <b>RMA Control</b> e o atendimento por <b>WhatsApp e redes sociais</b> direto na Intranet. As conversas vão virar chamados ligados ao cliente do Tiny, com histórico, responsável e prazo. Por enquanto, registre os RMAs aqui pelo botão "Novo RMA".</p></div>
     ${blocoOS()}
     <h2 class="mt2">Todos os RMAs</h2>${vSolicitacoes('rma')}`;
@@ -137,7 +138,7 @@ async function abrirSolicitacao(id) {
     </div>
     <div class="campo mt">Responsáveis <small class="mut">(qualquer um pode resolver)</small><div class="pessoas-multi">${D.pessoas.filter(p => p.ativo).map(p => `<label><input type="checkbox" data-c="solResp" data-id="${s.id}" value="${p.id}" ${respDe(s).includes(p.id) ? 'checked' : ''} ${pode ? '' : 'disabled'}>${esc(p.nome)}</label>`).join('')}</div>
       ${souResp(s) && s.responsavel_id !== EU.id && ABERTAS.includes(s.status) ? `<div><button class="btn peq pri" data-a="solPegar" data-id="${s.id}">🙋 Eu pego essa</button></div>` : ''}</div>
-    ${s.tipo === 'rma' ? `<label class="campo mt">Etapa do RMA<select data-c="solEtapa" data-id="${s.id}" ${pode ? '' : 'disabled'}>${ETAPAS_RMA.map(e => `<option ${s.dados?.etapa === e ? 'selected' : ''}>${e}</option>`).join('')}</select></label>` : ''}
+    ${s.tipo === 'rma' ? `<label class="campo mt">Etapa do RMA<select data-c="solEtapa" data-id="${s.id}" ${pode ? '' : 'disabled'}>${ETAPAS_RMA.map(e => `<option ${etapaRMA(s.dados?.etapa) === e ? 'selected' : ''}>${e}</option>`).join('')}</select></label>` : ''}
     ${s.dados?.cliente_nome ? `<p class="mt"><b>Cliente:</b> ${s.dados.cliente_chave ? `<a href="#" data-a="verCliente" data-chave="${esc(s.dados.cliente_chave)}">${esc(s.dados.cliente_nome)}</a>` : esc(s.dados.cliente_nome)}</p>` : ''}
     ${dados.length ? `<table class="tabela mt"><tbody>${dados.map(([k, v]) => `<tr><td class="mut" style="width:38%">${esc(ROTULOS_DADOS[k] || k)}</td><td><b>${esc(typeof v === 'number' && /valor|custo|preco/.test(k) ? R(v) : v)}</b></td></tr>`).join('')}</tbody></table>` : ''}
     ${s.descricao ? `<p style="white-space:pre-wrap" class="mt">${esc(s.descricao)}</p>` : ''}

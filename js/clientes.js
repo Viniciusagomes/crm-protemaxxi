@@ -90,7 +90,7 @@ function formInteracao(chave, nome) {
 async function salvarInteracao(chave, nome) {
   const texto = $('#intTexto').value.trim(); if (!texto) { avisar('Escreva o que foi conversado.'); return; }
   const novo = await ok(sb.from('interacoes').insert({ cliente_chave: chave, cliente_nome: nome, autor_id: EU.id, tipo: $('#intTipo').value, texto, proximo_contato: $('#intProx').value || null }).select().single());
-  D.interacoes.unshift(novo); avisar('Contato registrado.'); abrirCliente(chave);
+  D.interacoes.unshift(novo); render(); avisar('Contato registrado.'); abrirCliente(chave);
 }
 function followupsHoje(pid) {
   return D.interacoes.filter(i => i.proximo_contato && !i.feito && i.proximo_contato <= hoje() && (!pid || i.autor_id === pid)).sort((a, b) => a.proximo_contato.localeCompare(b.proximo_contato));
