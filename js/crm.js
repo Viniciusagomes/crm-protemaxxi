@@ -8,18 +8,23 @@ const NOME_ETAPA = Object.fromEntries(ETAPAS_CRM.map(([k, n]) => [k, n]));
 const ORIGENS = { balcao: '🏪 Balcão', whatsapp: '💬 WhatsApp', instagram: '📸 Instagram', site: '🌐 Site', indicacao: '🤝 Indicação', tecnico: '🛠 Técnico parceiro', ml: '🛍 Mercado Livre', prospeccao: '📞 Prospecção', trafego: '📣 Tráfego pago', outro: '• Outro' };
 const TIPOS_ATV = { ligar: '📞 Ligar', whatsapp: '💬 WhatsApp', visita: '🤝 Visita', orcamento: '📝 Orçamento', followup: '🔁 Follow-up', posvenda: '📦 Pós-venda', tarefa: '☑ Tarefa' };
 const MOTIVOS_PERDA = ['Preço', 'Prazo de entrega', 'Sem estoque', 'Comprou no concorrente', 'Desistiu / adiou', 'Sem retorno do cliente', 'Orçamento cancelado no Tiny', 'Outro'];
-const CRM = { neg: null, atv: null, carregando: false, em: 0 };
+const CRM = { neg: null, atv: null, revisoes: [], carregando: false, em: 0, gravando: new Set() };
 
 async function carregarCRM(forcar) {
   if (CRM.carregando || (!forcar && CRM.neg && Date.now() - CRM.em < 60e3)) return;
   CRM.carregando = true;
   try {
     const desde = new Date(Date.now() - 120 * 864e5).toISOString();
-    const [neg, atv] = await Promise.all([
-      todas(() => sb.from('negocios').select('*').or(`etapa.not.in.(ganho,perdido),fechado_em.gte.${desde}`).order('atualizado_em', { ascending: false })),
-      todas(() => sb.from('atividades').select('*').or(`feito.eq.false,feito_em.gte.${desde}`).order('quando')),
+    const [neg, atv, revisoes] = await Promise.all([
+      todas(() => sb.from('negocios').select('*').or(`etapa.not.in.(ganho,perdido),fechado_em.gte.${desde}`).order('atualizado_em', { ascending: false }).order('id')),
+      todas(() => sb.from('atividades').select('*').or(`feito.eq.false,feito_em.gte.${desde}`).order('quando').order('id')),
+      todas(() => sb.from('v_crm_revisoes').select('*').order('negocio_id')),
     ]);
-    CRM.neg = neg; CRM.atv = atv; CRM.em = Date.now();
+    // Atividades pendentes podem pertencer a negócios encerrados há mais de 120 dias.
+    const conhecidos = new Set(neg.map(n => n.id));
+    const faltam = [...new Set(atv.filter(a => !a.feito && a.negocio_id && !conhecidos.has(a.negocio_id)).map(a => a.negocio_id))];
+    for (let i = 0; i < faltam.length; i += 100) neg.push(...await todas(() => sb.from('negocios').select('*').in('id', faltam.slice(i,i+100)).order('id')));
+    CRM.neg = neg; CRM.atv = atv; CRM.revisoes = revisoes; CRM.em = Date.now();
   } finally { CRM.carregando = false; }
 }
 /** Telefone do negócio: o da ficha do cliente ou o que veio escrito no nome do contato do Tiny ("19 98166-4877 ~Fernanda"). */
@@ -49,7 +54,20 @@ function foneNegocio(n) {
   const m = (n.cliente_nome || '').match(/(\+?55\s*)?\(?\d{2}\)?\s*9?\d{4}[-\s]?\d{4}/);
   return m ? m[0].replace(/\D/g, '') : '';
 }
-const atvAbertas = n => (CRM.atv || []).filter(a => a.negocio_id === n.id && !a.feito).sort((a, b) => a.quando.localeCompare(b.quando));
+const atvRevisar = a => !a.feito && !a.arquivada_em && !a.revisada_em && a.tipo === 'followup' && (CRM.neg || []).some(n => n.id === a.negocio_id && ['ganho', 'perdido'].includes(n.etapa));
+const atvPendente = a => !a.feito && !a.arquivada_em && !atvRevisar(a);
+const atvAbertas = n => (CRM.atv || []).filter(a => a.negocio_id === n.id && atvPendente(a)).sort((a, b) => a.quando.localeCompare(b.quando));
+const revisaoCRM = n => CRM.revisoes.find(x => x.negocio_id === n.id) || {};
+function movimentoCRM(id) {
+  const n = (CRM.neg || []).find(n => n.id === id); if (!n) return;
+  n.mov_em = new Date().toISOString();
+  const r = CRM.revisoes.find(r => r.negocio_id === id); if (r) r.inativo = false;
+}
+function alertasNegocio(n) {
+  const r = revisaoCRM(n);
+  if (['ganho','perdido'].includes(n.etapa)) return '';
+  return `${r.inativo ? '<span class="tag med">⚠ Retomar negociação</span>' : ''}${r.pedidos_conferir ? '<span class="tag azul">Conferir compra</span>' : ''}${r.proposta_semelhante ? '<span class="tag med">Revisar propostas</span>' : ''}`;
+}
 const vendCRM = () => D.pessoas.filter(p => p.ativo && p.tiny && pessoasQueVejo().includes(p.id));
 
 // ─── Funil ───
@@ -88,14 +106,14 @@ function cardNegocio(n) {
   const a = atvAbertas(n)[0], fechado = ['ganho', 'perdido'].includes(n.etapa);
   const alerta = !fechado && (!a ? 'sem' : a.quando < hoje() ? 'atrasada' : '');
   return `<div class="kcard ${alerta}" draggable="true" data-negocio="${n.id}" data-a="crmAbrir" data-id="${n.id}">
-    <div class="kcard-nome">${esc(n.cliente_nome || '')}</div><div class="kcard-tit">${esc(n.titulo)}</div>
+    <div class="kcard-nome">${esc(n.cliente_nome || '')}</div><div class="kcard-tit">${esc(n.titulo)}</div>${alertasNegocio(n)}
     <div class="kcard-pe"><b>${R0(n.valor)}</b><span>${esc((nomeP(n.pessoa_id) || '').split(' ')[0])}</span></div>
     ${fechado ? '' : `<div class="kcard-atv">${a ? `${TIPOS_ATV[a.tipo]?.split(' ')[0] || '•'} ${fmtCurta(a.quando)} · ${esc(a.titulo.slice(0, 40))}` : '⚠ sem próxima atividade'}</div>`}</div>`;
 }
 function abaIndicadoresCRM(neg, fech) {
   const vends = vendCRM();
   const linhaV = v => { const f = fech.filter(n => n.pessoa_id === v.id), g = f.filter(n => n.etapa === 'ganho'), ab = neg.filter(n => n.pessoa_id === v.id && !['ganho', 'perdido'].includes(n.etapa));
-    const atv = (CRM.atv || []).filter(a => a.pessoa_id === v.id), feitas = atv.filter(a => a.feito && a.feito_em?.slice(0, 10) >= addDias(hoje(), -30)), atras = atv.filter(a => !a.feito && a.quando < hoje());
+    const atv = (CRM.atv || []).filter(a => a.pessoa_id === v.id), feitas = atv.filter(a => a.feito && a.feito_em?.slice(0, 10) >= addDias(hoje(), -30)), atras = atv.filter(a => atvPendente(a) && a.quando < hoje());
     return `<tr><td><b>${esc(v.nome)}</b></td><td class="dir">${ab.length} · ${R0(soma(ab.map(n => +n.valor)))}</td><td class="dir">${g.length} · ${R0(soma(g.map(n => +n.valor)))}</td><td class="dir">${f.length ? P(g.length / f.length) : '—'}</td><td class="dir">${feitas.length}</td><td class="dir ${atras.length ? 'c-ruim' : ''}">${atras.length}</td></tr>`; };
   const motivos = Object.entries(fech.filter(n => n.etapa === 'perdido').reduce((a, n) => { const m = n.motivo_perda || 'Sem motivo'; a[m] = (a[m] || 0) + 1; return a; }, {})).sort((a, b) => b[1] - a[1]);
   const origens = Object.entries(neg.reduce((a, n) => { (a[n.origem] ||= { n: 0, g: 0, v: 0 }); a[n.origem].n++; if (n.etapa === 'ganho') { a[n.origem].g++; a[n.origem].v += +n.valor; } return a; }, {})).sort((a, b) => b[1].v - a[1].v);
@@ -117,6 +135,7 @@ async function crmMover(id, etapa) {
   let motivo = null;
   if (etapa === 'perdido') { motivo = prompt(`Por que perdeu?\n${MOTIVOS_PERDA.map((m, i) => `${i + 1}. ${m}`).join('\n')}\n\nDigite o número ou escreva o motivo:`); if (motivo === null) return; motivo = MOTIVOS_PERDA[+motivo - 1] || motivo || 'Outro'; }
   Object.assign(n, await ok(sb.from('negocios').update({ etapa, ...(motivo ? { motivo_perda: motivo } : {}) }).eq('id', n.id).select().single()));
+  await carregarCRM(true);
   if (etapa === 'ganho') avisar('🎉 Negócio ganho!');
   if (!['ganho', 'perdido'].includes(etapa) && !atvAbertas(n).length) avisar('Defina a próxima atividade deste negócio.');
   render();
@@ -166,10 +185,13 @@ function crmAbrir(id) {
       <div class="card kpi-card"><div class="rot">Vendedor</div><div class="val" style="font-size:18px">${esc(nomeP(n.pessoa_id))}</div></div>
       <div class="card kpi-card"><div class="rot">Etapa</div><select data-c="crmEtapa" data-id="${n.id}" style="margin-top:6px;width:100%">${ETAPAS_CRM.map(([k, nm]) => `<option value="${k}" ${n.etapa === k ? 'selected' : ''}>${nm}</option>`).join('')}</select></div></div>
     ${n.etapa === 'perdido' && n.motivo_perda ? `<div class="alerta ruim mt"><span class="ic">✕</span><span>Perdido: ${esc(n.motivo_perda)}</span></div>` : ''}
+    ${alertasNegocio(n)}${revisaoCRM(n).inativo ? '<p class="explica">Negociação sem movimento há mais de 15 dias. Registre uma tentativa de recuperação e agende o retorno. A inatividade não encerra o negócio.</p>' : ''}
+    ${revisaoCRM(n).pedidos_conferir ? `<p class="explica">Pedido(s) posterior(es): ${esc(revisaoCRM(n).pedidos_conferir)}. Confira itens, quantidades e vínculo com esta negociação antes de marcar como ganho. Uma compra do mesmo cliente não confirma o fechamento.</p>` : ''}
+    ${revisaoCRM(n).proposta_semelhante ? '<p class="explica">Há outra proposta com produtos em comum. Confira se é revisão, complemento ou outro projeto antes de encerrar alguma delas.</p>' : ''}
     ${n.obs ? `<p class="mt" style="white-space:pre-wrap;font-size:13.5px">${esc(n.obs)}</p>` : ''}
     <h3 class="mt2">Atividades</h3>
-    ${atvs.map(a => `<div class="atv ${a.feito ? 'feita' : a.quando < hoje() ? 'atrasada' : ''}"><button class="atv-check" data-a="atvFeita" data-id="${a.id}" title="${a.feito ? 'Reabrir' : 'Marcar como feita'}">${a.feito ? '✓' : ''}</button>
-      <div><b>${TIPOS_ATV[a.tipo] || a.tipo}</b> · ${esc(a.titulo)}<br><small>${fmtCurta(a.quando)}${a.feito ? ` · feita ${new Date(a.feito_em).toLocaleDateString('pt-BR')}` : a.quando < hoje() ? ' · atrasada' : ''}${a.resultado ? ' · ' + esc(a.resultado) : ''}</small></div></div>`).join('') || '<p class="mut">Nenhuma atividade.</p>'}
+    ${atvs.map(a => `<div class="atv ${a.feito || a.arquivada_em ? 'feita' : a.quando < hoje() ? 'atrasada' : ''}">${a.arquivada_em ? '<span title="Arquivada">↷</span>' : `<button class="atv-check" data-a="atvFeita" data-id="${a.id}" title="${a.feito ? 'Reabrir' : 'Marcar como feita'}">${a.feito ? '✓' : ''}</button>`}
+      <div><b>${TIPOS_ATV[a.tipo] || a.tipo}</b> · ${esc(a.titulo)}<br><small>${fmtCurta(a.quando)}${a.arquivada_em ? ' · arquivada: ' + esc(a.arquivada_motivo) : a.feito ? ` · feita ${new Date(a.feito_em).toLocaleDateString('pt-BR')}` : a.quando < hoje() ? ' · atrasada' : ''}${a.resultado ? ' · ' + esc(a.resultado) : ''}</small></div></div>`).join('') || '<p class="mut">Nenhuma atividade.</p>'}
     <div class="nova-atv"><select id="atvTipo">${Object.entries(TIPOS_ATV).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select><input type="date" id="atvData" value="${addDias(hoje(), 1)}"><input type="text" id="atvTit" placeholder="Próxima atividade…"><button class="btn pri peq" data-a="atvNova" data-negocio="${n.id}">+ Agendar</button></div>
     <div class="acoes mt">${foneNegocio(n) ? `<a class="btn peq pri" href="${linkWa(foneNegocio(n))}" target="_blank" rel="noopener">💬 WhatsApp</a>` : ''}${n.cliente_chave ? `<button class="btn peq" data-a="verCliente" data-chave="${esc(n.cliente_chave)}">👤 Ficha do cliente</button>` : ''}<button class="btn peq" data-a="crmEditar" data-id="${n.id}">✎ Editar</button>
       ${!['ganho', 'perdido'].includes(n.etapa) ? `<button class="btn peq pri" data-a="crmMover" data-id="${n.id}" data-v="ganho">🎉 Ganho</button><button class="btn peq perigo" data-a="crmMover" data-id="${n.id}" data-v="perdido">✕ Perdido</button>` : ''}</div>`, true);
@@ -180,17 +202,43 @@ async function atvNova(negocioId, extra = {}) {
   CRM.atv.push(await ok(sb.from('atividades').insert({ negocio_id: n?.id || null, cliente_chave: n?.cliente_chave || extra.chave || null, cliente_nome: n?.cliente_nome || extra.nome || null,
     pessoa_id: n?.pessoa_id || EU.id, tipo: $('#atvTipo').value, titulo: tit, quando: $('#atvData').value || hoje(), criado_por: EU.id }).select().single()));
   avisar('Atividade agendada.');
-  if (n) crmAbrir(n.id); else fecharModal();
+  if (n) { movimentoCRM(n.id); crmAbrir(n.id); } else fecharModal();
   render();
 }
 async function atvFeita(id) {
   const a = CRM.atv.find(x => String(x.id) === String(id)); if (!a) return;
-  const feito = !a.feito;
-  const resultado = feito ? (prompt('Como foi? (opcional)') ?? '') : a.resultado;
-  Object.assign(a, await ok(sb.from('atividades').update({ feito, feito_em: feito ? new Date().toISOString() : null, resultado: resultado || null }).eq('id', a.id).select().single()));
-  if (feito && a.cliente_chave) { const i = await ok(sb.from('interacoes').insert({ cliente_chave: a.cliente_chave, cliente_nome: a.cliente_nome, autor_id: EU.id, tipo: a.tipo === 'whatsapp' ? 'whatsapp' : a.tipo === 'visita' ? 'visita' : a.tipo === 'ligar' ? 'ligacao' : 'nota', texto: `${TIPOS_ATV[a.tipo]}: ${a.titulo}${resultado ? ' → ' + resultado : ''}` }).select().single()).catch(() => null); if (i) D.interacoes.unshift(i); }
-  if (document.querySelector('.modal') && a.negocio_id) crmAbrir(a.negocio_id);
-  if (feito && a.negocio_id) { const n = CRM.neg.find(x => x.id === a.negocio_id); if (n && !['ganho', 'perdido'].includes(n.etapa) && !atvAbertas(n).length) { avisar('Feito! Agende a próxima atividade deste negócio.'); crmAbrir(n.id); } }
+  if (a.arquivada_em) return;
+  if (a.feito) {
+    Object.assign(a, await ok(sb.from('atividades').update({ feito: false, feito_em: null }).eq('id', a.id).select().single()));
+    if (a.negocio_id) crmAbrir(a.negocio_id); render(); return;
+  }
+  const n = CRM.neg.find(n => n.id === a.negocio_id), aberto = n && !['ganho','perdido'].includes(n.etapa);
+  modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>Concluir atividade</h2><p>${esc(a.titulo)}</p>
+    <label class="campo">Resultado / observação<textarea id="acResultado" rows="3" placeholder="O que aconteceu no contato?"></textarea></label>
+    ${aberto ? `<h3>Próximo passo</h3><p class="mut">Agende o retorno aqui ou marque para revisar depois. Abrir uma conversa não confirma envio.</p>
+      <div class="form-grid"><label class="campo">Data<input type="date" id="acData" min="${hoje()}" value="${addDias(hoje(),1)}"></label>
+      <label class="campo">Tipo<select id="acTipo">${Object.entries(TIPOS_ATV).map(([k,v]) => `<option value="${k}" ${k==='followup'?'selected':''}>${v}</option>`).join('')}</select></label>
+      <label class="campo inteiro">O que fazer<input id="acTitulo" placeholder="Ex.: conferir orçamento com o cliente"></label></div>` : ''}
+    <div class="acoes mt">${aberto ? `<button class="btn pri" data-a="atvConcluir" data-id="${a.id}" data-proxima="sim">Concluir e agendar retorno</button>` : ''}
+    <button class="btn ${aberto ? '' : 'pri'}" data-a="atvConcluir" data-id="${a.id}">${aberto ? 'Concluir sem novo retorno · revisar' : 'Concluir atividade'}</button></div>`);
+}
+async function atvConcluir(id, agendar) {
+  if (CRM.gravando.has(id)) return;
+  const data = agendar ? $('#acData').value : null, titulo = agendar ? $('#acTitulo').value.trim() : null;
+  if (agendar && (!data || data < hoje() || !titulo)) return avisar('Preencha a data e o próximo passo.');
+  CRM.gravando.add(id);
+  try {
+    const r = await ok(sb.rpc('atividade_concluir', { p_id: Number(id), p_resultado: $('#acResultado').value.trim(), p_proxima_data: data, p_proxima_tipo: agendar ? $('#acTipo').value : 'followup', p_proxima_titulo: titulo }));
+    Object.assign(CRM.atv.find(a => String(a.id) === String(id)), r.atividade);
+    if (r.proxima && !CRM.atv.some(a => a.id === r.proxima.id)) CRM.atv.push(r.proxima);
+    if (r.interacao && !D.interacoes.some(i => i.id === r.interacao.id)) D.interacoes.unshift(r.interacao);
+    movimentoCRM(r.atividade.negocio_id);
+    fecharModal(); render(); avisar(r.proxima ? 'Atividade, histórico e próximo retorno salvos.' : 'Atividade concluída. Confira os negócios sem próximo passo.');
+  } finally { CRM.gravando.delete(id); }
+}
+async function atvRevisada(id, manter) {
+  const a = CRM.atv.find(x => String(x.id) === String(id)); if (!a) return;
+  Object.assign(a, await ok(sb.from('atividades').update(manter ? { revisada_em: new Date().toISOString() } : { arquivada_em: new Date().toISOString(), arquivada_motivo: 'Revisada: sem finalidade após encerramento' }).eq('id', a.id).select().single()));
   render();
 }
 
@@ -219,12 +267,15 @@ function vMeuDia() {
   const vends = vendCRM();
   if (!UI.diaPessoa || !(vends.some(v => v.id === UI.diaPessoa) || UI.diaPessoa === EU.id)) UI.diaPessoa = EU.id;
   const quem = UI.diaPessoa, h = hoje();
-  const atvs = (CRM.atv || []).filter(a => a.pessoa_id === quem && !a.feito);
+  const atvs = (CRM.atv || []).filter(a => a.pessoa_id === quem && atvPendente(a));
+  const revisar = (CRM.atv || []).filter(a => a.pessoa_id === quem && atvRevisar(a));
+  const arquivadas = (CRM.atv || []).filter(a => a.pessoa_id === quem && a.arquivada_em);
+  const riscos = CRM.neg.filter(n => n.pessoa_id === quem && !['ganho','perdido'].includes(n.etapa) && (revisaoCRM(n).inativo || revisaoCRM(n).pedidos_conferir || revisaoCRM(n).proposta_semelhante));
   const atrasadas = atvs.filter(a => a.quando < h), deHoje = atvs.filter(a => a.quando === h), proximas = atvs.filter(a => a.quando > h && a.quando <= addDias(h, 7));
   const fups = followupsHoje(quem);
   const semAtv = CRM.neg.filter(n => n.pessoa_id === quem && !['ganho', 'perdido'].includes(n.etapa) && !atvAbertas(n).length);
   const feitasHoje = (CRM.atv || []).filter(a => a.pessoa_id === quem && a.feito && (a.feito_em || '').slice(0, 10) === h).length;
-  const pro = PRO.dados && PRO.chave === h + quem ? PRO.dados : null;
+  const pro = campanhaHoje(quem);
   const linhaA = a => `<div class="atv ${a.quando < h ? 'atrasada' : ''}"><button class="atv-check" data-a="atvFeita" data-id="${a.id}" title="Marcar como feita"></button>
     <div style="flex:1"><b>${TIPOS_ATV[a.tipo] || a.tipo}</b> · ${esc(a.titulo)}<br><small>${a.cliente_nome ? esc(a.cliente_nome) + ' · ' : ''}${fmtCurta(a.quando)}${a.quando < h ? ' · atrasada' : ''}${a.automatica ? ' · automática' : ''}</small></div>
     ${a.negocio_id || a.cliente_chave || a.cliente_nome ? `<button class="btn peq" data-a="atvContato" data-id="${a.id}" title="Contato do cliente: celular e e-mail">+</button>` : ''}
@@ -234,11 +285,14 @@ function vMeuDia() {
     <div class="grid g4">
       <div class="card kpi-card ${atrasadas.length ? '' : 'destaque'}"><div class="rot">Atrasadas</div><div class="val ${atrasadas.length ? 'c-ruim' : 'verde'}">${atrasadas.length}</div><div class="sub">atividades vencidas</div></div>
       <div class="card kpi-card"><div class="rot">Para hoje</div><div class="val">${deHoje.length + fups.length}</div><div class="sub">${feitasHoje} feita(s) hoje</div></div>
-      <div class="card kpi-card clic" data-a="irProspeccao"><div class="rot">Prospecção de hoje</div><div class="val">${pro ? `${pro.filter(x => x.resultado).length}/${pro.length}` : '→'}</div><div class="sub">contatos da campanha</div></div>
+      <div class="card kpi-card clic" data-a="irProspeccao" data-pessoa="${quem}"><div class="rot">Prospecção de hoje</div><div class="val">${pro ? `${pro.contatos}/${pro.total}` : PRO.resumoErro ? 'Indisponível' : '…'}</div><div class="sub">contatos da campanha${pro ? ` · ${pro.pulados} pulado(s) · ${pro.pendentes} pendente(s)` : ''}</div></div>
       <div class="card kpi-card"><div class="rot">Negócios sem atividade</div><div class="val ${semAtv.length ? 'c-med' : 'c-ok'}">${semAtv.length}</div><div class="sub">defina o próximo passo</div></div></div>
     <div class="grid g2 mt">
       <div class="card"><h2>✅ Fazer hoje</h2>${[...atrasadas, ...deHoje].map(linhaA).join('') || '<div class="vazio">Nada pendente para hoje. 👏</div>'}
         ${fups.length ? `<h3 class="mt">Follow-ups de clientes</h3>${fups.map(i => `<div class="atv"><button class="atv-check" data-a="followupFeito" data-id="${i.id}"></button><div><b>${esc(i.cliente_nome || '')}</b><br><small>${esc(i.texto.slice(0, 120))}</small></div><button class="btn peq" data-a="verCliente" data-chave="${esc(i.cliente_chave)}">Cliente</button></div>`).join('')}` : ''}</div>
       <div class="card"><h2>⚠️ Negócios sem próxima atividade</h2>${semAtv.map(n => `<div class="atv"><div style="flex:1"><b>${esc(n.cliente_nome || '')}</b> · ${R0(n.valor)}<br><small>${esc(n.titulo)} · ${NOME_ETAPA[n.etapa]}</small></div><button class="btn peq pri" data-a="crmAbrir" data-id="${n.id}">Agendar</button></div>`).join('') || '<div class="vazio">Todos os negócios têm próximo passo. 👏</div>'}
-        <h3 class="mt">📅 Próximos 7 dias</h3>${proximas.map(linhaA).join('') || '<p class="mut">Nada agendado.</p>'}</div></div>`;
+        <h3 class="mt">📅 Próximos 7 dias</h3>${proximas.map(linhaA).join('') || '<p class="mut">Nada agendado.</p>'}</div></div>
+    ${riscos.length ? `<div class="card mt"><h2>Revisar e recuperar negociações</h2>${riscos.map(n => `<div class="atv"><div style="flex:1"><b>${esc(n.cliente_nome || n.titulo)}</b><br>${alertasNegocio(n)}</div><button class="btn peq" data-a="crmAbrir" data-id="${n.id}">Revisar / agendar</button></div>`).join('')}</div>` : ''}
+    ${revisar.length ? `<div class="card mt"><h2>Follow-ups de negócios encerrados: revisar</h2><p class="mut">Confirme se ainda há uma ação válida. Pós-vendas continuam na rotina.</p>${revisar.map(a => `<div class="atv"><div style="flex:1"><b>${esc(a.cliente_nome || '')}</b><br>${esc(a.titulo)}</div><button class="btn peq" data-a="atvRevisada" data-id="${a.id}" data-manter="sim">Manter atividade</button><button class="btn peq" data-a="atvRevisada" data-id="${a.id}">Arquivar</button></div>`).join('')}</div>` : ''}
+    ${arquivadas.length ? `<details class="card mt"><summary>Atividades arquivadas (${arquivadas.length})</summary>${arquivadas.map(a => `<div class="atv"><div><b>${esc(a.cliente_nome || '')}</b> · ${esc(a.titulo)}<br><small>${esc(a.arquivada_motivo || '')} · ${fmtCurta(a.arquivada_em.slice(0,10))}</small></div>${a.negocio_id ? `<button class="btn peq" data-a="crmAbrir" data-id="${a.negocio_id}">Histórico</button>` : ''}</div>`).join('')}</details>` : ''}`;
 }

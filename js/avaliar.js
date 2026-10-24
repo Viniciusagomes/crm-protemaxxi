@@ -1,7 +1,5 @@
 'use strict';
-/* Página pública de avaliação do atendimento (avaliar.html?t=…). Toda nota fica no nosso log.
-   4–5 estrelas: registra a nota e abre direto a avaliação do Google (só na primeira vez: quem já foi ao Google só é agradecido).
-   1–3: abre a caixa de texto; o relato vai só para a loja. */
+/* Página pública de avaliação: toda nota tem relato privado e acesso opcional ao Google. */
 (async () => {
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const caixa = document.getElementById('caixa'), q = new URLSearchParams(location.search), t = q.get('t') || '';
@@ -13,24 +11,32 @@
   }
   const { data: a } = await sb.rpc('avaliacao_ver', { p_token: t });
   if (!a) { caixa.innerHTML = '<p>Este link de avaliação não é mais válido.</p>'; return; }
-  const emp = a.empresa || 'nossa loja', google = a.ja_google ? '' : (a.google || '');   // Google só na primeira avaliação
+  const emp = a.empresa || 'nossa loja', google = /^https:\/\//i.test(a.google || '') ? a.google : '';
   const ROT = ['', 'Muito ruim', 'Ruim', 'Regular', 'Bom', 'Excelente!'];
   let nota = +q.get('n') || a.nota || 0;
+  if (!Number.isInteger(nota) || nota < 1 || nota > 5) nota = 0;
+  let salvando = false, confirmada = !!a.respondido;
   // async: a chamada do supabase-js só sai quando é aguardada; assim ela sai mesmo quando ninguém espera a resposta
-  const responder = async (comentario, foiGoogle) => { await sb.rpc('avaliacao_responder', { p_token: t, p_nota: nota, p_comentario: comentario || null, p_google: !!foiGoogle }); };
+  const responder = async (comentario, foiGoogle) => {
+    const r = await sb.rpc('avaliacao_responder', { p_token: t, p_nota: nota, p_comentario: comentario || null, p_google: !!foiGoogle });
+    if (r.error || !r.data) throw new Error('Não foi possível salvar sua avaliação. Tente novamente.');
+  };
 
-  /** Escolha da nota: 4 e 5 registram e vão direto para o Google; 1 a 3 abrem a caixa de texto para a loja. */
+  /** Confirma a nota antes de exibir as mesmas opções de avaliação pública e privada. */
   async function escolher(n) {
-    nota = n;
-    if (nota >= 4 && google) {
-      caixa.innerHTML = `<p style="font-size:40px;margin:6px 0">💚</p><p><b>Obrigado!</b> Abrindo o Google para você contar como foi…</p>
-        <p class="discreto">Se não abrir sozinho, <a href="${esc(google)}">toque aqui</a>.</p>`;
-      await responder(null, true).catch(() => {});
-      location.href = google;
-      return;
-    }
-    tela();
-    responder(null, false);
+    if (salvando) return;
+    salvando = true; nota = n; confirmada = false;
+    try { await responder(null, false); confirmada = true; tela(); }
+    catch (e) { alert(e.message); }
+    finally { salvando = false; }
+  }
+
+  function conviteGoogle() {
+    return google ? `<p><a class="btn" id="btnGoogle" href="${esc(google)}" target="_blank" rel="noopener">Avaliar também no Google</a></p><p class="discreto">Opcional: sua avaliação no Google é pública. O recado abaixo vai somente para a loja.</p>` : '';
+  }
+  function ligarGoogle() {
+    const b = document.getElementById('btnGoogle');
+    if (b) b.onclick = () => { responder(null,true).catch(() => {}); };
   }
 
   function tela() {
@@ -39,17 +45,22 @@
       <div class="rot" id="rot">${ROT[nota] || 'Toque nas estrelas'}</div><div id="resto"></div>`;
     caixa.querySelectorAll('.estrelas button').forEach(b => b.onclick = () => escolher(+b.dataset.n));
     const resto = document.getElementById('resto');
-    if (!nota || (nota >= 4 && google)) return;
+    if (!nota || !confirmada) return;
     resto.innerHTML = nota >= 4
-      ? `<p style="margin-top:14px"><b>Obrigado! 💚</b> Sua avaliação foi registrada.</p><textarea id="txt" placeholder="Quer deixar um recado para a nossa equipe? (opcional)"></textarea><button class="btn pri" id="btnEnviar">Enviar recado</button>`
-      : `<p style="margin-top:14px"><b>Sentimos muito.</b> Conte o que aconteceu: sua mensagem vai direto para a gerência, e vamos entrar em contato.</p>
+      ? `${conviteGoogle()}<p style="margin-top:14px"><b>Obrigado! 💚</b> Sua avaliação foi registrada.</p><textarea id="txt" placeholder="Quer deixar um recado para a nossa equipe? (opcional)"></textarea><button class="btn pri" id="btnEnviar">Enviar recado</button>`
+      : `${conviteGoogle()}<p style="margin-top:14px"><b>Sentimos muito.</b> Conte o que aconteceu para nossa equipe analisar e acompanhar seu atendimento.</p>
         <textarea id="txt" placeholder="O que podemos melhorar?" autofocus></textarea><button class="btn pri" id="btnEnviar">Enviar para a loja</button>`;
+    ligarGoogle();
     document.getElementById('txt')?.focus();
     document.getElementById('btnEnviar').onclick = async () => {
       const txt = document.getElementById('txt').value.trim();
       if (!txt) { document.getElementById('txt').focus(); return; }
-      await responder(txt, false);
-      resto.innerHTML = '<p style="margin-top:14px"><b>Recebemos sua mensagem. Obrigado!</b> Vamos entrar em contato.</p>';
+      const botao = document.getElementById('btnEnviar'); botao.disabled = true;
+      try {
+        await responder(txt, false);
+        resto.innerHTML = '<p style="margin-top:14px"><b>Recebemos sua mensagem. Obrigado!</b> Nossa equipe pode acompanhar seu relato.</p>' + conviteGoogle();
+        ligarGoogle();
+      } catch (e) { alert(e.message); botao.disabled = false; }
     };
   }
   // Veio do e-mail com a estrela escolhida (?n=): só mostra a nota marcada e pede um toque para confirmar.

@@ -5,7 +5,7 @@
 function menu() {
   const itens = [
     ['', 'inicio', '⌂', 'Início'],
-    ['', 'meudia', '☀', 'Meu dia', CRM.atv ? CRM.atv.filter(a => a.pessoa_id === EU.id && !a.feito && a.quando <= hoje()).length : 0],
+    ['', 'meudia', '☀', 'Meu dia', CRM.atv ? CRM.atv.filter(a => a.pessoa_id === EU.id && atvPendente(a) && a.quando <= hoje()).length : 0],
     ['Comercial'], ['', 'crm', '🎯', 'Funil (CRM)'], ['', 'vendas', '📈', 'Vendas'], ['', 'pedidos', '🧾', 'Pedidos'], ['', 'situacao', '🚦', 'Situação dos pedidos', SIT.lista ? SIT.lista.filter(p => !p.removido && passosPedido(p).estado === 'problema').length : 0], ['', 'boletos', '🧾', 'Boletos em atraso', BOL.lista ? (ehDono() ? bolAbertos() : meusBoletos()).length : 0], ['', 'clientes', '👤', 'Clientes'],
     ...(veMonitoria() ? [['', 'monitoria', '🏷', 'Monitoria de preços']] : []),
     ...(veTudoVendas() || EU.tiny ? [['', 'avaliacoes', '⭐', 'Avaliações', ehDono() && AVA.lista ? AVA.lista.filter(a => a.nota && a.nota <= 3 && !a.tratado).length : 0]] : []), ['', 'creditos', '💳', 'Créditos e vales', ehDono() && CRE.pend ? CRE.pend.length : 0], ['', 'brindes', '🎁', 'Brindes', ehDono() && CRE.bped ? CRE.bped.filter(b => b.status === 'pendente').length : 0],
@@ -361,7 +361,7 @@ const A = {
   menuCel: () => document.body.classList.toggle('menu-aberto'),
   alternarLetra: () => alternarLetra(),
   instalarApp: () => instalarApp(),
-  crmAtualizar: () => carregarCRM(true).then(render).catch(e => avisar(e.message)),
+  crmAtualizar: () => Promise.all([carregarCRM(true), carregarResumoPro(true)]).then(render).catch(e => avisar(e.message)),
   crmNovo: el => formNegocio(null, el.dataset.chave, el.dataset.nome),
   crmEditar: el => formNegocio(el.dataset.id),
   crmAba: el => { UI.crmAba = el.dataset.v; render(); },
@@ -370,11 +370,14 @@ const A = {
   crmMover: el => crmMover(el.dataset.id, el.dataset.v).then(() => crmAbrir(el.dataset.id)).catch(e => avisar(e.message)),
   atvNova: el => atvNova(el.dataset.negocio, { chave: el.dataset.chave, nome: el.dataset.nome }).catch(e => avisar(e.message)),
   atvFeita: el => atvFeita(el.dataset.id).catch(e => avisar(e.message)),
+  atvConcluir: el => atvConcluir(el.dataset.id, el.dataset.proxima === 'sim').catch(e => avisar(e.message)),
+  atvRevisada: el => atvRevisada(el.dataset.id, el.dataset.manter === 'sim').catch(e => avisar(e.message)),
+  avaConfirmar: el => avaConfirmar(el.dataset.id).catch(e => avisar(e.message)),
   atvContato: el => atvContato(el.dataset.id).catch(e => avisar(e.message)),
   avaFiltro: el => { UI.avaFiltro = el.dataset.v; render(); },
   avaTeste: () => avaTeste(),
   diaPessoa: el => { UI.diaPessoa = el.dataset.v; render(); },
-  irProspeccao: () => { UI.view = 'clientes'; UI.cliAba = 'prospeccao'; render(); },
+  irProspeccao: el => { if (el.dataset.pessoa) UI.proPessoa = el.dataset.pessoa; UI.view = 'clientes'; UI.cliAba = 'prospeccao'; render(); },
   creAtualizar: () => carregarCreditos(true).then(render).catch(e => avisar(e.message)),
   creNovo: el => formCredito(el.dataset.chave, el.dataset.nome),
   // compras e portal do fornecedor
@@ -646,6 +649,7 @@ const C = {
 document.addEventListener('click', e => { const el = e.target.closest('[data-a]'); if (el && A[el.dataset.a]) { if (el.tagName === 'A') e.preventDefault(); A[el.dataset.a](el, e); } });
 document.addEventListener('change', e => { const el = e.target.closest('[data-c]'); if (el && C[el.dataset.c] && el.type !== 'search') C[el.dataset.c](el, e); });
 document.addEventListener('input', e => {
+  if (e.target.dataset?.proRascunho) PRO.rascunhos[e.target.dataset.proRascunho] = e.target.value;
   const el = e.target;
   if (el.dataset.live) { const lb = document.getElementById(el.dataset.live); if (lb) lb.textContent = el.value + '%'; }
   if (el.type === 'search' && el.dataset.c === 'ui') C.ui(el);

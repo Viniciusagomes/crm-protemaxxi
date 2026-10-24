@@ -92,7 +92,7 @@ function recalcularVendas() {
 }
 async function carregarClientes(forcar) {
   if (D.clientes && !forcar) return D.clientes;
-  D.clientes = await todas(() => sb.from('v_clientes').select('*').order('total', { ascending: false }));
+  D.clientes = await todas(() => sb.from('v_clientes').select('*').order('total', { ascending: false }).order('chave'));
   for (const c of D.clientes) { c.total = Number(c.total) || 0; c.pedidos = Number(c.pedidos); c.meses = Number(c.meses); c.dias_sem_comprar = Number(c.dias_sem_comprar); }
   return D.clientes;
 }

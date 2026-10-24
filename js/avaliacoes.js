@@ -28,15 +28,15 @@ function vAvaliacoes() {
   const zap = l.filter(a => a.canal === 'whatsapp' && a.status === 'pendente');
   const porV = Object.values(notas.reduce((m, a) => { const k = a.vendedor_id || '_'; (m[k] ||= { vid: a.vendedor_id, n: 0, s: 0, ruins: 0 }); m[k].n++; m[k].s += a.nota; if (a.nota <= 3) m[k].ruins++; return m; }, {})).sort((a, b) => b.s / b.n - a.s / a.n);
   // quem fez e quem não fez
-  const FILTROS_AVA = { todos: ['Todos', () => true], responderam: ['✅ Responderam', a => !!a.nota], nao: ['⏳ Receberam e não responderam', a => a.status === 'enviado' && !a.nota],
-    fila: ['📮 Na fila de envio', a => a.status === 'pendente'], erro: ['⚠ Erro / saíram da lista', a => ['erro', 'descadastrado', 'cancelado'].includes(a.status)] };
+  const FILTROS_AVA = { todos: ['Todos', () => true], responderam: ['✅ Responderam', a => !!a.nota], nao: ['⏳ Envio registrado · sem resposta', a => a.status === 'enviado' && !a.nota && (a.canal === 'email' || !!a.preparado_em)], antigos: ['Histórico WhatsApp · envio não verificado', a => a.status === 'enviado' && a.canal === 'whatsapp' && !a.preparado_em],
+    fila: ['📮 Na fila de envio', a => a.status === 'pendente' && !a.preparado_em], preparado: ['💬 Preparados · confirmar envio', a => a.status === 'pendente' && !!a.preparado_em], erro: ['⚠ Erro / saíram da lista', a => ['erro', 'descadastrado', 'cancelado'].includes(a.status)] };
   UI.avaFiltro = FILTROS_AVA[UI.avaFiltro] ? UI.avaFiltro : 'todos';
   const lf = l.filter(FILTROS_AVA[UI.avaFiltro][1]);
   const pausado = c.ativo && Number(c.limite_dia ?? 90) === 0;
   const linha = a => `<tr><td><b>${esc(a.cliente_nome || '')}</b>${a.email ? `<br><small class="mut">${esc(a.email)}</small>` : ''}<br><small>pedido ${esc(a.pedido_numero || '')} · ${a.data_compra ? fmtCurta(a.data_compra) : ''} · <span style="color:${corVendedor(a.vendedor_id)}">●</span> ${esc(nomeVendedor(a.vendedor_id))}</small></td>
-    <td>${a.canal === 'email' ? '✉' : '💬'} <span class="tag ${ST_AVA[a.status][1]}">${ST_AVA[a.status][0]}</span>${a.enviado_em ? `<br><small class="mut">enviado ${fmtCurta(a.enviado_em.slice(0, 10))}</small>` : ''}${a.erro ? `<br><small class="c-ruim">${esc(a.erro.slice(0, 80))}</small>` : ''}</td><td>${estrelas(a.nota)}${a.clicou_google ? ' <small title="Clicou em avaliar no Google">G</small>' : ''}</td>
+    <td>${a.canal === 'email' ? '✉' : '💬'} <span class="tag ${ST_AVA[a.status][1]}">${a.status === 'pendente' && a.preparado_em ? '💬 Preparado · envio não confirmado' : a.canal === 'whatsapp' && a.status === 'enviado' ? (a.preparado_em ? 'Envio registrado pelo operador' : 'Registro antigo · envio não verificado') : ST_AVA[a.status][0]}</span>${a.enviado_em ? `<br><small class="mut">${a.canal === 'whatsapp' ? (a.preparado_em ? 'confirmação manual' : 'registro antigo') : 'enviado'} ${fmtCurta(a.enviado_em.slice(0, 10))}</small>` : ''}${a.erro ? `<br><small class="c-ruim">${esc(a.erro.slice(0, 80))}</small>` : ''}</td><td>${estrelas(a.nota)}${a.clicou_google ? ' <small title="Clicou em avaliar no Google">G</small>' : ''}</td>
     <td><small>${esc(a.comentario || '')}</small>${a.tratado ? `<br><small class="c-ok">✔ tratado por ${esc(nomeP(a.tratado_por))}${a.nota_interna ? ': ' + esc(a.nota_interna) : ''}</small>` : ''}</td></tr>`;
-  return topo('Avaliações', 'Avaliação do atendimento: o cliente recebe o convite 5 dias depois da compra. Nota 4–5 é convidada a avaliar no Google; nota 1–3 conta o problema direto para vocês.',
+  return topo('Avaliações', 'Convite após a compra, conforme a configuração. Qualquer nota pode avaliar no Google e deixar um relato privado. Notas baixas entram na fila de atendimento.',
       `<button class="btn" data-a="avaAtualizar">↻ Atualizar</button>`)
     + `${pausado ? `<div class="alerta med"><span class="ic">⏸</span><span><b>Envios pausados</b> (limite por dia = 0). ${ehDono() ? 'Mande um e-mail de teste e, se estiver tudo certo, coloque o limite por dia (ex.: 90) na configuração.' : ''}</span></div>` : ''}
     ${!c.ativo ? `<div class="alerta med"><span class="ic">⏸</span><span><b>Os convites estão desligados.</b> ${ehDono() ? 'Confira a configuração no fim da página e ligue quando o e-mail estiver pronto e o link do Google preenchido.' : 'O Vinícius liga quando estiver tudo pronto.'}</span></div>` : ''}
@@ -47,7 +47,7 @@ function vAvaliacoes() {
     ${tratar.length ? `<div class="card mt"><div class="secao-titulo"><h2>⚠️ Clientes insatisfeitos: entrar em contato</h2></div>${tratar.map(a => `<div class="atv"><div style="flex:1">${estrelas(a.nota)} <b>${esc(a.cliente_nome || '')}</b> · <small>pedido ${esc(a.pedido_numero || '')} · ${esc(nomeVendedor(a.vendedor_id))}</small><br>${a.comentario ? `<span>“${esc(a.comentario)}”</span>` : '<small class="mut">(não escreveu comentário)</small>'}</div>
         ${a.fone ? `<a class="btn peq" href="${linkWa(a.fone)}" target="_blank" rel="noopener">💬 WhatsApp</a>` : ''}<button class="btn peq pri" data-a="avaTratar" data-id="${a.id}">✔ Tratado</button></div>`).join('')}</div>` : ''}
     ${zap.length ? `<div class="card mt"><div class="secao-titulo"><h2>💬 Convites para enviar pelo WhatsApp</h2><small>clientes sem e-mail · um toque abre o WhatsApp com a mensagem pronta</small></div>
-      ${zap.map(a => `<div class="atv"><div style="flex:1"><b>${esc(a.cliente_nome || '')}</b><br><small>${esc(a.fone || '')} · pedido ${esc(a.pedido_numero || '')} · ${esc(nomeVendedor(a.vendedor_id))}</small></div><button class="btn peq pri" data-a="avaWa" data-id="${a.id}">Enviar</button><button class="btn peq" data-a="avaPular" data-id="${a.id}">Pular</button></div>`).join('')}</div>` : ''}
+      ${zap.map(a => `<div class="atv"><div style="flex:1"><b>${esc(a.cliente_nome || '')}</b><br><small>${esc(a.fone || '')} · pedido ${esc(a.pedido_numero || '')} · ${esc(nomeVendedor(a.vendedor_id))}${a.preparado_em ? '<br>Mensagem preparada · envio ainda não confirmado' : ''}</small></div><button class="btn peq pri" data-a="avaWa" data-id="${a.id}">${a.preparado_em ? 'Abrir novamente' : 'Preparar mensagem'}</button>${a.preparado_em ? `<button class="btn peq" data-a="avaConfirmar" data-id="${a.id}">Confirmar que enviei</button>` : ''}<button class="btn peq" data-a="avaPular" data-id="${a.id}">Pular</button></div>`).join('')}</div>` : ''}
     <div class="grid g2 mt"><div class="card"><h2>Por vendedor</h2><table class="tabela"><tbody>${porV.map(v => `<tr><td><span style="color:${corVendedor(v.vid)}">●</span> ${esc(nomeVendedor(v.vid))}</td><td class="dir">${(v.s / v.n).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} ★</td><td class="dir"><small>${v.n} avaliação(ões)${v.ruins ? ` · ${v.ruins} baixa(s)` : ''}</small></td></tr>`).join('') || '<tr><td class="mut">Sem avaliações ainda.</td></tr>'}</tbody></table></div>
       ${ehDono() ? `<div class="card"><h2>⚙ Configuração</h2><div class="form-grid">
         <label class="campo inteiro">Link de avaliação do Google *<input type="url" id="avGoogle" value="${esc(c.google_link || '')}" placeholder="https://g.page/r/…/review"></label>
@@ -69,10 +69,20 @@ async function avaTratar(id) {
 }
 async function avaWa(id) {
   const a = AVA.lista.find(x => String(x.id) === String(id)); if (!a) return;
-  const empresa = (await sb.from('config').select('valor').eq('chave', 'assistencia').maybeSingle()).data?.valor?.empresa || '';
+  if (a.status !== 'pendente' || a.canal !== 'whatsapp') return;
+  const empresa = 'Protemaxxi';
   const msg = (AVA.cfg?.whatsapp || 'Olá, {cliente}! Pode avaliar nosso atendimento? {link}').replace(/\{cliente\}/g, (a.cliente_nome || '').split(' ')[0]).replace(/\{empresa\}/g, empresa).replace(/\{link\}/g, linkAva(a));
-  window.open(`${linkWa(a.fone)}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
-  Object.assign(a, await ok(sb.from('avaliacoes').update({ status: 'enviado', enviado_em: new Date().toISOString() }).eq('id', id).select().single()));
+  const link = linkWa(a.fone); if (!link) return avisar('Confira o telefone deste cliente.');
+  window.open(`${link}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
+  Object.assign(a, await ok(sb.from('avaliacoes').update({ preparado_em: new Date().toISOString() }).eq('id', id).eq('status', 'pendente').select().single()));
+  avisar('Mensagem preparada. Depois de enviar no WhatsApp, confirme o envio aqui.');
+  render();
+}
+async function avaConfirmar(id) {
+  const a = AVA.lista.find(x => String(x.id) === String(id));
+  if (!a || !a.preparado_em || a.status !== 'pendente' || a.canal !== 'whatsapp') return;
+  if (!confirm('Você enviou esta mensagem no WhatsApp? O sistema registra sua confirmação, sem comprovar entrega ou leitura.')) return;
+  Object.assign(a, await ok(sb.from('avaliacoes').update({ status: 'enviado', enviado_em: new Date().toISOString() }).eq('id', id).eq('status', 'pendente').select().single()));
   render();
 }
 async function avaPular(id) {
