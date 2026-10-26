@@ -54,7 +54,7 @@ function emLidoIntelcamp(p, e, completo) {
     : ` <span class="tag ok">✎ Rascunho ${R(p.orcamento.valor)} ao cliente (custo ${R(p.orcamento.custo)})</span>`) : '';
   let mais = '';
   if (completo) {
-    if (p.certeza === 'provavel') mais = `<div class="alerta med" style="margin-top:6px"><span class="ic">?</span><span>O nº de série do e-mail (<b>${esc(ic.serie || '')}</b>) é parecido com o da OS, mas não igual. Se for a mesma, confirme: a Intranet atualiza a etapa e, se for orçamento, cria o rascunho.
+    if (p.certeza === 'provavel') mais = `<div class="alerta med" style="margin-top:6px"><span class="ic">?</span><span>${p.por === 'outra_os_assistencia' ? `O nº de série é o da OS, mas ela já está ligada a outra OS da assistência. Se este e-mail vale para ela, confirme` : `O nº de série do e-mail (<b>${esc(ic.serie || '')}</b>) é parecido com o da OS, mas não igual. Se for a mesma, confirme`}: a Intranet atualiza a etapa e, se for orçamento, cria o rascunho.
       <br>${(p.os || []).map(o => `<button class="btn peq pri" data-a="emOsConfirmar" data-id="${e.id}" data-r="${o.rma_id}">✓ É a OS ${esc(o.numero)} (série ${esc(o.serie || '—')})</button>`).join(' ')}</span></div>`;
     else if (!p.certeza) mais = ` <small class="mut">Não achei OS na assistência com o nº de série ${esc(ic.serie || '—')}.</small>`;
     else if (p.orcamento && !p.orcamento.ja_lancado) mais = `<div class="alerta" style="margin-top:6px"><span class="ic">✎</span><span>O orçamento ficou como <b>rascunho</b> na OS ${esc(o1?.numero || '')}: confira e envie ao cliente pela ficha da OS.</span></div>`;

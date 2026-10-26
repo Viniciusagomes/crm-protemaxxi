@@ -16,7 +16,9 @@ import PostalMime from "npm:postal-mime@2.4.4";
 import { extractText, getDocumentProxy } from "npm:unpdf@0.12.1";
 
 const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-const json = (o: unknown, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { "Content-Type": "application/json" } });
+// o botão "É a OS" chama a função pelo navegador (supabase.functions.invoke): precisa de CORS
+const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
+const json = (o: unknown, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { "Content-Type": "application/json", ...CORS } });
 const dig = (s: unknown) => String(s ?? "").replace(/\D/g, "");
 const NOSSOS_CNPJ = ["21114063000149"];
 const CAIXAS: Record<string, string> = { boletos: "boletos", nfe: "nfe", "os.intelbras": "os_intelbras" };
@@ -158,6 +160,7 @@ const posEtapa = (e: string) => e === "recusado" ? 4 : ORDEM_ETAPA.indexOf(e || 
 function etapaDoStatus(st: string) {
   const s = semAcento(st);
   if (/PRONTO|CONSERTAD|FINALIZAD|AGUARDANDO RETIRADA|SEM CONSERTO|ENTREGUE|LIBERAD/.test(s)) return "finalizado";
+  if (/NAO APROVAD|REPROVAD|RECUSAD|CANCELAD/.test(s)) return null;   // recusa é decisão do nosso cliente: a loja registra
   if (/APROVAD|EM CONSERTO|EM MANUTENC|EM REPARO/.test(s)) return "aprovado";
   if (/AGUARDANDO AVALIAC|RECEBID|ENTRADA|NA FILA/.test(s)) return "recebido";
   if (/AVALIAC|ANALISE|ORCAMENTO|AGUARDANDO APROVAC/.test(s)) return "em_analise";
@@ -205,7 +208,10 @@ async function acharOS(l: any) {
   const { data: itens } = ids.length ? await sb.from("at_os_itens").select("os_id,numero_serie").in("os_id", ids).not("numero_serie", "is", null) : { data: [] };
   const series = (r: any) => [r.at_os.numero_serie, ...(itens ?? []).filter((i: any) => i.os_id === r.os_id).map((i: any) => i.numero_serie)].map(serieNorm).filter((s) => s.length >= 6);
   const iguais = lista.filter((r: any) => series(r).includes(l.serie_norm));
-  if (iguais.length) return { certeza: "certa", por: "serie", rmas: iguais };
+  // o RMA já está ligado a outra OS da assistência (e-mail antigo ou reabertura): não sobrescreve, pede confirmação
+  const livres = iguais.filter((r: any) => !r.os_assistencia || !l.os || r.os_assistencia === l.os);
+  if (livres.length) return { certeza: "certa", por: "serie", rmas: livres };
+  if (iguais.length) return { certeza: "provavel", por: "outra_os_assistencia", rmas: iguais };
   const perto = lista.filter((r: any) => l.serie_norm.length >= 8 && series(r).some((s) => distancia(s, l.serie_norm) <= 1));
   return perto.length ? { certeza: "provavel", por: "serie_parecida", rmas: perto } : { certeza: null, rmas: [] };
 }
@@ -229,7 +235,9 @@ async function processarOS(emailId: number, assunto: string, texto: string, quan
   if (!l.os && !l.serie_norm) return base;
   const quem = `Intelcamp (OS ${l.os ?? "?"})`;
   if (achado.certeza === "provavel") {
-    for (const r of achado.rmas) await eventoUnico(r.os_id, r.at_os.status, `📧 ${quem}: e-mail com nº de série ${l.serie} parecido com o desta OS (${r.at_os.numero_serie}). Confira na Caixa de e-mails e confirme se é esta OS.`);
+    for (const r of achado.rmas) await eventoUnico(r.os_id, r.at_os.status, achado.por === "outra_os_assistencia"
+      ? `📧 ${quem}: e-mail com o nº de série desta OS, mas ela já está ligada à OS ${r.os_assistencia} da assistência. Confira na Caixa de e-mails e confirme se vale para esta OS.`
+      : `📧 ${quem}: e-mail com nº de série ${l.serie} parecido com o desta OS (${r.at_os.numero_serie}). Confira na Caixa de e-mails e confirme se é esta OS.`);
     return base;
   }
   if (achado.certeza !== "certa" || achado.rmas.length !== 1) return base;
@@ -257,7 +265,8 @@ async function processarOS(emailId: number, assunto: string, texto: string, quan
     // a loja já lançou este orçamento à mão (mesmo custo, ainda valendo): não duplica
     const { data: manual } = await sb.from("at_orcamentos").select("id,status").eq("os_id", r.os_id).in("status", ["rascunho", "enviado", "aprovado"]).eq("custo_total", custo).or(`email_id.is.null,email_id.neq.${emailId}`).limit(1).maybeSingle();
     if (manual) { res.orcamento = { id: manual.id, ja_lancado: true, status: manual.status, custo }; return res; }
-    const { data: atual } = await sb.from("at_orcamentos").select("id").eq("os_id", r.os_id).eq("email_id", emailId).maybeSingle();
+    const { data: atual } = await sb.from("at_orcamentos").select("id,os_id").eq("email_id", emailId).neq("status", "cancelado").limit(1).maybeSingle();
+    if (atual && atual.os_id !== r.os_id) { res.orcamento = { id: atual.id, ja_lancado: true, outra_os: atual.os_id, custo }; return res; }
     const { data: q, error: eq } = atual ? { data: null, error: null } : await sb.from("at_orcamentos").insert({ os_id: r.os_id, rma_id: r.id, itens, custo_total: custo, margem, frete: 0, valor_cliente: valor,
       taxa_recusa: Number(cfg.taxa_recusa) || 0, validade, status: "rascunho", email_id: emailId, origem: "email", criado_por: null }).select("id").single();
     if (eq) throw new Error("orçamento: " + eq.message);
@@ -270,6 +279,7 @@ async function processarOS(emailId: number, assunto: string, texto: string, quan
 }
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ erro: "método" }, 405);
   // o Worker manda o e-mail cru (message/rfc822) com remetente/destino nos cabeçalhos; o JSON {de, para, raw base64} segue valendo
   const cru = (req.headers.get("content-type") ?? "").startsWith("message/");
@@ -281,7 +291,7 @@ Deno.serve(async (req) => {
     if (!pode && /^Bearer /i.test(req.headers.get("authorization") ?? "")) {
       const doUsuario = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: req.headers.get("authorization")! } } });
       const { data: visto } = await doUsuario.from("emails").select("id").eq("id", id).eq("caixa", "os_intelbras").maybeSingle();
-      const { data: rmaVisto } = rma ? await doUsuario.from("at_rma").select("id").eq("id", rma).maybeSingle() : { data: true };
+      const { data: rmaVisto } = rma ? await doUsuario.from("at_rma").select("id").eq("id", rma).maybeSingle() : { data: null };   // pelo navegador, sempre com o RMA confirmado
       pode = !!visto && !!rmaVisto;
     }
     if (!pode) return json({ erro: "não autorizado" }, 401);

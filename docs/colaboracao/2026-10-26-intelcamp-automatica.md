@@ -38,3 +38,15 @@ carregamento de `D.config.caixa_emails` e os nomes novos das etapas da assistên
 - Ao mexer na caixa de e-mails, manter `p.fonte === 'intelcamp'` em `emLido` e o botão de confirmação.
 - As funções do Supabase não estavam no repositório; esta é a primeira. Se alterar `email-entrada`, publique a partir deste arquivo
   (o original continua em `crm-protemaxxi/supabase/functions/`, fora do repo — vou manter os dois iguais).
+
+## Revisão do Codex (26/10, `codex exec` só leitura, gpt-6.1-sol)
+
+Primeira revisão cruzada feita pela ponte Claude → Codex CLI. Os 5 achados procediam e foram corrigidos (função v7):
+
+1. `reler` pelo navegador sem `rma_id` dispensava a checagem do RMA → agora o usuário só relê confirmando um RMA que ele enxerga.
+2. Série igual com o RMA já ligado a outra OS da Intelcamp sobrescrevia a ligação → vira "provável" (`por: outra_os_assistencia`).
+3. Confirmar o mesmo e-mail em duas OS criava dois orçamentos → um e-mail gera no máximo um orçamento (qualquer OS, fora os cancelados).
+4. Sem CORS/OPTIONS o navegador bloquearia o botão "É a OS" → cabeçalhos CORS e resposta ao OPTIONS.
+5. "ORÇAMENTO NÃO APROVADO" casava com `/APROVAD/` → reprovado/recusado/cancelado não avança etapa.
+
+Reprocessado o e-mail 5 depois da v7: continua 1 orçamento e 1 evento na T923 (achada pela OS da Intelcamp).
