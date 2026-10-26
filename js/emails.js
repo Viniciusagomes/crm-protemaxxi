@@ -40,10 +40,35 @@ function emLido(e, completo) {
     }
     if (p.tipo === 'nfe' || p.tipo === 'nfse') return `<span class="tag ok">📄 ${p.tipo === 'nfse' ? 'NFS-e' : 'NF-e'} ${esc(p.numero || '')}${p.valor ? ' · ' + R(p.valor) : ''}${p.emitente ? ' · ' + esc(p.emitente) : ''}</span>`
       + (completo ? ` <small class="mut">${p.na_entrada ? 'já está na Entrada de NF' : p.tipo === 'nfe' ? 'ainda não apareceu na Entrada de NF (o Tiny importa da SEFAZ)' : ''}</small>` : '');
+    if (p.tipo === 'os' && p.fonte === 'intelcamp') return emLidoIntelcamp(p, e, completo);
     if (p.tipo === 'os') return (p.os || []).map(o => `<span class="tag azul">🔧 OS ${esc(o.numero)} · ${esc(o.cliente || '')}</span>`).join(' ')
       + (p.valores?.length ? ` <span class="tag">valores no e-mail: ${p.valores.map(R).join(', ')}</span>` : '') + (!p.os?.length && completo ? ' <small class="mut">Não achei o número de série de nenhuma OS aberta neste e-mail.</small>' : '');
     return '';
   }).join(' ');
+}
+/** E-mail da Intelcamp (SHOficina): OS deles, status, a nossa OS ligada (certa ou provável) e o rascunho do orçamento. */
+function emLidoIntelcamp(p, e, completo) {
+  const ic = p.intelcamp || {}, o1 = (p.os || [])[0];
+  const nossa = (p.os || []).map(o => `<span class="tag ${p.certeza === 'certa' ? 'azul' : 'med'}">🔧 OS ${esc(o.numero)} · ${esc(o.cliente || '')}${p.certeza === 'provavel' ? ' (provável)' : ''}</span>`).join(' ');
+  const orc = p.orcamento ? (p.orcamento.ja_lancado ? ' <span class="tag">orçamento já lançado na OS</span>'
+    : ` <span class="tag ok">✎ Rascunho ${R(p.orcamento.valor)} ao cliente (custo ${R(p.orcamento.custo)})</span>`) : '';
+  let mais = '';
+  if (completo) {
+    if (p.certeza === 'provavel') mais = `<div class="alerta med" style="margin-top:6px"><span class="ic">?</span><span>O nº de série do e-mail (<b>${esc(ic.serie || '')}</b>) é parecido com o da OS, mas não igual. Se for a mesma, confirme: a Intranet atualiza a etapa e, se for orçamento, cria o rascunho.
+      <br>${(p.os || []).map(o => `<button class="btn peq pri" data-a="emOsConfirmar" data-id="${e.id}" data-r="${o.rma_id}">✓ É a OS ${esc(o.numero)} (série ${esc(o.serie || '—')})</button>`).join(' ')}</span></div>`;
+    else if (!p.certeza) mais = ` <small class="mut">Não achei OS na assistência com o nº de série ${esc(ic.serie || '—')}.</small>`;
+    else if (p.orcamento && !p.orcamento.ja_lancado) mais = `<div class="alerta" style="margin-top:6px"><span class="ic">✎</span><span>O orçamento ficou como <b>rascunho</b> na OS ${esc(o1?.numero || '')}: confira e envie ao cliente pela ficha da OS.</span></div>`;
+  }
+  return `<span class="tag">🏭 Intelcamp OS ${esc(ic.os || '?')}${ic.modelo ? ' · ' + esc(ic.modelo) : ''}</span>${ic.status ? ` <span class="tag">${esc(ic.status)}</span>` : ''} ${nossa}${orc}${mais}`;
+}
+async function emOsConfirmar(emailId, rmaId) {
+  const { data, error } = await sb.functions.invoke('email-entrada', { body: { acao: 'reler', email_id: Number(emailId), rma_id: Number(rmaId) } });
+  if (error || data?.erro) throw new Error(data?.erro || error.message);
+  const e = EM.lista.find(x => x.id === Number(emailId)); if (e) e.processado = [...(e.processado || []).filter(p => p.tipo !== 'os'), data.lido];
+  const l = data.lido;
+  avisar(`Ligado à OS ${l.os?.[0]?.numero || ''}${l.etapa_mudou ? ' · etapa atualizada' : ''}${l.orcamento?.novo ? ` · rascunho de ${R(l.orcamento.valor)} criado` : ''}.`);
+  if (typeof AT !== 'undefined') AT.em = 0;   // a tela de OS recarrega na próxima visita
+  render();
 }
 
 function vEmails() {

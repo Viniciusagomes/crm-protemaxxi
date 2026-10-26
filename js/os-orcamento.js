@@ -28,7 +28,8 @@ function blocoAssistencia(o) {
   }[et] || [];
   const contato = AT.cfg?.contatos_assistencias?.[r.assistencia];
   return `<div class="card mt" style="background:var(--azul-claro, #EEF4FB)"><div class="secao-titulo" style="margin:0"><h3 style="margin:0">🏭 Na assistência: ${esc(r.assistencia)}</h3>
-      <small>${r.protocolo ? 'protocolo ' + esc(r.protocolo) + ' · ' : ''}enviado ${fmtCurta(r.enviado_em)}${r.previsao_retorno ? ' · previsão ' + fmtCurta(r.previsao_retorno) : ''}</small></div>
+      <small>${r.protocolo ? 'protocolo ' + esc(r.protocolo) + ' · ' : ''}enviado ${fmtCurta(r.enviado_em)}${r.previsao_retorno ? ' · previsão ' + fmtCurta(r.previsao_retorno) : ''}${r.os_assistencia ? ' · OS deles ' + esc(r.os_assistencia) : ''}</small></div>
+    ${r.situacao_assistencia ? `<p style="margin:6px 0 0"><small>📧 Último e-mail da assistência: <b>${esc(r.situacao_assistencia)}</b>${r.situacao_em ? ' · ' + dataHora(r.situacao_em) : ''}</small></p>` : ''}
     <div class="chips" style="margin:8px 0">${ordem.map(k => `<span class="chip ${k === et ? 'on' : ''}" style="cursor:default">${ETAPAS_ASSIST[k][0]}</span>`).join('')}</div>
     ${prox.length ? `<div class="acoes">${prox.map(([k, n, c]) => `<button class="btn ${c}" data-a="atEtapa" data-id="${o.id}" data-v="${k}">${n}</button>`).join('')}</div>` : ''}
     ${!contato?.email ? `<p class="mut" style="margin:8px 0 0"><small>⚠ Sem e-mail da ${esc(r.assistencia)} para o aviso automático de aprovado/recusado.
@@ -43,7 +44,7 @@ function blocoOrcamento(o, orcs) {
   const aguardando = o.orcamento_status === 'aguardando' && ['aguardando_cliente', 'na_assistencia'].includes(o.status);
   if (!atual && !podeLancar && !aguardando) return '';
   const linha = q => { const [n, c] = ORC_ST[q.status] || [q.status, ''], lucro = q.valor_cliente - q.custo_total - q.frete;
-    return `<div class="atv"><div style="flex:1"><b>${R(q.valor_cliente)}</b> ao cliente <span class="tag ${c}">${n}</span>${q.validade && q.status === 'enviado' ? ` <small class="mut">válido até ${fmtCurta(q.validade)}</small>` : ''}
+    return `<div class="atv"><div style="flex:1"><b>${R(q.valor_cliente)}</b> ao cliente <span class="tag ${c}">${n}</span>${q.origem === 'email' ? ' <span class="tag azul" title="Criado sozinho a partir do e-mail da assistência">📧 do e-mail da assistência</span>' : ''}${q.validade && q.status === 'enviado' ? ` <small class="mut">válido até ${fmtCurta(q.validade)}</small>` : ''}
       <br><small class="mut">custo da assistência ${R(q.custo_total)} × ${String(q.margem).replace('.', ',')}${q.frete ? ' + frete ' + R(q.frete) : ''} · margem ${R(lucro)}${q.taxa_recusa ? ' · taxa se recusar ' + R(q.taxa_recusa) : ''}</small>
       <br><small>${(q.itens || []).map(i => `${esc(i.descricao)}: ${R(i.custo)} → <b>${R(i.valor)}</b>`).join(' · ')}</small>
       ${q.motivo_recusa ? `<br><small class="c-ruim">Motivo da recusa: ${esc(q.motivo_recusa)}</small>` : ''}${q.resposta?.nome ? `<br><small class="mut">Respondido por ${esc(q.resposta.nome)}${q.resposta.canal && q.resposta.canal !== 'link' ? ' (' + esc(q.resposta.canal) + ')' : ''} em ${dataHora(q.respondido_em)}</small>` : ''}</div>
@@ -66,7 +67,7 @@ function orcLinhaForm(i = {}) {
 async function atOrcForm(id, qid) {
   const o = AT.os.find(x => String(x.id) === String(id)); if (!o) return;
   const q = qid ? (await ok(sb.from('at_orcamentos').select('*').eq('id', qid).single())) : null;
-  const cfg = AT.cfg || {}, margem = q?.margem ?? +(cfg.margem_orcamento || 1.6), validade = q?.validade || addDias(hoje(), +(cfg.orcamento_validade_dias || 7));
+  const cfg = AT.cfg || {}, margem = q?.margem ?? +(cfg.margem_orcamento || 1.6), validade = q?.validade && q.validade >= hoje() ? q.validade : addDias(hoje(), +(cfg.orcamento_validade_dias || 7));
   const r = rmaAberto(o), custoRMA = r?.custo;
   modal(`<button class="btn peq fechar" data-a="atAbrirVolta" data-id="${o.id}">✕</button><h2>OS ${esc(o.numero)} · orçamento de manutenção</h2>
     <p class="explica">Lance o que ${r ? `a <b>${esc(r.assistencia)}</b>` : 'a assistência / o técnico'} cobra de nós. O cliente vê só o valor com a margem.</p>
