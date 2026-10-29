@@ -14,10 +14,13 @@ cliente + central de pendências da supervisão com adesão) vem depois.
   cliente. RPC `prospeccao_negocio`: idempotente (um negócio por contato, índice único em `negocios.prospeccao_id`),
   encerra o retorno automático da prospecção (falha inteira se não tiver permissão para isso). No cartão da campanha:
   "🎯 Criar negócio" / "🎯 Ver negócio".
-- **Orçamento do Tiny junta no negócio da prospecção.** Trigger `negocio_juntar_orcamento` (AFTER INSERT): quando o
-  `orcamentos-sync` cria o negócio de um orçamento novo e o cliente tem negócio aberto da prospecção (30 dias, sem
-  orçamento, mesmo vendedor), o negócio do Tiny absorve o da prospecção (vínculo, origem, título, previsão, obs e
-  atividades) e o vazio é apagado. O sync continua recebendo o id do insert normalmente.
+- **Orçamento do Tiny × negócio da campanha: só com confirmação.** Quando o mesmo cliente tem o negócio do orçamento
+  do Tiny e um negócio da campanha (30 dias, sem orçamento), o funil mostra "Juntar com a campanha?" nos dois. O
+  vendedor confirma; a RPC `negocio_juntar` move as atividades, passa `prospeccao_id`/origem/previsão/obs ao negócio do
+  Tiny e mantém o da campanha guardado (`etapa='perdido'`, `juntado_a`, motivo "Juntado ao orçamento N"), fora do funil e
+  das perdas na tela. Nada é juntado sozinho.
+- **Número no nome do cliente.** `contato_atividade` devolve `errados`; o botão "+" e o WhatsApp do negócio não oferecem
+  número tirado do nome se ele estiver marcado como errado (pendência do lote 2A apontada pelo Codex).
 - **"Para avançar com segurança" (passo 19, leve).** No negócio: próximo passo, orçamento ligado (a partir da etapa
   orçamento), previsão e valor, com ✓/○ e campo rápido de previsão. Não bloqueia nenhuma mudança de etapa.
 - **Calendário comercial (passo 15).** Dia útil = segunda a sábado, sem os feriados da configuração da Equipe
@@ -32,7 +35,7 @@ cliente + central de pendências da supervisão com adesão) vem depois.
 - `tests/lote-2b.cjs` (novo) e todos os `tests/*.cjs` + `globais.cjs` passando.
 - SQL em transação revertida, autenticado como vendedor: retorno do "pediu orçamento" em dia útil; negócio criado e
   clique repetido sem duplicar; reagendar com histórico e motivo obrigatório; insert do Tiny devolvendo o id novo,
-  absorvendo o negócio da prospecção (1 negócio aberto, atividade movida). Nada ficou gravado.
+  junção confirmada pelo vendedor (atividade aberta movida sem arquivar, negócio da campanha guardado como juntado, repetição sem efeito). Nada ficou gravado.
 
 ## Revisão do Codex
 
@@ -40,6 +43,10 @@ cliente + central de pendências da supervisão com adesão) vem depois.
   trocado pelo AFTER INSERT que absorve. P2 — ordem de locks do reagendar; encerramento do retorno sem checar
   permissão; "3 tentativas" contando tarefas internas. Tudo corrigido.
 - 2ª rodada: "ok para aplicar".
+- Alerta posterior do Codex: a junção automática podia misturar duas negociações do mesmo cliente e apagar o original;
+  e o número escrito no nome do cliente ainda era oferecido. Trocado por junção confirmada que preserva o histórico e
+  pelo bloqueio do número. 3ª rodada: "ok para aplicar".
+- Migration aplicada: `20261029194532_lote_2b_negocios` (sem trigger).
 
 ## Para o Codex
 

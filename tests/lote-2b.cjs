@@ -63,4 +63,18 @@ assert.ok(m.includes('value="2026-10-30"'));
 run(`CRM.neg[0].prospeccao_id=50;`);
 assert.equal(json('negocioDaPro(50).id'), 1);
 
+// Juntar só com confirmação: o funil sugere nos dois negócios (orçamento do Tiny × campanha), nada é juntado sozinho.
+run(`CRM.neg=[{id:70,cliente_chave:'k1',cliente_nome:'Kátia',titulo:'Orçamento 555: Câmeras',etapa:'orcamento',valor:3000,orcamento_id:'t555',orcamento_numero:'555',pessoa_id:'pedro',criado_em:new Date().toISOString()},
+              {id:71,cliente_chave:'k1',cliente_nome:'Kátia',titulo:'Orçamento: 4 câmeras',etapa:'qualificado',valor:0,prospeccao_id:90,pessoa_id:'pedro',criado_em:new Date().toISOString()},
+              {id:72,cliente_chave:'k1',cliente_nome:'Kátia',titulo:'Antigo da campanha',etapa:'qualificado',valor:0,prospeccao_id:91,pessoa_id:'pedro',criado_em:'2026-08-01T10:00:00Z'}];
+CRM.atv=[]; CRM.revisoes=[];`);
+assert.deepEqual(json('paraJuntar(CRM.neg[0]).map(j=>j.pro.id)'), [71], 'negócio da campanha com mais de 30 dias não é sugerido');
+assert.deepEqual(json('paraJuntar(CRM.neg[1]).map(j=>j.tiny.id)'), [70]);
+assert.ok(run('alertasNegocio(CRM.neg[0])').includes('Juntar com a campanha?'));
+
+// Número escrito no nome do cliente: não é oferecido se estiver marcado como errado.
+run(`D.clientes=[]; TELF.lista=[{cliente_chave:'k9',telefone:'5519981664877',errado_em:'2026-10-28T10:00:00Z'}];`);
+assert.equal(run(`foneNegocio({cliente_chave:'k9',cliente_nome:'19 98166-4877 ~Fernanda'})`), '');
+assert.equal(run(`foneNegocio({cliente_chave:'k8',cliente_nome:'19 98166-4877 ~Fernanda'})`), '19981664877');
+
 console.log('OK: dia útil, falta no negócio, recuperar orçamentos, reagendamento e prospecção → negócio.');

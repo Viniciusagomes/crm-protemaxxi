@@ -259,7 +259,7 @@ async function formProNegocio(id) {
   const abertos = (CRM.neg || []).filter(n => n.cliente_chave === x.cliente_chave && !n.prospeccao_id && !['ganho', 'perdido'].includes(n.etapa));
   const d = x.dados || {}, sug = d.sugestao || d.produto_ultima_compra || d.itens || '';
   modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>🎯 Pediu orçamento: ${esc(x.cliente_nome || '')}</h2>
-    <p class="mut">Registre o negócio para acompanhar até o fechamento. Quando o orçamento for lançado no Tiny para este cliente, ele entra neste mesmo negócio.</p>
+    <p class="mut">Registre o negócio para acompanhar até o fechamento. Quando o orçamento for lançado no Tiny para este cliente, o funil sugere juntar os dois: você confirma se é o mesmo pedido.</p>
     ${abertos.length ? `<h3>Já existe negociação aberta deste cliente</h3>${abertos.map(n => `<div class="atv"><div style="flex:1"><b>${esc(n.titulo)}</b><br><small>${NOME_ETAPA[n.etapa]} · ${R0(n.valor)} · ${esc(nomeP(n.pessoa_id))}</small></div><button class="btn peq" data-a="proNegocioSalvar" data-id="${x.id}" data-negocio="${n.id}">Ligar a este</button></div>`).join('')}<h3 class="mt">Ou crie um novo</h3>` : ''}
     <div class="form-grid">
       <label class="campo inteiro">O que o cliente quer *<input type="text" id="pnTit" maxlength="160" placeholder="Ex.: orçamento de 4 câmeras e gravador" value="${esc(sug ? 'Orçamento: ' + String(sug).slice(0, 120) : '')}"></label>

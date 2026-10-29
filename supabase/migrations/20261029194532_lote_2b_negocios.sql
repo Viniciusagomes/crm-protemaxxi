@@ -90,34 +90,66 @@ end $$;
 revoke execute on function public.prospeccao_negocio(bigint, bigint, text, numeric, date, text) from public, anon;
 grant execute on function public.prospeccao_negocio(bigint, bigint, text, numeric, date, text) to authenticated;
 
-/** Orçamento novo do Tiny para um cliente que já tem negócio aberto vindo da prospecção (últimos 30 dias, ainda sem
- *  orçamento): o negócio do Tiny é criado normalmente (o sync recebe o id dele) e absorve o da prospecção —
- *  vínculo com a campanha, origem, título, previsão, observações e atividades passam para ele; o negócio vazio sai.
- *  Só vale para negócios da prospecção. */
-create or replace function public.negocio_juntar_orcamento() returns trigger
-language plpgsql set search_path = '' as $$
-declare g public.negocios;
+-- Negócio da prospecção que foi juntado a um orçamento do Tiny: fica guardado (histórico), apontando para o negócio que continuou.
+alter table public.negocios add column if not exists juntado_a bigint references public.negocios(id) on delete set null;
+
+/** Junta, por decisão do vendedor, o negócio da prospecção ao negócio do orçamento do Tiny do mesmo cliente:
+ *  o do Tiny passa a carregar o vínculo com a campanha, a previsão, as observações e as atividades abertas e feitas;
+ *  o da prospecção fica encerrado como "juntado" (não conta como perda) e continua consultável. */
+create or replace function public.negocio_juntar(p_tiny bigint, p_prospeccao_negocio bigint)
+returns jsonb language plpgsql set search_path = '' as $$
+declare t public.negocios; p public.negocios; ator text := public.eu(); pid bigint;
 begin
-  if new.orcamento_id is null or new.cliente_chave is null or new.prospeccao_id is not null then return new; end if;
-  select * into g from public.negocios n
-   where n.cliente_chave = new.cliente_chave and n.prospeccao_id is not null and n.orcamento_id is null and n.id <> new.id
-     and n.etapa not in ('ganho', 'perdido') and n.criado_em >= now() - interval '30 days'
-     and (new.pessoa_id is null or n.pessoa_id = new.pessoa_id)
-   order by n.criado_em desc limit 1 for update;
-  if not found then return new; end if;
-  update public.negocios set prospeccao_id = null where id = g.id;   -- libera o índice único
-  update public.negocios set prospeccao_id = g.prospeccao_id, origem = 'prospeccao', titulo = g.titulo,
-    pessoa_id = coalesce(new.pessoa_id, g.pessoa_id), previsao = coalesce(new.previsao, g.previsao),
-    etapa = case when g.etapa = 'negociacao' and new.etapa = 'orcamento' then 'negociacao' else new.etapa end,
-    obs = nullif(concat_ws(E'\n', g.obs, new.obs), ''), criado_por = coalesce(new.criado_por, g.criado_por), mov_em = now()
-   where id = new.id;
-  update public.atividades set negocio_id = new.id where negocio_id = g.id;
-  delete from public.negocios where id = g.id;
-  return new;
+  if ator is null then raise exception 'Sessão inválida'; end if;
+  -- trava os dois na ordem do id (evita deadlock entre juntadas simultâneas)
+  perform 1 from public.negocios where id in (p_tiny, p_prospeccao_negocio) order by id for update;
+  select * into t from public.negocios where id = p_tiny;
+  select * into p from public.negocios where id = p_prospeccao_negocio;
+  if t.id is null or p.id is null then raise exception 'Negócio não encontrado ou sem permissão.'; end if;
+  -- repetição do mesmo pedido
+  if p.juntado_a = t.id then return jsonb_build_object('negocio', to_jsonb(t), 'juntado', to_jsonb(p), 'repetido', true); end if;
+  if t.cliente_chave is distinct from p.cliente_chave then raise exception 'Os negócios são de clientes diferentes.'; end if;
+  if t.orcamento_id is null or t.prospeccao_id is not null then raise exception 'O primeiro negócio precisa ser o do orçamento do Tiny, sem campanha ligada.'; end if;
+  if p.prospeccao_id is null or p.orcamento_id is not null then raise exception 'O segundo negócio precisa ser o da prospecção, sem orçamento.'; end if;
+  if t.etapa in ('ganho', 'perdido') or p.etapa in ('ganho', 'perdido') then raise exception 'Um dos negócios já foi encerrado.'; end if;
+  pid := p.prospeccao_id;
+  -- atividades primeiro: o encerramento do negócio da prospecção não deve arquivar o que continua valendo
+  update public.atividades set negocio_id = t.id where negocio_id = p.id;
+  update public.negocios set prospeccao_id = null, etapa = 'perdido', juntado_a = t.id,
+    motivo_perda = 'Juntado ao orçamento ' || coalesce(t.orcamento_numero, '') where id = p.id
+  returning * into p;
+  if not found then raise exception 'Sem permissão para alterar o negócio da prospecção.'; end if;
+  update public.negocios set prospeccao_id = pid, origem = 'prospeccao', previsao = coalesce(t.previsao, p.previsao),
+    obs = nullif(concat_ws(E'\n', t.obs, 'Da prospecção: ' || p.titulo, p.obs), ''), mov_em = now()
+   where id = t.id returning * into t;
+  if not found then raise exception 'Sem permissão para alterar o negócio do orçamento.'; end if;
+  return jsonb_build_object('negocio', to_jsonb(t), 'juntado', to_jsonb(p), 'repetido', false);
 end $$;
-drop trigger if exists negocio_juntar_orcamento on public.negocios;
-create trigger negocio_juntar_orcamento after insert on public.negocios
-  for each row execute function public.negocio_juntar_orcamento();
+revoke execute on function public.negocio_juntar(bigint, bigint) from public, anon;
+grant execute on function public.negocio_juntar(bigint, bigint) to authenticated;
+
+-- Botão "+" das atividades: devolve também os números marcados como errados, para a tela não oferecer
+-- um número que veio escrito no nome do cliente ("19 99999-0000 ~Fulano") e já foi marcado como errado.
+create or replace function public.contato_atividade(p_atividade bigint)
+ returns jsonb language sql stable security definer set search_path to 'public' as $function$
+  with a as (
+    select a.*, g.cliente_tiny_id, coalesce(a.cliente_chave, g.cliente_chave) chave, coalesce(a.cliente_nome, g.cliente_nome) nome
+      from atividades a left join negocios g on g.id = a.negocio_id
+     where a.id = p_atividade and (public.eh_dono() or a.pessoa_id in (select seg.pessoas_visiveis())))
+  select jsonb_build_object(
+    'nome', a.nome,
+    -- primeiro o celular que a agenda usa (incluído/confirmado na Intranet), depois os do Tiny
+    'celular', (select x from unnest(array[(select ct.telefone from cliente_telefones ct where ct.cliente_chave = a.chave and ct.celular and ct.errado_em is null
+                    order by ct.validado_em desc nulls last, (ct.origem = 'manual') desc, ct.criado_em desc limit 1),
+                  nullif(c.celular, ''), nullif(t.fone, ''), nullif(c.fone, ''),
+                  (select nullif(k.fone, '') from contatos_tiny k where k.doc = c.doc and k.doc is not null and k.fone <> '' limit 1)]) with ordinality u(x, o)
+                 where x is not null and not seg.fone_errado(a.chave, x) order by o limit 1),
+    'fone', case when not seg.fone_errado(a.chave, c.fone) then nullif(c.fone, '') end,
+    'errados', coalesce((select jsonb_agg(e.telefone) from cliente_telefones e where e.cliente_chave = a.chave and e.errado_em is not null), '[]'::jsonb),
+    'email', coalesce(nullif(t.email, ''), nullif(c.email, ''), (select nullif(k.email, '') from contatos_tiny k where k.doc = c.doc and k.doc is not null and k.email <> '' limit 1)),
+    'cidade', coalesce(t.cidade, c.cidade), 'uf', coalesce(t.uf, c.uf), 'doc', coalesce(t.doc, c.doc), 'chave', a.chave)
+  from a left join contatos_tiny t on t.id = a.cliente_tiny_id left join clientes c on c.chave = a.chave
+$function$;
 
 -- Retornos automáticos da prospecção caem em dia útil (sem domingo nem feriado).
 do $$

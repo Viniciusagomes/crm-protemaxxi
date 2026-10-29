@@ -427,6 +427,7 @@ const A = {
   proNegocioSalvar: el => proNegocioSalvar(el.dataset.id, el.dataset.negocio).catch(e => avisar(e.message)),
   atvReagendar: el => atvReagendar(el.dataset.id),
   atvReagendarSalvar: el => atvReagendarSalvar(el.dataset.id).catch(e => avisar(e.message)),
+  crmJuntar: el => crmJuntar(el.dataset.tiny, el.dataset.pro).catch(e => avisar(e.message)),
   crmPrevisao: el => crmPrevisao(el.dataset.id).catch(e => avisar(e.message)),
   telCorrigir: el => telCorrigir(el.dataset.chave).catch(e => avisar(e.message)),
   telCerto: el => telCerto(el.dataset.chave, el.dataset.v).catch(e => avisar(e.message)),

@@ -24,7 +24,8 @@ async function carregarCRM(forcar) {
     const conhecidos = new Set(neg.map(n => n.id));
     const faltam = [...new Set(atv.filter(a => !a.feito && a.negocio_id && !conhecidos.has(a.negocio_id)).map(a => a.negocio_id))];
     for (let i = 0; i < faltam.length; i += 100) neg.push(...await todas(() => sb.from('negocios').select('*').in('id', faltam.slice(i,i+100)).order('id')));
-    CRM.neg = neg; CRM.atv = atv; CRM.revisoes = revisoes; CRM.em = Date.now();
+    // negócio da prospecção já juntado a um orçamento do Tiny: fica só como histórico, fora do funil e das perdas
+    CRM.neg = neg.filter(n => !n.juntado_a); CRM.atv = atv; CRM.revisoes = revisoes; CRM.em = Date.now();
   } finally { CRM.carregando = false; }
 }
 /** Telefone do negócio: o da ficha do cliente ou o que veio escrito no nome do contato do Tiny ("19 98166-4877 ~Fernanda"). */
@@ -34,8 +35,9 @@ async function atvContato(id) {
   modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>${esc(a?.cliente_nome || 'Contato do cliente')}</h2><p class="mut">Carregando o contato…</p>`);
   const { data: c, error } = await sb.rpc('contato_atividade', { p_atividade: Number(id) });
   if (error || !c) return modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>Contato do cliente</h2><div class="alerta med"><span class="ic">!</span><span>${esc(error?.message || 'Não encontrei o contato desta tarefa.')}</span></div>`);
-  // contato escrito no próprio nome (ex.: "19 99547-8814 ~Valdecir"): usa como celular
-  const doNome = ((c.nome || '').match(/(\+?55\s*)?\(?\d{2}\)?\s*9?\d{4}[-\s]?\d{4}/) || [''])[0];
+  // contato escrito no próprio nome (ex.: "19 99547-8814 ~Valdecir"): usa como celular, se não foi marcado como errado
+  const achado = ((c.nome || '').match(/(\+?55\s*)?\(?\d{2}\)?\s*9?\d{4}[-\s]?\d{4}/) || [''])[0];
+  const doNome = achado && !(c.errados || []).includes(foneNorm(achado)) ? achado : '';
   const cel = c.celular || doNome, dig = s => String(s || '').replace(/\D/g, '');
   const wa = n => { const d = dig(n); return d.length >= 10 ? 'https://wa.me/' + (d.startsWith('55') && d.length > 11 ? d : '55' + d) : ''; };
   const linha = (ic, rot, v, extra) => `<div class="cont-linha"><span class="ic">${ic}</span><div><small class="mut">${rot}</small><br><b>${v ? esc(v) : '<span class="mut">não cadastrado</span>'}</b></div>${v ? extra : ''}</div>`;
@@ -52,7 +54,30 @@ function foneNegocio(n) {
   const c = (D.clientes || []).find(x => x.chave === n.cliente_chave);
   if (c?.fone) return c.fone;
   const m = (n.cliente_nome || '').match(/(\+?55\s*)?\(?\d{2}\)?\s*9?\d{4}[-\s]?\d{4}/);
-  return m ? m[0].replace(/\D/g, '') : '';
+  if (!m) return '';
+  // número tirado do nome também respeita a marca de errado (sem a lista carregada, não arrisca)
+  if (!TELF.lista) { if (!TELF.carregando) carregarTelErrados().then(render).catch(() => {}); return ''; }
+  const f = foneNorm(m[0]);
+  return TELF.lista.some(t => t.cliente_chave === n.cliente_chave && t.telefone === f) ? '' : m[0].replace(/\D/g, '');
+}
+/** Orçamento do Tiny e negócio da campanha do mesmo cliente (30 dias, ainda separados): sugere juntar; quem decide é o vendedor. */
+function paraJuntar(n) {
+  if (['ganho', 'perdido'].includes(n.etapa) || !n.cliente_chave) return [];
+  const desde = new Date(Date.now() - 30 * 864e5).toISOString();
+  const abertos = (CRM.neg || []).filter(m => m.id !== n.id && m.cliente_chave === n.cliente_chave && !['ganho', 'perdido'].includes(m.etapa));
+  if (n.orcamento_id && !n.prospeccao_id) return abertos.filter(m => m.prospeccao_id && !m.orcamento_id && (m.criado_em || '') >= desde).map(m => ({ tiny: n, pro: m }));
+  if (n.prospeccao_id && !n.orcamento_id && (n.criado_em || '') >= desde) return abertos.filter(m => m.orcamento_id && !m.prospeccao_id).map(m => ({ tiny: m, pro: n }));
+  return [];
+}
+async function crmJuntar(tinyId, proId) {
+  const t = CRM.neg.find(x => String(x.id) === String(tinyId)), p = CRM.neg.find(x => String(x.id) === String(proId));
+  if (!t || !p) return;
+  if (!confirm(`Juntar "${p.titulo}" (campanha) ao orçamento ${t.orcamento_numero || ''} do Tiny?\n\nAs atividades e o vínculo com a campanha passam para o negócio do orçamento. O da campanha fica guardado como "juntado".`)) return;
+  const r = await ok(sb.rpc('negocio_juntar', { p_tiny: Number(tinyId), p_prospeccao_negocio: Number(proId) }));
+  Object.assign(t, r.negocio);
+  CRM.neg = CRM.neg.filter(x => x.id !== p.id);
+  for (const a of CRM.atv) if (a.negocio_id === p.id) a.negocio_id = t.id;
+  avisar('Negócios juntados.'); crmAbrir(t.id); render();
 }
 const atvRevisar = a => !a.feito && !a.arquivada_em && !a.revisada_em && a.tipo === 'followup' && (CRM.neg || []).some(n => n.id === a.negocio_id && ['ganho', 'perdido'].includes(n.etapa));
 const atvPendente = a => !a.feito && !a.arquivada_em && !atvRevisar(a);
@@ -66,7 +91,7 @@ function movimentoCRM(id) {
 function alertasNegocio(n) {
   const r = revisaoCRM(n);
   if (['ganho','perdido'].includes(n.etapa)) return '';
-  return `${r.inativo ? '<span class="tag med">⚠ Retomar negociação</span>' : ''}${r.pedidos_conferir ? '<span class="tag azul">Conferir compra</span>' : ''}${r.proposta_semelhante ? '<span class="tag med">Revisar propostas</span>' : ''}`;
+  return `${paraJuntar(n).length ? '<span class="tag azul">Juntar com a campanha?</span>' : ''}${r.inativo ? '<span class="tag med">⚠ Retomar negociação</span>' : ''}${r.pedidos_conferir ? '<span class="tag azul">Conferir compra</span>' : ''}${r.proposta_semelhante ? '<span class="tag med">Revisar propostas</span>' : ''}`;
 }
 const vendCRM = () => D.pessoas.filter(p => p.ativo && p.tiny && pessoasQueVejo().includes(p.id));
 /** Primeiro dia útil a partir da data (segunda a sábado, sem os feriados da configuração da Equipe). Mesma regra do banco (dia_util). */
@@ -271,6 +296,8 @@ function crmAbrir(id) {
     ${alertasNegocio(n)}${revisaoCRM(n).inativo ? '<p class="explica">Negociação sem movimento há mais de 15 dias. Registre uma tentativa de recuperação e agende o retorno. A inatividade não encerra o negócio.</p>' : ''}
     ${revisaoCRM(n).pedidos_conferir ? `<p class="explica">Pedido(s) posterior(es): ${esc(revisaoCRM(n).pedidos_conferir)}. Confira itens, quantidades e vínculo com esta negociação antes de marcar como ganho. Uma compra do mesmo cliente não confirma o fechamento.</p>` : ''}
     ${revisaoCRM(n).proposta_semelhante ? '<p class="explica">Há outra proposta com produtos em comum. Confira se é revisão, complemento ou outro projeto antes de encerrar alguma delas.</p>' : ''}
+    ${paraJuntar(n).map(j => `<div class="alerta mt"><span class="ic">🔗</span><span>${n.id === j.tiny.id ? `Este cliente tem um negócio da campanha sem orçamento: <b>${esc(j.pro.titulo)}</b> (${fmtCurta(j.pro.criado_em.slice(0, 10))}).` : `Este cliente tem o orçamento <b>${esc(j.tiny.orcamento_numero || '')}</b> no Tiny (${R0(j.tiny.valor)}): <b>${esc(j.tiny.titulo)}</b>.`} Se for o mesmo pedido, junte para não acompanhar duas vezes.
+      <button class="btn peq pri" data-a="crmJuntar" data-tiny="${j.tiny.id}" data-pro="${j.pro.id}">É o mesmo: juntar</button></span></div>`).join('')}
     ${blocoAvancar(n)}
     ${n.obs ? `<p class="mt" style="white-space:pre-wrap;font-size:13.5px">${esc(n.obs)}</p>` : ''}
     <h3 class="mt2">Atividades</h3>
