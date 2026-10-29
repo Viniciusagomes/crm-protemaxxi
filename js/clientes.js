@@ -71,6 +71,7 @@ async function abrirCliente(chave) {
     ${c ? `<div class="grid g4" style="gap:10px"><div class="card kpi-card"><div class="rot">12 meses</div><div class="val" style="font-size:20px">${R0(c.total)}</div></div><div class="card kpi-card"><div class="rot">Pedidos</div><div class="val" style="font-size:20px">${c.pedidos}</div></div><div class="card kpi-card"><div class="rot">Ticket médio</div><div class="val" style="font-size:20px">${R0(c.total / c.pedidos)}</div></div><div class="card kpi-card"><div class="rot">Sem comprar</div><div class="val c-${c.dias_sem_comprar > 90 ? 'med' : 'ok'}" style="font-size:20px">${c.dias_sem_comprar} dias</div></div></div>` : ''}
     ${blocoCreditoFicha(chave, nome)}
     ${blocoFichaCRM(c)}
+    <details class="card mt" open><summary><b>📜 Linha do tempo</b> <small class="mut">compras, contatos, campanha, negócios e OS</small></summary><div id="cliLinha" data-chave="${esc(chave)}"><p class="mut">Montando…</p></div></details>
     <div class="acoes mt"><button class="btn pri" data-a="novaInteracao" data-chave="${esc(chave)}" data-nome="${esc(nome)}">+ Registrar contato</button><button class="btn" data-a="novaSolicitacao" data-chave="${esc(chave)}" data-nome="${esc(nome)}">+ Solicitação sobre este cliente</button></div>
     <div class="grid g2 mt"><div><h3>Histórico de contatos</h3>${ints.length ? ints.map(i => `<div class="coment"><div class="meta">${TIPOS_INT[i.tipo] || i.tipo} · ${esc(pessoa(i.autor_id)?.nome || '')} · ${new Date(i.criado_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}${i.proximo_contato ? ` · <b>próximo contato ${fmtCurta(i.proximo_contato)}</b>${i.feito ? ' ✓' : ''}` : ''}</div><p>${esc(i.texto)}</p></div>`).join('') : '<p class="mut">Nenhum contato registrado ainda.</p>'}
       ${oss.length ? `<h3 class="mt">Ordens de serviço</h3>${oss.slice(0, 10).map(o => `<div class="coment" data-a="verOS" data-id="${o.id}" style="cursor:pointer"><div class="meta">OS ${esc(o.numero || o.id)} · ${o.data ? fmtCurta(o.data) : ''} · <span class="st ${COR_OS[o.situacao] || ''}">${esc(o.situacao || '')}</span></div><p>${esc(o.equipamento || o.descricao_problema || '')}</p></div>`).join('')}` : ''}
@@ -78,6 +79,7 @@ async function abrirCliente(chave) {
     <div><h3>Produtos que mais compra</h3>${prod.length ? `<table class="tabela"><tbody>${prod.map(x => `<tr><td><small>${esc(x.cod || '')}</small> ${esc(x.desc)}</td><td class="dir">${N(x.q)}</td><td class="dir">${R0(x.v)}</td></tr>`).join('')}</tbody></table>` : '<p class="mut">Os itens dos pedidos ainda estão sendo baixados do Tiny.</p>'}
       <h3 class="mt">Pedidos</h3><table class="tabela"><tbody>${peds.slice(0, 30).map(p => `<tr class="clic" data-a="verPedido" data-id="${p.id}"><td>${fmtCurta(p.data)}/${p.data.slice(2, 4)}</td><td>nº ${esc(p.numero)}<br><small>${esc(nomeVendedor(p.vendedor_id))}</small></td><td><span class="tag">${esc(p.situacao)}</span></td><td class="dir">${R0(p.valor)}</td></tr>`).join('') || '<tr><td class="mut">—</td></tr>'}</tbody></table></div></div>`, true);
   carregarTelsFicha(chave);
+  linhaTempoCliente(chave);
 }
 
 function formInteracao(chave, nome) {
