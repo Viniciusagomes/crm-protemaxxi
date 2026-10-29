@@ -8,18 +8,22 @@ const NOME_ETAPA = Object.fromEntries(ETAPAS_CRM.map(([k, n]) => [k, n]));
 const ORIGENS = { balcao: '🏪 Balcão', whatsapp: '💬 WhatsApp', instagram: '📸 Instagram', site: '🌐 Site', indicacao: '🤝 Indicação', tecnico: '🛠 Técnico parceiro', ml: '🛍 Mercado Livre', prospeccao: '📞 Prospecção', trafego: '📣 Tráfego pago', outro: '• Outro' };
 const TIPOS_ATV = { ligar: '📞 Ligar', whatsapp: '💬 WhatsApp', visita: '🤝 Visita', orcamento: '📝 Orçamento', followup: '🔁 Follow-up', posvenda: '📦 Pós-venda', tarefa: '☑ Tarefa' };
 const MOTIVOS_PERDA = ['Preço', 'Prazo de entrega', 'Sem estoque', 'Comprou no concorrente', 'Desistiu / adiou', 'Sem retorno do cliente', 'Orçamento cancelado no Tiny', 'Outro'];
-const CRM = { neg: null, atv: null, revisoes: [], carregando: false, em: 0, gravando: new Set() };
+const CRM = { neg: null, atv: null, revisoes: [], vinc: [], mesmo: [], carregando: false, em: 0, gravando: new Set() };
 
 async function carregarCRM(forcar) {
   if (CRM.carregando || (!forcar && CRM.neg && Date.now() - CRM.em < 60e3)) return;
   CRM.carregando = true;
   try {
     const desde = new Date(Date.now() - 120 * 864e5).toISOString();
-    const [neg, atv, revisoes] = await Promise.all([
+    const [neg, atv, revisoes, vinc, mesmo] = await Promise.all([
       todas(() => sb.from('negocios').select('*').or(`etapa.not.in.(ganho,perdido),fechado_em.gte.${desde}`).order('atualizado_em', { ascending: false }).order('id')),
       todas(() => sb.from('atividades').select('*').or(`feito.eq.false,feito_em.gte.${desde}`).order('quando').order('id')),
       todas(() => sb.from('v_crm_revisoes').select('*').order('negocio_id')),
+      // pedidos ligados aos negócios (só os vínculos ativos; o histórico de desfeitos fica no banco)
+      todas(() => sb.from('negocio_pedidos').select('id,negocio_id,pedido_id,vinculado_por,vinculado_em,pedidos(numero,data,valor,situacao)').is('desfeito_em', null).order('id')),
+      todas(() => sb.from('cliente_pares').select('a,b').eq('status', 'mesmo').order('a').order('b')).catch(() => []),
     ]);
+    CRM.vinc = vinc; CRM.mesmo = mesmo;
     // Atividades pendentes podem pertencer a negócios encerrados há mais de 120 dias.
     const conhecidos = new Set(neg.map(n => n.id));
     const faltam = [...new Set(atv.filter(a => !a.feito && a.negocio_id && !conhecidos.has(a.negocio_id)).map(a => a.negocio_id))];
@@ -77,6 +81,7 @@ async function crmJuntar(tinyId, proId) {
   Object.assign(t, r.negocio);
   CRM.neg = CRM.neg.filter(x => x.id !== p.id);
   for (const a of CRM.atv) if (a.negocio_id === p.id) a.negocio_id = t.id;
+  for (const v of CRM.vinc || []) if (v.negocio_id === p.id) v.negocio_id = t.id;
   avisar('Negócios juntados.'); crmAbrir(t.id); render();
 }
 const atvRevisar = a => !a.feito && !a.arquivada_em && !a.revisada_em && a.tipo === 'followup' && (CRM.neg || []).some(n => n.id === a.negocio_id && ['ganho', 'perdido'].includes(n.etapa));
@@ -90,8 +95,10 @@ function movimentoCRM(id) {
 }
 function alertasNegocio(n) {
   const r = revisaoCRM(n);
-  if (['ganho','perdido'].includes(n.etapa)) return '';
-  return `${paraJuntar(n).length ? '<span class="tag azul">Juntar com a campanha?</span>' : ''}${r.inativo ? '<span class="tag med">⚠ Retomar negociação</span>' : ''}${r.pedidos_conferir ? '<span class="tag azul">Conferir compra</span>' : ''}${r.proposta_semelhante ? '<span class="tag med">Revisar propostas</span>' : ''}`;
+  // pedido ligado cancelado também aparece em negócio já ganho: a venda pode ter caído
+  if (['ganho','perdido'].includes(n.etapa)) return vendaNegocio(n).cancelados ? '<span class="tag ruim">Pedido ligado cancelado</span>' : '';
+  const vd = vendaNegocio(n);
+  return `${vd.cancelados ? '<span class="tag ruim">Pedido ligado cancelado</span>' : ''}${vd.vendido > 0 && vd.saldo > 0 ? '<span class="tag azul">Venda parcial</span>' : ''}${paraJuntar(n).length ? '<span class="tag azul">Juntar com a campanha?</span>' : ''}${r.inativo ? '<span class="tag med">⚠ Retomar negociação</span>' : ''}${r.pedidos_conferir ? '<span class="tag azul">Conferir compra</span>' : ''}${r.proposta_semelhante ? '<span class="tag med">Revisar propostas</span>' : ''}`;
 }
 const vendCRM = () => D.pessoas.filter(p => p.ativo && p.tiny && pessoasQueVejo().includes(p.id));
 /** Primeiro dia útil a partir da data (segunda a sábado, sem os feriados da configuração da Equipe). Mesma regra do banco (dia_util). */
@@ -190,7 +197,7 @@ function vCRM() {
   const ciclo = ganhos.length ? soma(ganhos.map(n => (new Date(n.fechado_em) - new Date(n.criado_em)) / 864e5)) / ganhos.length : null;
   const cab = topo('Funil de vendas', 'Negócios do orçamento ao fechamento. Os orçamentos do Tiny entram sozinhos; todo negócio aberto precisa de uma próxima atividade.',
       `<button class="btn" data-a="crmAtualizar">↻ Atualizar</button><button class="btn pri" data-a="crmNovo">+ Novo negócio</button>`)
-    + `<div class="filtros"><div class="chips">${[['funil', '🎯 Funil'], ['lista', '📋 Lista'], ['recuperar', '🔁 Recuperar orçamentos'], ['indicadores', '📊 Indicadores']].map(([k, n]) => `<button class="chip ${UI.crmAba === k ? 'on' : ''}" data-a="crmAba" data-v="${k}">${n}</button>`).join('')}</div>
+    + `<div class="filtros"><div class="chips">${[['funil', '🎯 Funil'], ['lista', '📋 Lista'], ['recuperar', '🔁 Recuperar orçamentos'], ['ligar', '🧾 Pedidos para ligar'], ['indicadores', '📊 Indicadores']].map(([k, n]) => `<button class="chip ${UI.crmAba === k ? 'on' : ''}" data-a="crmAba" data-v="${k}">${n}</button>`).join('')}</div>
       ${vends.length > 1 ? `<select data-c="ui" data-k="crmVend"><option value="">Todos os vendedores</option>${vends.map(v => `<option value="${v.id}" ${fV === v.id ? 'selected' : ''}>${esc(v.nome)}</option>`).join('')}</select>` : ''}</div>
     <div class="grid g4">
       <div class="card kpi-card destaque"><div class="rot">No funil</div><div class="val verde">${R0(soma(abertos.map(n => +n.valor)))}</div><div class="sub">${abertos.length} negócio(s) aberto(s)</div></div>
@@ -199,6 +206,7 @@ function vCRM() {
       <div class="card kpi-card"><div class="rot">Sem próxima atividade</div><div class="val ${semAtv.length ? 'c-ruim' : 'c-ok'}">${semAtv.length}</div><div class="sub">negócio parado é negócio perdido</div></div></div>`;
   if (UI.crmAba === 'indicadores') return cab + abaIndicadoresCRM(neg, fech);
   if (UI.crmAba === 'recuperar') return cab + abaRecuperarCRM(neg);
+  if (UI.crmAba === 'ligar') return cab + abaPedidosLigar(neg);
   if (UI.crmAba === 'lista') return cab + `<div class="card mt">${listaCurta('crmLista', `<table class="tabela"><thead><tr><th>Negócio</th><th>Etapa</th><th>Vendedor</th><th>Próxima atividade</th><th class="dir">Valor</th></tr></thead><tbody>
       ${neg.map(n => { const a = atvAbertas(n)[0]; return `<tr class="clic" data-a="crmAbrir" data-id="${n.id}"><td><b>${esc(n.cliente_nome || '')}</b><br><small>${esc(n.titulo)}</small></td><td><span class="tag etp-${n.etapa}">${NOME_ETAPA[n.etapa]}</span></td>
         <td><small>${esc(nomeP(n.pessoa_id))}</small></td><td>${a ? `<small class="${a.quando < hoje() ? 'c-ruim' : ''}">${fmtCurta(a.quando)} · ${esc(a.titulo)}</small>` : ['ganho', 'perdido'].includes(n.etapa) ? '' : '<small class="c-ruim">⚠ nenhuma</small>'}</td><td class="dir num">${R0(n.valor)}</td></tr>`; }).join('')}
@@ -298,6 +306,7 @@ function crmAbrir(id) {
     ${revisaoCRM(n).proposta_semelhante ? '<p class="explica">Há outra proposta com produtos em comum. Confira se é revisão, complemento ou outro projeto antes de encerrar alguma delas.</p>' : ''}
     ${paraJuntar(n).map(j => `<div class="alerta mt"><span class="ic">🔗</span><span>${n.id === j.tiny.id ? `Este cliente tem um negócio da campanha sem orçamento: <b>${esc(j.pro.titulo)}</b> (${fmtCurta(j.pro.criado_em.slice(0, 10))}).` : `Este cliente tem o orçamento <b>${esc(j.tiny.orcamento_numero || '')}</b> no Tiny (${R0(j.tiny.valor)}): <b>${esc(j.tiny.titulo)}</b>.`} Se for o mesmo pedido, junte para não acompanhar duas vezes.
       <button class="btn peq pri" data-a="crmJuntar" data-tiny="${j.tiny.id}" data-pro="${j.pro.id}">É o mesmo: juntar</button></span></div>`).join('')}
+    ${blocoVendasNegocio(n)}
     ${blocoAvancar(n)}
     ${n.obs ? `<p class="mt" style="white-space:pre-wrap;font-size:13.5px">${esc(n.obs)}</p>` : ''}
     <h3 class="mt2">Atividades</h3>
@@ -531,8 +540,12 @@ function pendenciasComerciais(pessoas) {
     for (const n of (CRM.neg || []).filter(n => n.pessoa_id === p.id && !['ganho', 'perdido'].includes(n.etapa))) {
       if (!atvAbertas(n).length) itens.push({ k: 'semPasso', p, prazo: (n.mov_em || n.atualizado_em || '').slice(0, 10), txt: `${n.cliente_nome || ''} · ${n.titulo} · ${R0(n.valor)}`, abrir: ['crmAbrir', n.id], passar: ['negocio', n.id], valor: +n.valor });
       if (revisaoCRM(n).pedidos_conferir) itens.push({ k: 'conferir', p, prazo: '', txt: `${n.cliente_nome || ''} · pedido(s) ${revisaoCRM(n).pedidos_conferir}`, abrir: ['crmAbrir', n.id] });
+
       if (n.orcamento_id && paraJuntar(n).length) itens.push({ k: 'juntar', p, prazo: '', txt: `${n.cliente_nome || ''} · orçamento ${n.orcamento_numero || ''} e negócio da campanha`, abrir: ['crmAbrir', n.id] });
     }
+    // pedido ligado cancelado no Tiny, inclusive em negócio já ganho
+    for (const n of (CRM.neg || []).filter(n => n.pessoa_id === p.id && n.etapa !== 'perdido' && vendaNegocio(n).cancelados))
+      itens.push({ k: 'conferir', p, prazo: '', txt: `${n.cliente_nome || ''} · pedido ligado foi cancelado no Tiny${n.etapa === 'ganho' ? ' (negócio ganho)' : ''}`, abrir: ['crmAbrir', n.id] });
     const tel = filaTelefones(p.id);
     if (tel?.length) itens.push({ k: 'telefone', p, prazo: '', txt: `${tel.length} cliente(s) fora da campanha por número errado`, abrir: ['irProspeccao', p.id] });
     const pro = campanhaHoje(p.id);
@@ -581,4 +594,79 @@ async function crmPassarSalvar(tipo, id) {
     if (r.atividade) { const a = CRM.atv.find(x => x.id === r.atividade.id); if (a) Object.assign(a, r.atividade); }
     fecharModal(); avisar(`Passado para ${nomeP(para)}.`); render();
   } finally { CRM.gravando.delete('ps' + id); }
+}
+
+// ─── Venda ligada ao negócio (lote 3B): pedidos confirmados pelo vendedor, saldo e divergências ───
+const cancelado = sit => /cancel/i.test(sit || '');
+/** Venda do negócio pelos pedidos ligados: vendido (sem os cancelados), cancelados ligados e saldo a converter. */
+function vendaNegocio(n) {
+  const links = (CRM.vinc || []).filter(v => v.negocio_id === n.id);
+  const validos = links.filter(v => !cancelado(v.pedidos?.situacao)), cancel = links.filter(v => cancelado(v.pedidos?.situacao));
+  const vendido = soma(validos.map(v => +(v.pedidos?.valor || 0)));
+  return { links, vendido, pedidos: validos.length, cancelados: cancel.length, saldo: Math.max(0, (+n.valor || 0) - vendido) };
+}
+/** Pedidos do cliente que podem ser deste negócio: mesmo cliente, da loja, não cancelados, ainda sem negócio,
+ *  a partir de 7 dias antes do orçamento/abertura. Quem confirma é o vendedor. */
+/** O cliente e os cadastros conferidos como "mesmo cliente" (Cadastros parecidos). */
+function chavesDoCliente(chave) {
+  const s = new Set([chave]);
+  for (const p of CRM.mesmo || []) { if (p.a === chave) s.add(p.b); if (p.b === chave) s.add(p.a); }
+  return s;
+}
+function pedidosCandidatos(n) {
+  const ligados = new Set((CRM.vinc || []).map(v => v.pedido_id)), ini = addDias((n.orcamento_data || n.criado_em || hoje()).slice(0, 10), -7), chaves = chavesDoCliente(n.cliente_chave);
+  return (D.pedidos || []).filter(p => chaves.has(p.cliente_chave) && !p.numero_ecommerce && !cancelado(p.situacao) && !ligados.has(p.id) && p.data >= ini)
+    .sort((a, b) => b.data.localeCompare(a.data));
+}
+function blocoVendasNegocio(n) {
+  const vd = vendaNegocio(n), cand = n.etapa === 'perdido' ? [] : pedidosCandidatos(n);
+  if (!vd.links.length && !cand.length) return '';
+  const linha = v => `<div class="atv"><div style="flex:1"><b>Pedido ${esc(v.pedidos?.numero || v.pedido_id)}</b> · ${v.pedidos?.data ? fmtCurta(v.pedidos.data) : ''} · ${R0(v.pedidos?.valor || 0)}
+      ${cancelado(v.pedidos?.situacao) ? '<span class="tag ruim">cancelado: não conta</span>' : `<span class="tag">${esc(v.pedidos?.situacao || '')}</span>`}<br><small class="mut">ligado por ${esc(nomeP(v.vinculado_por))} em ${fmtCurta(v.vinculado_em.slice(0, 10))}</small></div>
+      <button class="btn peq" data-a="crmDesfazerPedido" data-id="${v.id}" data-negocio="${n.id}" title="Tirar este pedido do negócio (com motivo)">Desfazer</button></div>`;
+  return `<div class="card mt" style="padding:10px 14px"><b>🧾 Venda deste negócio</b>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin:6px 0"><small>Negociado <b>${R0(n.valor)}</b></small><small>Vendido <b class="c-ok">${R0(vd.vendido)}</b>${vd.pedidos ? ` em ${vd.pedidos} pedido(s)` : ''}</small><small>Saldo <b>${R0(vd.saldo)}</b></small></div>
+    ${vd.cancelados ? '<p class="explica" style="margin:0 0 6px">Um pedido ligado foi cancelado no Tiny e saiu do vendido. Confira se o cliente refez a compra ou se a venda caiu.</p>' : ''}
+    ${vd.links.map(linha).join('')}
+    ${vd.vendido > 0 && vd.saldo > 0 && !['ganho', 'perdido'].includes(n.etapa) ? `<p class="explica" style="margin:6px 0 0">Venda parcial: ainda há ${R0(vd.saldo)} para converter neste negócio.</p>` : ''}
+    ${vd.vendido > 0 && !['ganho', 'perdido'].includes(n.etapa) ? `<div class="acoes mt"><button class="btn peq pri" data-a="crmMover" data-id="${n.id}" data-v="ganho">🎉 Marcar como ganho</button></div>` : ''}
+    ${cand.length ? `<h4 style="margin:10px 0 4px">Pedidos do cliente que podem ser deste negócio</h4>${cand.slice(0, 8).map(p => `<div class="atv"><div style="flex:1">Pedido <b>${esc(p.numero)}</b> · ${fmtCurta(p.data)} · ${R0(p.valor)} <small class="mut">${esc(p.situacao || '')} · ${esc(nomeVendedor(p.vendedor_id))}</small></div>
+      <button class="btn peq" data-a="verPedido" data-id="${p.id}">Ver itens</button><button class="btn peq pri" data-a="crmLigarPedido" data-negocio="${n.id}" data-pedido="${p.id}">Ligar</button></div>`).join('')}
+      <small class="mut">Uma compra do mesmo cliente não confirma o negócio: ligue só o que for desta negociação.</small>` : ''}</div>`;
+}
+async function crmLigarPedido(negocioId, pedidoId) {
+  const n = CRM.neg.find(x => String(x.id) === String(negocioId)), p = (D.pedidos || []).find(x => String(x.id) === String(pedidoId));
+  if (!n || !p) return;
+  if (!confirm(`Ligar o pedido ${p.numero} (${R0(p.valor)}, ${fmtCurta(p.data)}) ao negócio "${n.titulo}" (${R0(n.valor)})?\n\nO pedido passa a contar como venda deste negócio. A etapa não muda sozinha.`)) return;
+  if (CRM.gravando.has('lg' + pedidoId)) return;
+  CRM.gravando.add('lg' + pedidoId);
+  try {
+    const r = await ok(sb.rpc('negocio_pedido_ligar', { p_negocio: Number(negocioId), p_pedido: String(pedidoId) }));
+    if (!CRM.vinc.some(v => v.id === r.vinculo.id)) CRM.vinc.push({ ...r.vinculo, pedidos: { numero: p.numero, data: p.data, valor: p.valor, situacao: p.situacao } });
+    movimentoCRM(n.id); if (!n.pedido_numero) n.pedido_numero = p.numero;
+    const r2 = CRM.revisoes.find(x => x.negocio_id === n.id);
+    if (r2?.pedidos_conferir) r2.pedidos_conferir = r2.pedidos_conferir.split(', ').filter(x => x !== p.numero).join(', ');
+    avisar(r.repetido ? 'Este pedido já estava ligado.' : `Pedido ${p.numero} ligado.`); crmAbrir(n.id); render();
+  } finally { CRM.gravando.delete('lg' + pedidoId); }
+}
+async function crmDesfazerPedido(vinculoId, negocioId) {
+  const v = CRM.vinc.find(x => String(x.id) === String(vinculoId)); if (!v) return;
+  const motivo = prompt(`Por que tirar o pedido ${v.pedidos?.numero || ''} deste negócio?`); if (motivo === null) return;
+  if (!motivo.trim()) return avisar('Diga o motivo.');
+  await ok(sb.rpc('negocio_pedido_desfazer', { p_vinculo: Number(vinculoId), p_motivo: motivo.trim() }));
+  CRM.vinc = CRM.vinc.filter(x => x.id !== v.id);
+  movimentoCRM(Number(negocioId)); avisar('Pedido tirado do negócio. O registro fica no histórico.'); crmAbrir(negocioId); render();
+}
+/** Pedidos recentes da loja sem negócio, de clientes que têm negócio aberto: para o vendedor conferir e ligar. */
+function abaPedidosLigar(neg) {
+  const abertos = neg.filter(n => n.etapa !== 'perdido' && n.etapa !== 'ganho'), ligados = new Set((CRM.vinc || []).map(v => v.pedido_id)), desde = addDias(hoje(), -60);
+  const porCli = abertos.reduce((a, n) => { for (const k of chavesDoCliente(n.cliente_chave)) (a[k] ||= []).push(n); return a; }, {});
+  const l = (D.pedidos || []).filter(p => p.data >= desde && !p.numero_ecommerce && !cancelado(p.situacao) && !ligados.has(p.id) && porCli[p.cliente_chave])
+    .map(p => ({ p, negs: porCli[p.cliente_chave].filter(n => p.data >= addDias((n.orcamento_data || n.criado_em || hoje()).slice(0, 10), -7)) }))
+    .filter(x => x.negs.length).sort((a, b) => b.p.data.localeCompare(a.p.data));
+  return `<p class="explica">Pedidos da loja dos últimos 60 dias, ainda sem negócio, de clientes com negociação aberta. Confira os itens e ligue só o que for da negociação: compra de outra necessidade fica fora.</p>
+    <div class="card mt">${l.length ? l.slice(0, 100).map(x => `<div class="atv" style="flex-wrap:wrap"><div style="flex:1;min-width:220px"><b>${esc(x.p.cliente_nome || '')}</b> · pedido <b>${esc(x.p.numero)}</b> · ${fmtCurta(x.p.data)} · ${R0(x.p.valor)}<br><small class="mut">${esc(x.p.situacao || '')} · ${esc(nomeVendedor(x.p.vendedor_id))}</small></div>
+      <button class="btn peq" data-a="verPedido" data-id="${x.p.id}">Ver itens</button>
+      ${x.negs.map(n => `<button class="btn peq pri" data-a="crmLigarPedido" data-negocio="${n.id}" data-pedido="${x.p.id}" title="${esc(n.titulo)}">Ligar a: ${esc(n.titulo.slice(0, 40))} (${R0(n.valor)})</button>`).join('')}</div>`).join('')
+      : '<div class="vazio">Nenhum pedido aguardando vínculo. 👏</div>'}</div>`;
 }
