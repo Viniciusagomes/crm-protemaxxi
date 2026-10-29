@@ -39,4 +39,5 @@ conciliação dentro da Central de pendências que já existe.
 
 ## Para o Codex
 
+- Migration aplicada: `20261029205034_lote_3a_cadastros` (62 pares na fila, 49 com os dois ativos).
 - "Mesmo cliente" é só registro por enquanto; usar na 3B/3C para juntar histórico na leitura, sem fundir cadastros.
