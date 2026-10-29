@@ -261,6 +261,66 @@ function vMeuDiaOp() {
       ${veExp() ? `<div class="card"><div class="secao-titulo"><h2>Próximos a separar</h2><a href="#/expedicao">expedição</a></div>${separar.length ? `<table class="tabela"><tbody>${separar.slice(0, 10).map(x => `<tr><td><b>${esc(x.p.numero || '')}</b> · ${esc(x.p.cliente_nome || '')}<br><small>${esc(nomeCanal(x.canal))}${x.prazo ? ' · até ' + dataHora(x.prazo) : ''}</small></td><td>${x.atrasado ? '<span class="tag ruim">atrasado</span>' : ''}</td></tr>`).join('')}</tbody></table>` : `<div class="vazio">${EXP ? 'Nada para separar agora. 👏' : 'Carregando…'}</div>`}</div>` : ''}</div>`;
 }
 
+/** Fila única do dia: atividades, retornos combinados e negócios parados, um cartão por cliente, em ordem de prioridade.
+ *  Prioridade: 1 atrasado (o cliente já esperou) · 2 combinado para hoje · 3 negócio sem próximo passo ou parado. */
+function filaDoDia(quem) {
+  const h = hoje(), cartoes = new Map(), dias = d => Math.max(0, Math.round((pd(h) - pd(d)) / 864e5));
+  const negDe = id => (CRM.neg || []).find(n => n.id === id);
+  const cartao = (chave, nome) => { if (!cartoes.has(chave)) cartoes.set(chave, { chave, nome, prio: 9, desde: h, valor: 0, motivos: [], linhas: [] }); return cartoes.get(chave); };
+  const juntar = (k, prio, desde, motivo, linha, valor) => {
+    k.prio = Math.min(k.prio, prio); if (desde < k.desde) k.desde = desde; k.valor = Math.max(k.valor, +valor || 0);
+    if (!k.motivos.includes(motivo)) k.motivos.push(motivo); k.linhas.push(linha);
+  };
+  for (const a of (CRM.atv || []).filter(a => a.pessoa_id === quem && atvPendente(a) && a.quando <= h)) {
+    const n = a.negocio_id ? negDe(a.negocio_id) : null;
+    const k = cartao(a.cliente_chave || n?.cliente_chave || (a.negocio_id ? 'n' + a.negocio_id : 'a' + a.id), a.cliente_nome || n?.cliente_nome || a.titulo);
+    juntar(k, a.quando < h ? 1 : 2, a.quando, a.quando < h ? `Atrasada há ${dias(a.quando)} dia(s)` : 'Agendada para hoje', { tipo: 'atv', a, n }, n?.valor);
+  }
+  for (const i of followupsHoje(quem)) {
+    const k = cartao(i.cliente_chave || 'i' + i.id, i.cliente_nome || '');
+    juntar(k, i.proximo_contato < h ? 1 : 2, i.proximo_contato, i.proximo_contato < h ? `Retorno combinado vencido há ${dias(i.proximo_contato)} dia(s)` : 'Retorno combinado para hoje', { tipo: 'fup', i });
+  }
+  for (const n of (CRM.neg || []).filter(n => n.pessoa_id === quem && !['ganho', 'perdido'].includes(n.etapa))) {
+    const r = revisaoCRM(n), sem = !atvAbertas(n).length;
+    if (!sem && !r.inativo && !r.pedidos_conferir && !r.proposta_semelhante) continue;
+    const k = cartao(n.cliente_chave || 'n' + n.id, n.cliente_nome || n.titulo);
+    const motivo = sem ? `Negócio de ${R0(n.valor)} sem próximo passo` : r.inativo ? 'Negociação parada há mais de 15 dias' : r.pedidos_conferir ? 'Compra posterior para conferir' : 'Proposta parecida para revisar';
+    juntar(k, 3, (n.mov_em || n.atualizado_em || h).slice(0, 10), motivo, { tipo: 'neg', n }, n.valor);
+  }
+  return [...cartoes.values()].sort((a, b) => a.prio - b.prio || a.desde.localeCompare(b.desde) || b.valor - a.valor);
+}
+function cartaoFila(k) {
+  const h = hoje(), cor = k.prio === 1 ? 'ruim' : k.prio === 2 ? 'azul' : 'med';
+  const linha = l => l.tipo === 'atv' ? `<div class="atv ${l.a.quando < h ? 'atrasada' : ''}"><button class="atv-check" data-a="atvFeita" data-id="${l.a.id}" title="Concluir e registrar o resultado"></button>
+      <div style="flex:1"><b>${TIPOS_ATV[l.a.tipo] || l.a.tipo}</b> · ${esc(l.a.titulo)}<br><small>${fmtCurta(l.a.quando)}${l.a.automatica ? ' · automática' : ''}</small></div>
+      <button class="btn peq" data-a="atvContato" data-id="${l.a.id}" title="Contato do cliente: celular e e-mail">+</button>${l.a.negocio_id ? `<button class="btn peq" data-a="crmAbrir" data-id="${l.a.negocio_id}">Negócio</button>` : ''}</div>`
+    : l.tipo === 'fup' ? `<div class="atv"><button class="atv-check" data-a="followupFeito" data-id="${l.i.id}" title="Retorno feito"></button><div style="flex:1"><small>${esc(l.i.texto.slice(0, 140))}</small></div></div>`
+    : `<div class="atv"><div style="flex:1"><b>🎯 ${esc(l.n.titulo)}</b><br><small>${NOME_ETAPA[l.n.etapa]} · ${R0(l.n.valor)}</small>${alertasNegocio(l.n)}</div><button class="btn peq pri" data-a="crmAbrir" data-id="${l.n.id}">${atvAbertas(l.n).length ? 'Revisar' : 'Agendar'}</button></div>`;
+  const cli = k.chave && !/^[nai]\d+$/.test(k.chave) ? k.chave : '';
+  return `<div class="card fila-item" style="margin-top:10px;padding:12px 14px">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="flex:1">${cli ? `<a href="#" data-a="verCliente" data-chave="${esc(cli)}">${esc(k.nome || 'Cliente')}</a>` : esc(k.nome || 'Sem cliente')}</b>${k.valor ? `<small class="mut">${R0(k.valor)}</small>` : ''}</div>
+    <div>${k.motivos.map(m => `<span class="tag ${cor}">${esc(m)}</span>`).join(' ')}</div>${k.linhas.map(linha).join('')}</div>`;
+}
+/** Próximos contatos da campanha direto no Meu dia: mensagem, WhatsApp e resultado num clique. */
+function blocoProspeccaoDia(quem) {
+  if (!pessoa(quem)?.tiny) return '';
+  if (!PRO.dados || PRO.chave !== hoje() + quem) {
+    if (!PRO.carregando) { UI.proPessoa = quem; carregarProspeccao().then(render).catch(() => {}); }
+    return '';
+  }
+  const cli = Object.fromEntries((D.clientes || []).map(c => [c.chave, c])), vend = pessoa(quem)?.nome?.split(' ')[0] || '';
+  // pausado ou "não contatar" fica só na campanha completa (para registrar "Pular")
+  const pend = PRO.dados.filter(x => !x.resultado && !cli[x.cliente_chave]?.nao_contatar && !contatoPausado(cli[x.cliente_chave]));
+  if (!pend.length) return '';
+  const rapidos = ['respondeu', 'orcamento', 'sem_resposta', 'sem_interesse', 'numero_errado', 'pular'];
+  return `<div class="card mt"><div class="secao-titulo"><h2>📞 Prospecção: próximos contatos</h2><small>${pend.length} pendente(s) · <a href="#" data-a="irProspeccao" data-pessoa="${quem}">abrir a campanha</a></small></div>
+    ${pend.slice(0, 5).map(x => { const c = cli[x.cliente_chave] || {}, fone = c.fone || '';
+      return `<div class="atv" style="flex-wrap:wrap"><div style="flex:1;min-width:200px"><b>${esc(x.cliente_nome || c.nome || '')}</b> <span class="tag">${(LISTAS_PRO[x.lista] || [x.lista])[0]}</span>${seloContato(c)}<br><small>${esc(x.motivo || '')}</small></div>
+        <textarea class="pro-msg" id="proMsg_${x.id}" data-fid="proMsg_${x.id}" data-pro-rascunho="${x.id}" rows="3" style="width:100%">${esc(PRO.rascunhos[x.id] ?? mensagemPro(x, vend))}</textarea>
+        ${linkWa(fone) ? `<a class="btn pri peq" href="#" data-a="proWa" data-id="${x.id}" data-fone="${esc(fone)}">💬 WhatsApp</a>` : '<small class="c-med">sem telefone</small>'}
+        <div class="pro-res" style="width:100%">${rapidos.map(k => `<button class="chip" data-a="proRes" data-id="${x.id}" data-v="${k}">${RES_PRO[k]}</button>`).join('')}</div></div>`; }).join('')}</div>`;
+}
+
 function vMeuDia() {
   if (!EU.tiny && !ehDono() && !EU.permissoes?.vendas_todas) return vMeuDiaOp();
   if (!CRM.neg) { if (!CRM.carregando) carregarCRM().then(render).catch(e => avisar(e.message)); return topo('Meu dia', '') + '<div class="card vazio">Carregando…</div>'; }
@@ -270,7 +330,9 @@ function vMeuDia() {
   const atvs = (CRM.atv || []).filter(a => a.pessoa_id === quem && atvPendente(a));
   const revisar = (CRM.atv || []).filter(a => a.pessoa_id === quem && atvRevisar(a));
   const arquivadas = (CRM.atv || []).filter(a => a.pessoa_id === quem && a.arquivada_em);
-  const riscos = CRM.neg.filter(n => n.pessoa_id === quem && !['ganho','perdido'].includes(n.etapa) && (revisaoCRM(n).inativo || revisaoCRM(n).pedidos_conferir || revisaoCRM(n).proposta_semelhante));
+  const fila = filaDoDia(quem);
+  // telefones e regras de contato vêm da carteira; carrega uma vez só
+  if (!D.clientes && !vMeuDia.carregandoCli) vMeuDia.carregandoCli = carregarClientes().then(render).catch(() => {}).finally(() => { vMeuDia.carregandoCli = null; });
   const atrasadas = atvs.filter(a => a.quando < h), deHoje = atvs.filter(a => a.quando === h), proximas = atvs.filter(a => a.quando > h && a.quando <= addDias(h, 7));
   const fups = followupsHoje(quem);
   const semAtv = CRM.neg.filter(n => n.pessoa_id === quem && !['ganho', 'perdido'].includes(n.etapa) && !atvAbertas(n).length);
@@ -287,12 +349,11 @@ function vMeuDia() {
       <div class="card kpi-card"><div class="rot">Para hoje</div><div class="val">${deHoje.length + fups.length}</div><div class="sub">${feitasHoje} feita(s) hoje</div></div>
       <div class="card kpi-card clic" data-a="irProspeccao" data-pessoa="${quem}"><div class="rot">Prospecção de hoje</div><div class="val">${pro ? `${pro.contatos}/${pro.total}` : PRO.resumoErro ? 'Indisponível' : '…'}</div><div class="sub">contatos da campanha${pro ? ` · ${pro.pulados} pulado(s) · ${pro.pendentes} pendente(s)` : ''}</div></div>
       <div class="card kpi-card"><div class="rot">Negócios sem atividade</div><div class="val ${semAtv.length ? 'c-med' : 'c-ok'}">${semAtv.length}</div><div class="sub">defina o próximo passo</div></div></div>
-    <div class="grid g2 mt">
-      <div class="card"><h2>✅ Fazer hoje</h2>${[...atrasadas, ...deHoje].map(linhaA).join('') || '<div class="vazio">Nada pendente para hoje. 👏</div>'}
-        ${fups.length ? `<h3 class="mt">Follow-ups de clientes</h3>${fups.map(i => `<div class="atv"><button class="atv-check" data-a="followupFeito" data-id="${i.id}"></button><div><b>${esc(i.cliente_nome || '')}</b><br><small>${esc(i.texto.slice(0, 120))}</small></div><button class="btn peq" data-a="verCliente" data-chave="${esc(i.cliente_chave)}">Cliente</button></div>`).join('')}` : ''}</div>
-      <div class="card"><h2>⚠️ Negócios sem próxima atividade</h2>${semAtv.map(n => `<div class="atv"><div style="flex:1"><b>${esc(n.cliente_nome || '')}</b> · ${R0(n.valor)}<br><small>${esc(n.titulo)} · ${NOME_ETAPA[n.etapa]}</small></div><button class="btn peq pri" data-a="crmAbrir" data-id="${n.id}">Agendar</button></div>`).join('') || '<div class="vazio">Todos os negócios têm próximo passo. 👏</div>'}
-        <h3 class="mt">📅 Próximos 7 dias</h3>${proximas.map(linhaA).join('') || '<p class="mut">Nada agendado.</p>'}</div></div>
-    ${riscos.length ? `<div class="card mt"><h2>Revisar e recuperar negociações</h2>${riscos.map(n => `<div class="atv"><div style="flex:1"><b>${esc(n.cliente_nome || n.titulo)}</b><br>${alertasNegocio(n)}</div><button class="btn peq" data-a="crmAbrir" data-id="${n.id}">Revisar / agendar</button></div>`).join('')}</div>` : ''}
+    <div class="card mt"><div class="secao-titulo"><h2>✅ Fila de hoje</h2><small>${fila.length} cliente(s) · um cartão por cliente, do mais urgente para o menos</small></div>
+      <p class="explica" style="margin:0">Primeiro o que está atrasado, depois o combinado para hoje e, por último, negócios sem próximo passo ou parados.</p>
+      ${fila.map(cartaoFila).join('') || '<div class="vazio">Nada pendente para hoje. 👏</div>'}</div>
+    ${blocoProspeccaoDia(quem)}${blocoTelefones(quem, 5)}
+    <div class="card mt"><h3 style="margin-top:0">📅 Próximos 7 dias</h3>${proximas.map(linhaA).join('') || '<p class="mut">Nada agendado.</p>'}</div>
     ${revisar.length ? `<div class="card mt"><h2>Follow-ups de negócios encerrados: revisar</h2><p class="mut">Confirme se ainda há uma ação válida. Pós-vendas continuam na rotina.</p>${revisar.map(a => `<div class="atv"><div style="flex:1"><b>${esc(a.cliente_nome || '')}</b><br>${esc(a.titulo)}</div><button class="btn peq" data-a="atvRevisada" data-id="${a.id}" data-manter="sim">Manter atividade</button><button class="btn peq" data-a="atvRevisada" data-id="${a.id}">Arquivar</button></div>`).join('')}</div>` : ''}
     ${arquivadas.length ? `<details class="card mt"><summary>Atividades arquivadas (${arquivadas.length})</summary>${arquivadas.map(a => `<div class="atv"><div><b>${esc(a.cliente_nome || '')}</b> · ${esc(a.titulo)}<br><small>${esc(a.arquivada_motivo || '')} · ${fmtCurta(a.arquivada_em.slice(0,10))}</small></div>${a.negocio_id ? `<button class="btn peq" data-a="crmAbrir" data-id="${a.negocio_id}">Histórico</button>` : ''}</div>`).join('')}</details>` : ''}`;
 }

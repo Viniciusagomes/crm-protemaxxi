@@ -27,9 +27,11 @@ async function telsDoCliente(chave, forcar) {
 function blocoTelsFicha(chave) {
   const l = AGD.tels[chave];
   if (!l) return '<span class="mut">📱 carregando telefones…</span>';
-  return `${l.map(t => `<span class="tel-chip ${t.celular ? 'cel' : ''}" title="${esc(ORIGEM_TEL[t.origem] || t.origem)}${t.validado_em ? ' · confirmado pelo cliente' : ''}">${t.celular ? '📱' : '☎'} ${esc(foneFmt(t.telefone))}${t.validado_em ? ' ✓' : ''}
+  return `${l.map(t => t.errado_em ? `<span class="tel-chip" title="Marcado como errado em ${fmtCurta(t.errado_em.slice(0, 10))}: não é usado para contato">📵 <s>${esc(foneFmt(t.telefone))}</s> errado
+      <button class="icone-btn" data-a="telCerto" data-chave="${esc(chave)}" data-v="${t.telefone}" title="O número estava certo">↺</button></span>`
+    : `<span class="tel-chip ${t.celular ? 'cel' : ''}" title="${esc(ORIGEM_TEL[t.origem] || t.origem)}${t.validado_em ? ' · confirmado' : ''}">${t.celular ? '📱' : '☎'} ${esc(foneFmt(t.telefone))}${t.validado_em ? ' ✓' : ''}
       ${t.celular ? `<a class="wa" href="https://wa.me/${t.telefone}" target="_blank" rel="noopener">WhatsApp</a>` : ''}${ehDono() || (t.origem === 'manual' && t.por === EU.id) ? `<button class="icone-btn" data-a="telExcluir" data-chave="${esc(chave)}" data-v="${t.telefone}" title="Remover este número">✕</button>` : ''}</span>`).join('')}
-    ${l.some(t => t.celular) ? '' : '<span class="tag med">sem celular</span>'}<button class="btn peq" data-a="telNovo" data-chave="${esc(chave)}">＋ telefone</button>`;
+    ${l.some(t => t.celular && !t.errado_em) ? '' : '<span class="tag med">sem celular</span>'}<button class="btn peq" data-a="telNovo" data-chave="${esc(chave)}">＋ telefone</button>`;
 }
 /** Chamado depois de abrir a ficha: carrega e mostra os telefones. */
 function carregarTelsFicha(chave) {
