@@ -31,5 +31,6 @@ Fecha o lote 2 revisado (A: rotina do vendedor; B: orçamentos e próximo passo;
 
 ## Para o Codex
 
+- Migration aplicada: `20261029200840_lote_2c_supervisao`.
 - Lote 3 (atribuição de venda, vínculo pedido × negócio) parte de `negocios.prospeccao_id` e `juntado_a`.
 - A central só lê o que já está carregado no CRM (120 dias de atividades feitas); se crescer, mover para uma view.
