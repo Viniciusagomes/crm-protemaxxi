@@ -431,6 +431,8 @@ const A = {
   parDecidir: el => parDecidir(el.dataset.a1, el.dataset.b1, el.dataset.v).catch(e => avisar(e.message)),
   parRecalcular: () => parRecalcular().catch(e => avisar(e.message)),
   irPares: () => { fecharModal(); UI.view = 'clientes'; UI.cliAba = 'parecidos'; render(); },
+  crmLigarPedido: el => crmLigarPedido(el.dataset.negocio, el.dataset.pedido).catch(e => avisar(e.message)),
+  crmDesfazerPedido: el => crmDesfazerPedido(el.dataset.id, el.dataset.negocio).catch(e => avisar(e.message)),
   crmPassar: el => crmPassar(el.dataset.tipo, el.dataset.id, el.dataset.de),
   crmPassarSalvar: el => crmPassarSalvar(el.dataset.tipo, el.dataset.id).catch(e => avisar(e.message)),
   crmJuntar: el => crmJuntar(el.dataset.tiny, el.dataset.pro).catch(e => avisar(e.message)),
