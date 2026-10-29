@@ -24,7 +24,7 @@ estão sem resultado — o gargalo é o registro, não a atribuição.
 - `prospeccao_gerar`: duas trocas pontuais (pausa + números errados); "número errado" deixou de bloquear 90 dias
   fixos e passa a bloquear até a correção. "Sem interesse" continua 90 dias.
 
-## Banco (`supabase/migrations/<versão>_lote_2a_contato.sql`)
+## Banco (`supabase/migrations/20261029181945_lote_2a_contato.sql` — aplicada em 29/10)
 
 - Colunas novas, `seg.fone_errado`, `seg.pode_mexer_cliente` (regra do `cliente_marcar` + cliente na própria
   campanha), `telefone_errado` e `contato_regras` (definer, `search_path` vazio, sem `anon/PUBLIC`).
@@ -32,7 +32,7 @@ estão sem resultado — o gargalo é o registro, não a atribuição.
 - Política `clitel_ins`: insert direto não pode trazer `errado_em/errado_por` (marca só pela RPC).
 - Backfill: números de "número errado" dos últimos 90 dias, só quando nenhum número foi incluído ou confirmado
   depois do registro.
-- **Aplicar a migration antes do merge** (o site novo manda `p_fone`; o banco novo aceita o site antigo).
+- Já aplicada (antes do merge, como deve ser: o banco novo aceita o site antigo). O backfill marcou 3 números; nos demais registros antigos já havia número incluído depois.
 
 ## Validação
 
