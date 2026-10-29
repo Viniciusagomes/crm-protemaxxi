@@ -469,3 +469,116 @@ function vMeuDia() {
     ${revisar.length ? `<div class="card mt"><h2>Follow-ups de negócios encerrados: revisar</h2><p class="mut">Confirme se ainda há uma ação válida. Pós-vendas continuam na rotina.</p>${revisar.map(a => `<div class="atv"><div style="flex:1"><b>${esc(a.cliente_nome || '')}</b><br>${esc(a.titulo)}</div><button class="btn peq" data-a="atvRevisada" data-id="${a.id}" data-manter="sim">Manter atividade</button><button class="btn peq" data-a="atvRevisada" data-id="${a.id}">Arquivar</button></div>`).join('')}</div>` : ''}
     ${arquivadas.length ? `<details class="card mt"><summary>Atividades arquivadas (${arquivadas.length})</summary>${arquivadas.map(a => `<div class="atv"><div><b>${esc(a.cliente_nome || '')}</b> · ${esc(a.titulo)}<br><small>${esc(a.arquivada_motivo || '')} · ${fmtCurta(a.arquivada_em.slice(0,10))}</small></div>${a.negocio_id ? `<button class="btn peq" data-a="crmAbrir" data-id="${a.negocio_id}">Histórico</button>` : ''}</div>`).join('')}</details>` : ''}`;
 }
+
+// ─── Linha do tempo do cliente (ficha) ───
+/** Tudo o que aconteceu com o cliente, do mais recente para o mais antigo: compras, contatos, campanha, negócios,
+ *  atividades e OS. Só leitura; junta o que já existe, sem fundir cadastros. */
+async function linhaTempoCliente(chave) {
+  const el = document.getElementById('cliLinha'); if (!el || el.dataset.chave !== chave) return;
+  try {
+    const [pro, negs, atvs, oss] = await Promise.all([
+      ok(sb.from('prospeccao').select('id,data,lista,resultado,resultado_em,pessoa_id,motivo,interacao_id').eq('cliente_chave', chave).order('data', { ascending: false }).limit(200)),
+      ok(sb.from('negocios').select('id,titulo,etapa,valor,criado_em,fechado_em,pessoa_id,orcamento_numero,motivo_perda,juntado_a').eq('cliente_chave', chave).limit(60)),
+      ok(sb.from('atividades').select('id,tipo,titulo,quando,feito,feito_em,resultado,pessoa_id,negocio_id,arquivada_em').eq('cliente_chave', chave).order('quando', { ascending: false }).limit(100)),
+      carregarOS().catch(() => []),
+    ]);
+    const ev = eventosCliente(chave, { pro, negs, atvs, oss: (oss || []).filter(o => o.cliente_chave === chave) });
+    if (el.dataset.chave !== chave) return;
+    el.innerHTML = blocoLinhaTempo(ev);
+  } catch (e) { el.innerHTML = `<p class="mut">Não consegui montar a linha do tempo: ${esc(e.message)}</p>`; }
+}
+function eventosCliente(chave, x) {
+  const ev = [], quem = id => (pessoa(id)?.nome || '').split(' ')[0];
+  for (const p of (D.pedidos || []).filter(p => p.cliente_chave === chave))
+    ev.push({ d: p.data, ic: '🛒', txt: `Compra nº ${p.numero} · ${R0(p.valor)}${p.situacao ? ' · ' + p.situacao : ''}`, quem: nomeVendedor(p.vendedor_id) });
+  const ints = (D.interacoes || []).filter(i => i.cliente_chave === chave), idsInt = new Set(ints.map(i => i.id));
+  for (const i of ints)
+    ev.push({ d: i.criado_em, ic: (TIPOS_INT[i.tipo] || '•').split(' ')[0], txt: i.texto || '', quem: quem(i.autor_id) });
+  // resultado da campanha que já virou contato registrado aparece uma vez só (pelo contato, com o texto completo)
+  for (const p of (x.pro || []).filter(p => !(p.interacao_id && idsInt.has(p.interacao_id))))
+    ev.push({ d: p.resultado_em || p.data, ic: '📞', txt: `Campanha ${(LISTAS_PRO[p.lista] || [p.lista])[0]}: ${p.resultado ? RES_PRO[p.resultado] || p.resultado : 'na lista, sem registro'}`, quem: quem(p.pessoa_id) });
+  for (const n of x.negs || []) {
+    ev.push({ d: n.criado_em, ic: '🎯', txt: `Negócio aberto: ${n.titulo}${n.orcamento_numero ? ' (orçamento ' + n.orcamento_numero + ')' : ''} · ${R0(n.valor)}`, quem: quem(n.pessoa_id) });
+    if (n.fechado_em) ev.push({ d: n.fechado_em, ic: n.etapa === 'ganho' ? '🎉' : n.juntado_a ? '🔗' : '✕',
+      txt: `${n.etapa === 'ganho' ? 'Negócio ganho' : n.juntado_a ? 'Negócio juntado ao orçamento' : 'Negócio perdido'}: ${n.titulo}${n.motivo_perda && !n.juntado_a ? ' · ' + n.motivo_perda : ''}`, quem: quem(n.pessoa_id) });
+  }
+  for (const a of (x.atvs || []).filter(a => a.feito && !a.arquivada_em))
+    ev.push({ d: a.feito_em || a.quando, ic: '✓', txt: `${TIPOS_ATV[a.tipo] || a.tipo}: ${a.titulo}${a.resultado ? ' → ' + a.resultado : ''}`.slice(0, 180), quem: quem(a.pessoa_id) });
+  for (const o of x.oss || [])
+    ev.push({ d: o.data, ic: '🛠', txt: `OS ${o.numero || o.id}: ${o.equipamento || o.descricao_problema || ''} · ${o.situacao || ''}`.slice(0, 160), quem: '' });
+  return ev.filter(e => e.d).sort((a, b) => String(b.d).localeCompare(String(a.d)));
+}
+function blocoLinhaTempo(ev) {
+  if (!ev.length) return '<p class="mut">Nada registrado ainda.</p>';
+  const linha = e => `<div class="atv"><small class="mut" style="min-width:64px">${fmtCurta(String(e.d).slice(0, 10))}/${String(e.d).slice(2, 4)}</small><span>${e.ic}</span><div style="flex:1"><small>${esc(e.txt)}</small></div>${e.quem ? `<small class="mut">${esc(e.quem)}</small>` : ''}</div>`;
+  return ev.slice(0, 25).map(linha).join('') + (ev.length > 25 ? `<details><summary class="mut">ver mais ${ev.length - 25}</summary>${ev.slice(25).map(linha).join('')}</details>` : '');
+}
+
+// ─── Supervisão: central de pendências comerciais ───
+/** O que está travado na equipe (e por quê), com atalho para resolver ou passar para outra pessoa. */
+function pendenciasComerciais(pessoas) {
+  const h = hoje(), itens = [];
+  for (const p of pessoas) {
+    for (const a of (CRM.atv || []).filter(a => a.pessoa_id === p.id && atvPendente(a) && a.quando < h)) {
+      // atividade de negócio passa com o negócio inteiro; de negócio encerrado (pós-venda) não dá para passar
+      const n = a.negocio_id ? (CRM.neg || []).find(x => x.id === a.negocio_id) : null, aberto = n && !['ganho', 'perdido'].includes(n.etapa);
+      itens.push({ k: 'atrasado', p, prazo: a.quando, txt: `${a.cliente_nome || ''} · ${a.titulo}`, abrir: a.negocio_id ? ['crmAbrir', a.negocio_id] : null,
+        passar: !a.negocio_id ? ['atividade', a.id] : aberto ? ['negocio', a.negocio_id] : null });
+    }
+    // retornos combinados (contatos com próximo contato vencido), como no Meu dia
+    for (const i of followupsHoje(p.id).filter(i => i.proximo_contato < h))
+      itens.push({ k: 'atrasado', p, prazo: i.proximo_contato, txt: `${i.cliente_nome || ''} · retorno combinado: ${(i.texto || '').slice(0, 80)}`, abrir: i.cliente_chave ? ['verCliente', i.cliente_chave] : null });
+    for (const n of (CRM.neg || []).filter(n => n.pessoa_id === p.id && !['ganho', 'perdido'].includes(n.etapa))) {
+      if (!atvAbertas(n).length) itens.push({ k: 'semPasso', p, prazo: (n.mov_em || n.atualizado_em || '').slice(0, 10), txt: `${n.cliente_nome || ''} · ${n.titulo} · ${R0(n.valor)}`, abrir: ['crmAbrir', n.id], passar: ['negocio', n.id], valor: +n.valor });
+      if (revisaoCRM(n).pedidos_conferir) itens.push({ k: 'conferir', p, prazo: '', txt: `${n.cliente_nome || ''} · pedido(s) ${revisaoCRM(n).pedidos_conferir}`, abrir: ['crmAbrir', n.id] });
+      if (n.orcamento_id && paraJuntar(n).length) itens.push({ k: 'juntar', p, prazo: '', txt: `${n.cliente_nome || ''} · orçamento ${n.orcamento_numero || ''} e negócio da campanha`, abrir: ['crmAbrir', n.id] });
+    }
+    const tel = filaTelefones(p.id);
+    if (tel?.length) itens.push({ k: 'telefone', p, prazo: '', txt: `${tel.length} cliente(s) fora da campanha por número errado`, abrir: ['irProspeccao', p.id] });
+    const pro = campanhaHoje(p.id);
+    if (pro && pro.total && pro.pendentes) itens.push({ k: 'adesao', p, prazo: h, txt: `Prospecção de hoje: ${pro.contatos} de ${pro.total} registrados · ${pro.pendentes} sem registro`, abrir: ['irProspeccao', p.id] });
+  }
+  return itens;
+}
+const TIPOS_PEND = { atrasado: '⏰ Retornos vencidos', semPasso: '⚠️ Negócios sem próximo passo', conferir: '🧾 Vendas para conferir', juntar: '🔗 Orçamento × campanha', telefone: '📵 Telefones para corrigir', adesao: '📞 Prospecção sem registro' };
+function blocoPendencias(sup, equipe) {
+  const pessoas = [sup, ...equipe].filter((p, i, l) => p?.tiny && l.findIndex(x => x.id === p.id) === i);
+  if (!pessoas.length) return '';
+  if (!CRM.neg) { if (!CRM.carregando) carregarCRM().then(render).catch(e => avisar(e.message)); return '<div class="card mt2 vazio">Carregando as pendências comerciais…</div>'; }
+  if (!D.clientes && !vMeuDia.carregandoCli) vMeuDia.carregandoCli = carregarClientes().then(render).catch(() => {}).finally(() => { vMeuDia.carregandoCli = null; });
+  const itens = pendenciasComerciais(pessoas), cont = (p, k) => itens.filter(x => x.p.id === p.id && x.k === k).length;
+  const acoes = x => `${x.abrir ? `<button class="btn peq" data-a="${x.abrir[0]}" ${x.abrir[0] === 'irProspeccao' ? `data-pessoa="${x.abrir[1]}"` : x.abrir[0] === 'verCliente' ? `data-chave="${esc(x.abrir[1])}"` : `data-id="${x.abrir[1]}"`}>Abrir</button>` : ''}${x.passar ? `<button class="btn peq" data-a="crmPassar" data-tipo="${x.passar[0]}" data-id="${x.passar[1]}" data-de="${x.p.id}">Passar</button>` : ''}`;
+  const grupo = k => { const l = itens.filter(x => x.k === k).sort((a, b) => (a.prazo || '9').localeCompare(b.prazo || '9') || (b.valor || 0) - (a.valor || 0));
+    return l.length ? `<details class="mt" ${['atrasado', 'adesao'].includes(k) ? 'open' : ''}><summary><b>${TIPOS_PEND[k]}</b> <small class="mut">${l.length}</small></summary>
+      ${l.slice(0, 20).map(x => `<div class="atv"><div style="flex:1"><small><b>${esc(x.p.nome.split(' ')[0])}</b>${x.prazo ? ` · ${k === 'semPasso' ? 'parado desde' : 'prazo'} ${fmtCurta(x.prazo)}` : ''}</small><br>${esc(x.txt)}</div>${acoes(x)}</div>`).join('')}
+      ${l.length > 20 ? `<p class="mut">Mostrando 20 de ${l.length}.</p>` : ''}</details>` : ''; };
+  return `<div class="card mt2"><div class="secao-titulo"><h2>Central de pendências comerciais</h2><small>${itens.length} pendência(s) na equipe</small></div>
+    <p class="explica" style="margin-top:0">O que está travado e por quê. "Abrir" leva para resolver; "Passar" entrega para outra pessoa da equipe, com motivo.</p>
+    <div class="rolagem"><table class="tabela"><thead><tr><th>Vendedor</th>${Object.entries(TIPOS_PEND).map(([k, n]) => `<th class="dir" title="${n}">${n.split(' ')[0]}</th>`).join('')}</tr></thead><tbody>
+      ${pessoas.map(p => `<tr><td><b>${esc(p.nome)}</b></td>${Object.keys(TIPOS_PEND).map(k => `<td class="dir ${cont(p, k) ? (k === 'atrasado' || k === 'adesao' ? 'c-ruim' : 'c-med') : 'mut'}">${cont(p, k) || '—'}</td>`).join('')}</tr>`).join('')}
+    </tbody></table></div>
+    <small class="mut">${Object.values(TIPOS_PEND).join(' · ')}</small>
+    ${Object.keys(TIPOS_PEND).map(grupo).join('')}</div>`;
+}
+function crmPassar(tipo, id, de) {
+  const opcoes = vendCRM().filter(v => v.id !== de);
+  if (!opcoes.length) return avisar('Não há outra pessoa da equipe para receber.');
+  const n = tipo === 'negocio' ? (CRM.neg || []).find(x => String(x.id) === String(id)) : null, a = tipo === 'atividade' ? (CRM.atv || []).find(x => String(x.id) === String(id)) : null;
+  modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>Passar para outra pessoa</h2>
+    <p>${esc(n ? `${n.cliente_nome || ''} · ${n.titulo}` : `${a?.cliente_nome || ''} · ${a?.titulo || ''}`)}<br><small class="mut">hoje com ${esc(nomeP(de))}${n ? ' · as atividades abertas do negócio vão junto' : ''}</small></p>
+    <div class="form-grid"><label class="campo">Para<select id="psPara">${opcoes.map(v => `<option value="${v.id}">${esc(v.nome)}</option>`).join('')}</select></label>
+      <label class="campo inteiro">Motivo *<input type="text" id="psMotivo" maxlength="300" placeholder="Ex.: vendedor de férias; cliente pediu outro atendente"></label></div>
+    <div class="acoes mt"><button class="btn pri" data-a="crmPassarSalvar" data-tipo="${tipo}" data-id="${id}">Passar</button></div>`);
+}
+async function crmPassarSalvar(tipo, id) {
+  if (CRM.gravando.has('ps' + id)) return;
+  const para = $('#psPara').value, motivo = $('#psMotivo').value.trim();
+  if (!motivo) return avisar('Diga o motivo.');
+  CRM.gravando.add('ps' + id);
+  try {
+    const r = await ok(sb.rpc('crm_redistribuir', { p_tipo: tipo, p_id: Number(id), p_para: para, p_motivo: motivo }));
+    if (r.negocio) { const n = CRM.neg.find(x => x.id === r.negocio.id); if (n) Object.assign(n, r.negocio); for (const a of CRM.atv) if (a.negocio_id === r.negocio.id && !a.feito && !a.arquivada_em) a.pessoa_id = para; }
+    if (r.atividade) { const a = CRM.atv.find(x => x.id === r.atividade.id); if (a) Object.assign(a, r.atividade); }
+    fecharModal(); avisar(`Passado para ${nomeP(para)}.`); render();
+  } finally { CRM.gravando.delete('ps' + id); }
+}

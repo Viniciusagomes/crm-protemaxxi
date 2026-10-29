@@ -518,6 +518,7 @@ function vSupervisao() {
   return topo('Supervisão', 'O que cada supervisor precisa cobrar da equipe, hoje e no mês.', `<div class="seg">${sups.map(x => `<button class="${x.id === s.id ? 'on' : ''}" data-a="sup" data-p="${x.id}">${esc(x.nome)}</button>`).join('')}</div><button class="btn" data-a="print">🖨 Imprimir</button>`)
     + `<div class="card"><div class="cab-pessoa"><div class="quem">${av(s, 'g')}<div><h2 style="margin:0">${esc(s.nome)}</h2><small>${esc(s.cargo)} · ${equipe.length} pessoa(s) na equipe · checklist médio da equipe no mês: <b>${P(adesaoEquipe(s.id, m))}</b></small></div></div>
       ${rem ? `<div style="text-align:right"><small>Ganho previsto vindo da equipe em ${MESES[pd(m + '-01').getMonth()]}</small><div class="num" style="font-size:24px;font-weight:800;color:var(--verde-esc)">${R0(rem.equipe)}</div><a href="#" data-a="verRem" data-p="${s.id}">ver detalhes</a></div>` : ''}</div></div>
+    ${blocoPendencias(s, equipe)}
     ${equipe.length ? `<h2 class="mt2">Cobrança de hoje</h2><div class="grid g2">${cards}</div>` : '<div class="card vazio mt">Nenhum subordinado ativo.</div>'}
     <div class="card mt2"><div class="secao-titulo"><h2>Checklist dia a dia</h2>${navMes()}</div>${heatmap([s, ...equipe], m)}</div>
     <h2 class="mt2">O que cobrar de cada um</h2><p class="mut" style="margin-top:-6px">Referência completa: o que cada pessoa tem que fazer e como o supervisor confere. Dá para imprimir e deixar na mesa.</p>
