@@ -204,6 +204,7 @@ function abaProspeccao() {
       ${fone ? `<div class="pro-fone">📱 ${esc(fone)}</div>` : `${x.dados?.fone_errado ? `<small class="c-ruim">📵 ${esc(foneFmt(x.dados.fone_errado))} marcado como errado</small>` : ''}<div class="pro-fone sem"><input type="tel" placeholder="Sem telefone: digite com DDD" id="proFone_${x.id}"><button class="btn peq" data-a="proFone" data-id="${x.id}" data-chave="${esc(x.cliente_chave)}">Salvar</button></div>`}
       <textarea class="pro-msg" id="proMsg_${x.id}" data-fid="proMsg_${x.id}" data-pro-rascunho="${x.id}" rows="4">${esc(PRO.rascunhos[x.id] ?? msg)}</textarea><small class="mut">Sugestão para revisar antes de enviar. Abrir o WhatsApp não registra contato.</small>
       <div class="acoes">${c.nao_contatar || contatoPausado(c) ? `<small class="c-med">${c.nao_contatar ? '🚫 Cliente pediu para não ser contatado' : `⏸ Contato pausado até ${fmtCurta(c.contato_pausa_ate)}`}${c.contato_motivo ? ': ' + esc(c.contato_motivo) : ''}. Use "Pular".</small>` : wa ? `<a class="btn pri peq" href="#" data-a="proWa" data-id="${x.id}" data-fone="${esc(fone)}">💬 Chamar no WhatsApp</a><a class="btn peq" href="tel:${esc(fone.replace(/\D/g, ''))}">📞 Ligar</a>` : ''}</div>
+      ${x.resultado === 'orcamento' ? (negocioDaPro(x.id) ? `<button class="btn peq" data-a="crmAbrir" data-id="${negocioDaPro(x.id).id}">🎯 Ver negócio</button>` : `<button class="btn peq pri" data-a="proNegocio" data-id="${x.id}">🎯 Criar negócio</button>`) : ''}
       <div class="pro-res">${Object.entries(RES_PRO).map(([k, n]) => `<button class="chip ${x.resultado === k ? 'on' : ''}" data-a="proRes" data-id="${x.id}" data-v="${k}">${n}</button>`).join('')}</div></div>`; };
   return `<div class="filtros">${vends.length > 1 ? `<div class="chips">${vends.map(v => `<button class="chip ${UI.proPessoa === v.id ? 'on' : ''}" data-a="proPessoa" data-v="${v.id}">${esc(v.nome)}</button>`).join('')}</div>` : ''}
       ${ehDono() ? `<button class="btn peq" data-a="proGerar">↻ Gerar listas que faltam hoje</button>` : ''}</div>
@@ -237,6 +238,7 @@ async function proRes(id, res) {
     if (PRO.resumoDia === hoje()) { const s = PRO.resumo.find(r => r.id === x.id); if (s) s.resultado = x.resultado; else PRO.resumo.push({ id: x.id, pessoa_id: x.pessoa_id, resultado: x.resultado }); }
     avisar(r.interacao?.proximo_contato ? `Contato salvo e retorno marcado para ${fmtCurta(r.interacao.proximo_contato)}.` : novo === 'pular' ? 'Pulado, sem contar como contato.' : novo === 'sem_interesse' ? 'Registrado. Cliente fora da campanha por 90 dias.' : 'Resultado salvo.');
     render();
+    if (novo === 'orcamento') formProNegocio(x.id).catch(e => avisar(e.message));
   } finally {
     PRO.gravando.delete(x.id);
   }
@@ -245,6 +247,43 @@ function proWa(id, fone) {
   const msg = $('#proMsg_' + id)?.value || '';
   const url = linkWa(fone); if (!url) return;
   window.open(`${url}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
+}
+/** Negócio já criado a partir deste contato da campanha. */
+const negocioDaPro = id => (CRM.neg || []).find(n => String(n.prospeccao_id) === String(id));
+/** "Pediu orçamento": oferece criar o negócio já preenchido ou ligar a um negócio aberto do mesmo cliente. */
+async function formProNegocio(id) {
+  const x = (PRO.dados || []).find(r => String(r.id) === String(id)); if (!x) return;
+  if (!CRM.neg) await carregarCRM();
+  const ja = negocioDaPro(x.id);
+  if (ja) return crmAbrir(ja.id);
+  const abertos = (CRM.neg || []).filter(n => n.cliente_chave === x.cliente_chave && !n.prospeccao_id && !['ganho', 'perdido'].includes(n.etapa));
+  const d = x.dados || {}, sug = d.sugestao || d.produto_ultima_compra || d.itens || '';
+  modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>🎯 Pediu orçamento: ${esc(x.cliente_nome || '')}</h2>
+    <p class="mut">Registre o negócio para acompanhar até o fechamento. Quando o orçamento for lançado no Tiny para este cliente, ele entra neste mesmo negócio.</p>
+    ${abertos.length ? `<h3>Já existe negociação aberta deste cliente</h3>${abertos.map(n => `<div class="atv"><div style="flex:1"><b>${esc(n.titulo)}</b><br><small>${NOME_ETAPA[n.etapa]} · ${R0(n.valor)} · ${esc(nomeP(n.pessoa_id))}</small></div><button class="btn peq" data-a="proNegocioSalvar" data-id="${x.id}" data-negocio="${n.id}">Ligar a este</button></div>`).join('')}<h3 class="mt">Ou crie um novo</h3>` : ''}
+    <div class="form-grid">
+      <label class="campo inteiro">O que o cliente quer *<input type="text" id="pnTit" maxlength="160" placeholder="Ex.: orçamento de 4 câmeras e gravador" value="${esc(sug ? 'Orçamento: ' + String(sug).slice(0, 120) : '')}"></label>
+      <label class="campo">Valor estimado (R$)<input type="number" step="0.01" min="0" id="pnValor"></label>
+      <label class="campo">Próximo passo em<input type="date" id="pnData" min="${hoje()}" value="${diaUtil(addDias(hoje(), 1))}"></label>
+      <label class="campo inteiro">Próximo passo *<input type="text" id="pnAtv" maxlength="200" value="Montar e enviar o orçamento"></label>
+    </div>
+    <div class="acoes mt"><button class="btn pri" data-a="proNegocioSalvar" data-id="${x.id}">Criar negócio</button><button class="btn" data-a="fecharModal">Agora não</button></div>`);
+}
+async function proNegocioSalvar(id, negocioId) {
+  if (PRO.gravando.has('neg' + id)) return;
+  const tit = $('#pnTit')?.value.trim() || '', data = $('#pnData')?.value || '', atv = $('#pnAtv')?.value.trim() || '';
+  if (!negocioId && !tit) return avisar('Diga o que o cliente quer.');
+  if (!data || data < hoje() || !atv) return avisar('Defina a data e o próximo passo.');
+  PRO.gravando.add('neg' + id);
+  try {
+    const r = await ok(sb.rpc('prospeccao_negocio', { p_prospeccao: Number(id), p_negocio: negocioId ? Number(negocioId) : null, p_titulo: tit,
+      p_valor: Number($('#pnValor')?.value) || 0, p_atv_data: data, p_atv_titulo: atv }));
+    const i = (CRM.neg || []).findIndex(n => n.id === r.negocio.id);
+    if (i >= 0) CRM.neg[i] = r.negocio; else (CRM.neg ||= []).unshift(r.negocio);
+    if (r.atividade && !CRM.atv.some(a => a.id === r.atividade.id)) CRM.atv.push(r.atividade);
+    const x = (PRO.dados || []).find(p => String(p.id) === String(id)), fu = x && D.interacoes.find(k => k.id === x.interacao_id); if (fu) fu.feito = true;
+    fecharModal(); avisar(r.repetido ? 'Este contato já tinha virado negócio.' : negocioId ? 'Contato ligado ao negócio e próximo passo agendado.' : 'Negócio criado com o próximo passo.'); render();
+  } finally { PRO.gravando.delete('neg' + id); }
 }
 async function proFone(id, chave) {
   await telCorrigir(chave, $('#proFone_' + id)?.value || '');

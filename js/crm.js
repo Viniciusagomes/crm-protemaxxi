@@ -69,6 +69,88 @@ function alertasNegocio(n) {
   return `${r.inativo ? '<span class="tag med">⚠ Retomar negociação</span>' : ''}${r.pedidos_conferir ? '<span class="tag azul">Conferir compra</span>' : ''}${r.proposta_semelhante ? '<span class="tag med">Revisar propostas</span>' : ''}`;
 }
 const vendCRM = () => D.pessoas.filter(p => p.ativo && p.tiny && pessoasQueVejo().includes(p.id));
+/** Primeiro dia útil a partir da data (segunda a sábado, sem os feriados da configuração da Equipe). Mesma regra do banco (dia_util). */
+function diaUtil(d) {
+  const fer = D.config?.feriados || [];
+  for (let i = 0; i < 30 && (dow(d) === 0 || fer.includes(d)); i++) d = addDias(d, 1);
+  return d;
+}
+const ehDiaUtil = d => diaUtil(d) === d;
+/** Tentativas de contato já feitas no negócio (ligação, WhatsApp, visita, follow-up) e a última anotação de resultado.
+ *  Tarefas internas (montar orçamento, tarefa geral, pós-venda) não contam. */
+const TIPOS_CONTATO_CRM = ['ligar', 'whatsapp', 'visita', 'followup'];
+function tentativasNegocio(n) {
+  const feitas = (CRM.atv || []).filter(a => a.negocio_id === n.id && a.feito && TIPOS_CONTATO_CRM.includes(a.tipo)).sort((a, b) => (b.feito_em || '').localeCompare(a.feito_em || ''));
+  return { n: feitas.length, ultima: feitas[0] };
+}
+/** O que falta para o negócio estar bem preenchido na etapa (só mostra; não bloqueia o avanço). */
+function faltaNegocio(n) {
+  if (['ganho', 'perdido'].includes(n.etapa)) return [];
+  const f = [];
+  if (!atvAbertas(n).length) f.push('próximo passo');
+  if (['orcamento', 'negociacao'].includes(n.etapa) && !n.orcamento_numero) f.push('orçamento no Tiny');
+  if (!n.previsao) f.push('previsão de fechamento');
+  if (!(+n.valor > 0)) f.push('valor');
+  return f;
+}
+function blocoAvancar(n) {
+  const falta = faltaNegocio(n);
+  if (['ganho', 'perdido'].includes(n.etapa)) return '';
+  const itens = [['próximo passo', 'Próximo passo agendado'], ['orçamento no Tiny', 'Orçamento ligado (Tiny)'], ['previsão de fechamento', 'Previsão de fechamento'], ['valor', 'Valor estimado']]
+    .filter(([k]) => k !== 'orçamento no Tiny' || ['orcamento', 'negociacao'].includes(n.etapa));
+  return `<div class="card mt" style="padding:10px 14px"><b>Para avançar com segurança</b> <small class="mut">${falta.length ? `faltam ${falta.length}` : 'tudo preenchido 👏'}</small>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px">${itens.map(([k, rot]) => `<small class="${falta.includes(k) ? 'c-med' : 'c-ok'}">${falta.includes(k) ? '○' : '✓'} ${rot}</small>`).join('')}</div>
+    ${falta.includes('previsão de fechamento') ? `<div class="nova-atv" style="margin-top:8px"><input type="date" id="ngPrevRapida" min="${hoje()}" value="${diaUtil(addDias(hoje(), 15))}"><button class="btn peq" data-a="crmPrevisao" data-id="${n.id}">Salvar previsão</button></div>` : ''}</div>`;
+}
+async function crmPrevisao(id) {
+  const v = $('#ngPrevRapida')?.value; if (!v) return avisar('Escolha a data prevista.');
+  const n = CRM.neg.find(x => String(x.id) === String(id)); if (!n) return;
+  Object.assign(n, await ok(sb.from('negocios').update({ previsao: v }).eq('id', n.id).select().single()));
+  avisar('Previsão salva.'); crmAbrir(n.id); render();
+}
+function atvReagendar(id) {
+  const a = (CRM.atv || []).find(x => String(x.id) === String(id)); if (!a) return;
+  modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>Reagendar</h2><p>${esc(a.titulo)}<br><small class="mut">${esc(a.cliente_nome || '')} · combinado para ${fmtCurta(a.quando_original || a.quando)}${(a.reagendamentos || []).length ? ` · já reagendada ${a.reagendamentos.length}×` : ''}</small></p>
+    <div class="form-grid"><label class="campo">Nova data<input type="date" id="rgData" min="${hoje()}" value="${diaUtil(addDias(hoje(), 1))}"></label>
+      <label class="campo inteiro">Motivo *<input type="text" id="rgMotivo" maxlength="300" placeholder="Ex.: cliente pediu para falar na semana que vem"></label></div>
+    <p class="explica">A data combinada antes fica guardada no histórico da atividade.</p>
+    <div class="acoes mt"><button class="btn pri" data-a="atvReagendarSalvar" data-id="${a.id}">Reagendar</button></div>`);
+}
+async function atvReagendarSalvar(id) {
+  if (CRM.gravando.has('rg' + id)) return;
+  const data = $('#rgData').value, motivo = $('#rgMotivo').value.trim();
+  if (!data || data < hoje()) return avisar('Escolha hoje ou uma data futura.');
+  if (!motivo) return avisar('Diga o motivo do reagendamento.');
+  if (!ehDiaUtil(data) && !confirm(`${fmtCurta(data)} é domingo ou feriado. Reagendar mesmo assim?`)) return;
+  CRM.gravando.add('rg' + id);
+  try {
+    const r = await ok(sb.rpc('atividade_reagendar', { p_id: Number(id), p_data: data, p_motivo: motivo }));
+    Object.assign(CRM.atv.find(a => String(a.id) === String(id)), r);
+    if (r.negocio_id) movimentoCRM(r.negocio_id);
+    fecharModal(); avisar(`Reagendada para ${fmtCurta(data)}.`); render();
+  } finally { CRM.gravando.delete('rg' + id); }
+}
+const seloReagendada = a => (a.reagendamentos || []).length ? ` · <span title="${esc(a.reagendamentos.map(r => `${fmtCurta(r.de)} → ${fmtCurta(r.para)}: ${r.motivo}`).join('\n'))}">reagendada ${a.reagendamentos.length}× (combinado ${fmtCurta(a.quando_original)})</span>` : '';
+
+/** Orçamentos parados: o que está há mais tempo sem fechar, com as tentativas já feitas, para retomar ou decidir. */
+function abaRecuperarCRM(neg) {
+  const h = hoje();
+  const l = neg.filter(n => ['orcamento', 'negociacao'].includes(n.etapa))
+    .map(n => { const ini = (n.orcamento_data || n.criado_em || h).slice(0, 10), t = tentativasNegocio(n);
+      return { n, dias: Math.round((pd(h) - pd(ini)) / 864e5), t, prox: atvAbertas(n)[0] }; })
+    .filter(x => x.dias >= 7).sort((a, b) => (b.t.n >= 3) - (a.t.n >= 3) || b.n.valor - a.n.valor);
+  const decidir = l.filter(x => x.t.n >= 3);
+  return `<p class="explica">Orçamentos com 7 dias ou mais sem fechar, do maior valor para o menor. Com 3 tentativas ou mais, vale decidir com o cliente: ajustar a proposta, marcar uma data ou encerrar como perdido.</p>
+    <div class="grid g3"><div class="card kpi-card"><div class="rot">Para recuperar</div><div class="val">${l.length}</div><div class="sub">${R0(soma(l.map(x => +x.n.valor)))}</div></div>
+      <div class="card kpi-card"><div class="rot">Decidir (3+ tentativas)</div><div class="val ${decidir.length ? 'c-med' : 'c-ok'}">${decidir.length}</div><div class="sub">${R0(soma(decidir.map(x => +x.n.valor)))}</div></div>
+      <div class="card kpi-card"><div class="rot">Sem próximo passo</div><div class="val ${l.some(x => !x.prox) ? 'c-ruim' : 'c-ok'}">${l.filter(x => !x.prox).length}</div><div class="sub">entre os parados</div></div></div>
+    <div class="card mt">${l.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Cliente</th><th class="dir">Valor</th><th class="dir">Dias</th><th class="dir">Tentativas</th><th>Última anotação</th><th>Próximo passo</th><th></th></tr></thead><tbody>
+      ${l.map(x => `<tr><td><b>${esc(x.n.cliente_nome || '')}</b><br><small>${esc(x.n.titulo)} · ${esc(nomeP(x.n.pessoa_id))}</small>${x.t.n >= 3 ? '<br><span class="tag med">Decidir</span>' : ''}</td>
+        <td class="dir num">${R0(x.n.valor)}</td><td class="dir">${x.dias}</td><td class="dir">${x.t.n}</td>
+        <td><small>${x.t.ultima ? `${fmtCurta(x.t.ultima.feito_em.slice(0, 10))} · ${esc((x.t.ultima.resultado || x.t.ultima.titulo || '').slice(0, 80))}` : '<span class="mut">nenhuma</span>'}</small></td>
+        <td><small class="${!x.prox ? 'c-ruim' : x.prox.quando < h ? 'c-ruim' : ''}">${x.prox ? `${fmtCurta(x.prox.quando)} · ${esc(x.prox.titulo.slice(0, 50))}` : '⚠ nenhum'}</small></td>
+        <td class="dir"><button class="btn peq pri" data-a="crmAbrir" data-id="${x.n.id}">Abrir</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="vazio">Nenhum orçamento parado há 7 dias ou mais. 👏</div>'}</div>`;
+}
 
 // ─── Funil ───
 function vCRM() {
@@ -83,7 +165,7 @@ function vCRM() {
   const ciclo = ganhos.length ? soma(ganhos.map(n => (new Date(n.fechado_em) - new Date(n.criado_em)) / 864e5)) / ganhos.length : null;
   const cab = topo('Funil de vendas', 'Negócios do orçamento ao fechamento. Os orçamentos do Tiny entram sozinhos; todo negócio aberto precisa de uma próxima atividade.',
       `<button class="btn" data-a="crmAtualizar">↻ Atualizar</button><button class="btn pri" data-a="crmNovo">+ Novo negócio</button>`)
-    + `<div class="filtros"><div class="chips">${[['funil', '🎯 Funil'], ['lista', '📋 Lista'], ['indicadores', '📊 Indicadores']].map(([k, n]) => `<button class="chip ${UI.crmAba === k ? 'on' : ''}" data-a="crmAba" data-v="${k}">${n}</button>`).join('')}</div>
+    + `<div class="filtros"><div class="chips">${[['funil', '🎯 Funil'], ['lista', '📋 Lista'], ['recuperar', '🔁 Recuperar orçamentos'], ['indicadores', '📊 Indicadores']].map(([k, n]) => `<button class="chip ${UI.crmAba === k ? 'on' : ''}" data-a="crmAba" data-v="${k}">${n}</button>`).join('')}</div>
       ${vends.length > 1 ? `<select data-c="ui" data-k="crmVend"><option value="">Todos os vendedores</option>${vends.map(v => `<option value="${v.id}" ${fV === v.id ? 'selected' : ''}>${esc(v.nome)}</option>`).join('')}</select>` : ''}</div>
     <div class="grid g4">
       <div class="card kpi-card destaque"><div class="rot">No funil</div><div class="val verde">${R0(soma(abertos.map(n => +n.valor)))}</div><div class="sub">${abertos.length} negócio(s) aberto(s)</div></div>
@@ -91,6 +173,7 @@ function vCRM() {
       <div class="card kpi-card"><div class="rot">Conversão (90 dias)</div><div class="val">${ganhos.length + perdidos.length ? P(ganhos.length / (ganhos.length + perdidos.length)) : '—'}</div><div class="sub">${ganhos.length} ganho(s) · ${perdidos.length} perdido(s)${ciclo != null ? ` · ciclo ${Math.round(ciclo)} dia(s)` : ''}</div></div>
       <div class="card kpi-card"><div class="rot">Sem próxima atividade</div><div class="val ${semAtv.length ? 'c-ruim' : 'c-ok'}">${semAtv.length}</div><div class="sub">negócio parado é negócio perdido</div></div></div>`;
   if (UI.crmAba === 'indicadores') return cab + abaIndicadoresCRM(neg, fech);
+  if (UI.crmAba === 'recuperar') return cab + abaRecuperarCRM(neg);
   if (UI.crmAba === 'lista') return cab + `<div class="card mt">${listaCurta('crmLista', `<table class="tabela"><thead><tr><th>Negócio</th><th>Etapa</th><th>Vendedor</th><th>Próxima atividade</th><th class="dir">Valor</th></tr></thead><tbody>
       ${neg.map(n => { const a = atvAbertas(n)[0]; return `<tr class="clic" data-a="crmAbrir" data-id="${n.id}"><td><b>${esc(n.cliente_nome || '')}</b><br><small>${esc(n.titulo)}</small></td><td><span class="tag etp-${n.etapa}">${NOME_ETAPA[n.etapa]}</span></td>
         <td><small>${esc(nomeP(n.pessoa_id))}</small></td><td>${a ? `<small class="${a.quando < hoje() ? 'c-ruim' : ''}">${fmtCurta(a.quando)} · ${esc(a.titulo)}</small>` : ['ganho', 'perdido'].includes(n.etapa) ? '' : '<small class="c-ruim">⚠ nenhuma</small>'}</td><td class="dir num">${R0(n.valor)}</td></tr>`; }).join('')}
@@ -108,7 +191,7 @@ function cardNegocio(n) {
   return `<div class="kcard ${alerta}" draggable="true" data-negocio="${n.id}" data-a="crmAbrir" data-id="${n.id}">
     <div class="kcard-nome">${esc(n.cliente_nome || '')}</div><div class="kcard-tit">${esc(n.titulo)}</div>${alertasNegocio(n)}
     <div class="kcard-pe"><b>${R0(n.valor)}</b><span>${esc((nomeP(n.pessoa_id) || '').split(' ')[0])}</span></div>
-    ${fechado ? '' : `<div class="kcard-atv">${a ? `${TIPOS_ATV[a.tipo]?.split(' ')[0] || '•'} ${fmtCurta(a.quando)} · ${esc(a.titulo.slice(0, 40))}` : '⚠ sem próxima atividade'}</div>`}</div>`;
+    ${fechado ? '' : `<div class="kcard-atv">${a ?`${TIPOS_ATV[a.tipo]?.split(' ')[0] || '•'} ${fmtCurta(a.quando)} · ${esc(a.titulo.slice(0, 40))}` : '⚠ sem próxima atividade'}</div>`}</div>`;
 }
 function abaIndicadoresCRM(neg, fech) {
   const vends = vendCRM();
@@ -156,7 +239,7 @@ function formNegocio(id, chave, nome) {
       <label class="campo">Vendedor<select id="ngVend">${vends.map(v => `<option value="${v.id}" ${(n.pessoa_id || (vends.some(x => x.id === EU.id) ? EU.id : '')) === v.id ? 'selected' : ''}>${esc(v.nome)}</option>`).join('')}</select></label>
       <label class="campo">Previsão de fechamento<input type="date" id="ngPrev" value="${n.previsao || ''}"></label>
       <label class="campo inteiro">Observações<textarea id="ngObs" rows="2">${esc(n.obs || '')}</textarea></label>
-      ${id ? '' : `<label class="campo inteiro">Próxima atividade *<span style="display:flex;gap:6px;flex-wrap:wrap"><select id="ngAtvTipo">${Object.entries(TIPOS_ATV).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select><input type="date" id="ngAtvData" value="${addDias(hoje(), 1)}"><input type="text" id="ngAtvTit" placeholder="Ex.: ligar para apresentar a proposta" style="flex:1;min-width:180px"></span></label>`}
+      ${id ? '' : `<label class="campo inteiro">Próxima atividade *<span style="display:flex;gap:6px;flex-wrap:wrap"><select id="ngAtvTipo">${Object.entries(TIPOS_ATV).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select><input type="date" id="ngAtvData" value="${diaUtil(addDias(hoje(), 1))}"><input type="text" id="ngAtvTit" placeholder="Ex.: ligar para apresentar a proposta" style="flex:1;min-width:180px"></span></label>`}
     </div>
     <datalist id="ngListaCli">${(D.clientes || []).slice(0, 4000).map(c => `<option value="${esc(c.nome)}">`).join('')}</datalist>
     <div class="mt"><button class="btn pri" data-a="crmSalvar" data-id="${id || ''}">Salvar</button></div>`);
@@ -179,7 +262,7 @@ function crmAbrir(id) {
   const n = CRM.neg.find(x => String(x.id) === String(id)); if (!n) return;
   const atvs = (CRM.atv || []).filter(a => a.negocio_id === n.id).sort((a, b) => (a.feito - b.feito) || a.quando.localeCompare(b.quando));
   modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button>
-    <small class="mut">${ORIGENS[n.origem] || ''}${n.orcamento_numero ? ` · orçamento ${esc(n.orcamento_numero)} no Tiny (${esc(n.orcamento_situacao || '')})` : ''} · criado ${new Date(n.criado_em).toLocaleDateString('pt-BR')}</small>
+    <small class="mut">${ORIGENS[n.origem] || ''}${n.prospeccao_id ? ' (veio da campanha diária)' : ''}${n.orcamento_numero ? ` · orçamento ${esc(n.orcamento_numero)} no Tiny (${esc(n.orcamento_situacao || '')})` : ''} · criado ${new Date(n.criado_em).toLocaleDateString('pt-BR')}</small>
     <h2 style="margin:4px 0">${esc(n.cliente_nome || '')}</h2><p style="margin:0 0 10px">${esc(n.titulo)}</p>
     <div class="grid g3" style="gap:10px"><div class="card kpi-card"><div class="rot">Valor</div><div class="val" style="font-size:22px">${R(n.valor)}</div></div>
       <div class="card kpi-card"><div class="rot">Vendedor</div><div class="val" style="font-size:18px">${esc(nomeP(n.pessoa_id))}</div></div>
@@ -188,11 +271,13 @@ function crmAbrir(id) {
     ${alertasNegocio(n)}${revisaoCRM(n).inativo ? '<p class="explica">Negociação sem movimento há mais de 15 dias. Registre uma tentativa de recuperação e agende o retorno. A inatividade não encerra o negócio.</p>' : ''}
     ${revisaoCRM(n).pedidos_conferir ? `<p class="explica">Pedido(s) posterior(es): ${esc(revisaoCRM(n).pedidos_conferir)}. Confira itens, quantidades e vínculo com esta negociação antes de marcar como ganho. Uma compra do mesmo cliente não confirma o fechamento.</p>` : ''}
     ${revisaoCRM(n).proposta_semelhante ? '<p class="explica">Há outra proposta com produtos em comum. Confira se é revisão, complemento ou outro projeto antes de encerrar alguma delas.</p>' : ''}
+    ${blocoAvancar(n)}
     ${n.obs ? `<p class="mt" style="white-space:pre-wrap;font-size:13.5px">${esc(n.obs)}</p>` : ''}
     <h3 class="mt2">Atividades</h3>
     ${atvs.map(a => `<div class="atv ${a.feito || a.arquivada_em ? 'feita' : a.quando < hoje() ? 'atrasada' : ''}">${a.arquivada_em ? '<span title="Arquivada">↷</span>' : `<button class="atv-check" data-a="atvFeita" data-id="${a.id}" title="${a.feito ? 'Reabrir' : 'Marcar como feita'}">${a.feito ? '✓' : ''}</button>`}
-      <div><b>${TIPOS_ATV[a.tipo] || a.tipo}</b> · ${esc(a.titulo)}<br><small>${fmtCurta(a.quando)}${a.arquivada_em ? ' · arquivada: ' + esc(a.arquivada_motivo) : a.feito ? ` · feita ${new Date(a.feito_em).toLocaleDateString('pt-BR')}` : a.quando < hoje() ? ' · atrasada' : ''}${a.resultado ? ' · ' + esc(a.resultado) : ''}</small></div></div>`).join('') || '<p class="mut">Nenhuma atividade.</p>'}
-    <div class="nova-atv"><select id="atvTipo">${Object.entries(TIPOS_ATV).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select><input type="date" id="atvData" value="${addDias(hoje(), 1)}"><input type="text" id="atvTit" placeholder="Próxima atividade…"><button class="btn pri peq" data-a="atvNova" data-negocio="${n.id}">+ Agendar</button></div>
+      <div style="flex:1"><b>${TIPOS_ATV[a.tipo] || a.tipo}</b> · ${esc(a.titulo)}<br><small>${fmtCurta(a.quando)}${a.arquivada_em ? ' · arquivada: ' + esc(a.arquivada_motivo) : a.feito ? ` · feita ${new Date(a.feito_em).toLocaleDateString('pt-BR')}` : a.quando < hoje() ? ' · atrasada' : ''}${seloReagendada(a)}${a.resultado ? ' · ' + esc(a.resultado) : ''}</small></div>
+      ${!a.feito && !a.arquivada_em ? `<button class="btn peq" data-a="atvReagendar" data-id="${a.id}" title="Mudar a data, com motivo">⇢</button>` : ''}</div>`).join('') || '<p class="mut">Nenhuma atividade.</p>'}
+    <div class="nova-atv"><select id="atvTipo">${Object.entries(TIPOS_ATV).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select><input type="date" id="atvData" value="${diaUtil(addDias(hoje(), 1))}"><input type="text" id="atvTit" placeholder="Próxima atividade…"><button class="btn pri peq" data-a="atvNova" data-negocio="${n.id}">+ Agendar</button></div>
     <div class="acoes mt">${foneNegocio(n) ? `<a class="btn peq pri" href="${linkWa(foneNegocio(n))}" target="_blank" rel="noopener">💬 WhatsApp</a>` : ''}${n.cliente_chave ? `<button class="btn peq" data-a="verCliente" data-chave="${esc(n.cliente_chave)}">👤 Ficha do cliente</button>` : ''}<button class="btn peq" data-a="crmEditar" data-id="${n.id}">✎ Editar</button>
       ${!['ganho', 'perdido'].includes(n.etapa) ? `<button class="btn peq pri" data-a="crmMover" data-id="${n.id}" data-v="ganho">🎉 Ganho</button><button class="btn peq perigo" data-a="crmMover" data-id="${n.id}" data-v="perdido">✕ Perdido</button>` : ''}</div>`, true);
 }
@@ -216,7 +301,7 @@ async function atvFeita(id) {
   modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>Concluir atividade</h2><p>${esc(a.titulo)}</p>
     <label class="campo">Resultado / observação<textarea id="acResultado" rows="3" placeholder="O que aconteceu no contato?"></textarea></label>
     ${aberto ? `<h3>Próximo passo</h3><p class="mut">Agende o retorno aqui ou marque para revisar depois. Abrir uma conversa não confirma envio.</p>
-      <div class="form-grid"><label class="campo">Data<input type="date" id="acData" min="${hoje()}" value="${addDias(hoje(),1)}"></label>
+      <div class="form-grid"><label class="campo">Data<input type="date" id="acData" min="${hoje()}" value="${diaUtil(addDias(hoje(), 1))}"></label>
       <label class="campo">Tipo<select id="acTipo">${Object.entries(TIPOS_ATV).map(([k,v]) => `<option value="${k}" ${k==='followup'?'selected':''}>${v}</option>`).join('')}</select></label>
       <label class="campo inteiro">O que fazer<input id="acTitulo" placeholder="Ex.: conferir orçamento com o cliente"></label></div>` : ''}
     <div class="acoes mt">${aberto ? `<button class="btn pri" data-a="atvConcluir" data-id="${a.id}" data-proxima="sim">Concluir e agendar retorno</button>` : ''}
@@ -292,8 +377,8 @@ function filaDoDia(quem) {
 function cartaoFila(k) {
   const h = hoje(), cor = k.prio === 1 ? 'ruim' : k.prio === 2 ? 'azul' : 'med';
   const linha = l => l.tipo === 'atv' ? `<div class="atv ${l.a.quando < h ? 'atrasada' : ''}"><button class="atv-check" data-a="atvFeita" data-id="${l.a.id}" title="Concluir e registrar o resultado"></button>
-      <div style="flex:1"><b>${TIPOS_ATV[l.a.tipo] || l.a.tipo}</b> · ${esc(l.a.titulo)}<br><small>${fmtCurta(l.a.quando)}${l.a.automatica ? ' · automática' : ''}</small></div>
-      <button class="btn peq" data-a="atvContato" data-id="${l.a.id}" title="Contato do cliente: celular e e-mail">+</button>${l.a.negocio_id ? `<button class="btn peq" data-a="crmAbrir" data-id="${l.a.negocio_id}">Negócio</button>` : ''}</div>`
+      <div style="flex:1"><b>${TIPOS_ATV[l.a.tipo] || l.a.tipo}</b> · ${esc(l.a.titulo)}<br><small>${fmtCurta(l.a.quando)}${l.a.automatica ? ' · automática' : ''}${seloReagendada(l.a)}</small></div>
+      <button class="btn peq" data-a="atvReagendar" data-id="${l.a.id}" title="Mudar a data, com motivo">⇢</button><button class="btn peq" data-a="atvContato" data-id="${l.a.id}" title="Contato do cliente: celular e e-mail">+</button>${l.a.negocio_id ? `<button class="btn peq" data-a="crmAbrir" data-id="${l.a.negocio_id}">Negócio</button>` : ''}</div>`
     : l.tipo === 'fup' ? `<div class="atv"><button class="atv-check" data-a="followupFeito" data-id="${l.i.id}" title="Retorno feito"></button><div style="flex:1"><small>${esc(l.i.texto.slice(0, 140))}</small></div></div>`
     : `<div class="atv"><div style="flex:1"><b>🎯 ${esc(l.n.titulo)}</b><br><small>${NOME_ETAPA[l.n.etapa]} · ${R0(l.n.valor)}</small>${alertasNegocio(l.n)}</div><button class="btn peq pri" data-a="crmAbrir" data-id="${l.n.id}">${atvAbertas(l.n).length ? 'Revisar' : 'Agendar'}</button></div>`;
   const cli = k.chave && !/^[nai]\d+$/.test(k.chave) ? k.chave : '';
