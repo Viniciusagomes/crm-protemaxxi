@@ -35,3 +35,7 @@ caso real: hoje só 3 negócios tinham pedido. Um pedido ativo vai para um negó
 ## Para o Codex
 
 - 3C (origem e indicadores) pode somar `v_negocio_vendas` por `negocios.prospeccao_id`; pedido sem vínculo não entra.
+
+## Publicação
+
+- Migration aplicada em produção: `20261029231148_lote_3b_vendas`.
