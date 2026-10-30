@@ -36,11 +36,25 @@ async function carregarTrafego(forcar) {
     ]);
     for (const e of est) D.sync[e.chave] = { ...e.valor, em_db: e.atualizado_em };
     TR.d = { campanhas, dia, termos, palavras, negativas, conv, hora, acoes, leads, grupos, anuncios, recursos, locais, recom, mudancas, gn: Object.fromEntries(grupos.map(g => [g.id, g.nome])), cn: Object.fromEntries(campanhas.map(c => [c.id, c.nome])) };
+    TR.acoesEm = Date.now();
     return TR.d;
   } finally { TR.carregando = false; }
 }
 
-const trSoma = (rows, k) => soma(rows.map(r => +r[k] || 0));
+/** Relê só a fila de propostas (leve). A aba carrega tudo uma vez; sem isto, proposta nova só aparecia com F5. */
+async function trRecarregarAcoes() {
+  if (!TR.d || TR.recarregandoAcoes) return;
+  TR.recarregandoAcoes = true;
+  TR.acoesEm = Date.now();
+  try {
+    TR.d.acoes = await ok(sb.from('gads_acoes').select('*').order('id', { ascending: false }).limit(200));
+    TR.acoesEm = Date.now();
+    render();
+  } catch (e) { console.warn('propostas do Google Ads', e); /* mantém a lista que já está na tela */ }
+  finally { TR.recarregandoAcoes = false; }
+}
+
+const trSoma =(rows, k) => soma(rows.map(r => +r[k] || 0));
 const trDelta = (a, b, melhorSobe = true) => {
   if (!b) return '';
   const v = a / b - 1, cls = Math.abs(v) < 0.03 ? '' : (v > 0) === melhorSobe ? 'c-ok' : 'c-ruim';
@@ -56,6 +70,8 @@ function vTrafego() {
       ${ehDono() ? '<button class="btn pri" data-a="conectarGads">🔗 Conectar ao Google Ads</button>' : '<p class="mut">Peça ao administrador para conectar.</p>'}</div>`;
   }
   if (!TR.d) { carregarTrafego().then(render).catch(e => avisar(e.message)); return topo('Tráfego — Google Ads', '') + '<div class="card vazio">Carregando o Google Ads…</div>'; }
+  // na aba Propostas, relê a fila se a lista tem mais de 20 s (acoesEm marcado antes de ler: o render() seguinte não repete)
+  if (TR.aba === 'propostas' && !TR.recarregandoAcoes && Date.now() - (TR.acoesEm || 0) > 20e3) trRecarregarAcoes();
   const vs = D.sync.gads_varredura || {};
   const cab = topo('Tráfego — Google Ads', `Conta <b>${esc(st.conta || '')}</b>${st.email ? ` · acesso de ${esc(st.email)}` : ''} · ${st.ultima_sync ? 'atualizado há ' + tempoDesde(st.ultima_sync) : 'aguardando a primeira sincronização'}`,
     `<button class="btn" data-a="recarregarGads" ${TR.atualizando ? 'disabled' : ''}>${TR.atualizando ? '⏳ Atualizando…' : '↻ Sincronizar agora'}</button>`);
