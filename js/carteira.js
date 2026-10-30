@@ -168,10 +168,16 @@ function mensagemPro(x, vendedor) {
   // Só usa a data com o produto da compra correspondente; não mistura um complemento antigo com a última compra.
   const compra = produto ? `Você comprou ${produto} com a gente${tempo && d.produto_ultima_compra ? ' ' + tempo : ''}.` : '';
   const inicio = `${ola} ${eu}${compra ? ' ' + compra : ''}`;
+  // Recompra pelo ciclo: fala do produto que o cliente costuma repor. A mensagem muda conforme o id para não repetir sempre igual.
+  const repor = limpar(d.produto_repor), vr = (x.id || 0) % 2;
+  if (x.lista === 'recompra' && repor) {
+    const quando = tempoCompra(d.ultima_repor);
+    return `${ola} ${eu} ${vr ? `Vi que a última vez que você levou ${repor} foi ${quando}.` : `Você costuma levar ${repor} com a gente, e a última compra foi ${quando}.`} ${vr ? 'Está na hora de repor? Se quiser, preparo uma cotação.' : 'Quer que eu prepare uma cotação para repor?'}`;
+  }
   return {
     complemento: `${inicio} Está pensando em ampliar o sistema ou precisa de algum acessório?${d.sugestao ? ' Posso conferir se ' + limpar(d.sugestao) + ' faz sentido para o seu projeto.' : ' Posso conferir as opções compatíveis com o seu projeto.'}`,
     recompra: `${inicio} Está precisando repor material para os próximos serviços? Se me disser o que está faltando, preparo uma cotação para você.`,
-    reativacao: `${inicio} Estou retomando nosso contato para saber como posso ajudar hoje. Tem alguma instalação, reposição ou ampliação em vista?`,
+    reativacao: vr ? `${inicio} Faz um tempo que não nos falamos. Tem alguma instalação ou reposição em vista em que eu possa ajudar?` : `${inicio} Estou retomando nosso contato para saber como posso ajudar hoje. Tem alguma instalação, reposição ou ampliação em vista?`,
     indicacao: `${inicio} Como tem sido sua experiência com o material? Se precisar de algo, estou por aqui. E, se conhecer alguém que precise de segurança eletrônica, pode passar meu contato.`,
     instalador: `${inicio} Tem algum projeto em andamento ou previsto? Posso ajudar a conferir os equipamentos e acessórios para montar a lista de materiais.`,
     novo: `${ola} ${eu} Somos revenda autorizada de segurança eletrônica em Campinas. Posso te apresentar as soluções para o seu negócio?`,
@@ -199,7 +205,7 @@ function abaProspeccao() {
     return `<div class="pro-card ${x.resultado === 'pular' ? 'pulado' : x.resultado ? 'feito' : ''}" id="pro_${x.id}">
       <div class="pro-topo"><span class="tag ${l[1]}">${l[0]}</span>${seloSeg(mapa[x.cliente_chave]?.seg)}${seloCredito(x.cliente_chave)}${seloContato(c)}${x.resultado ? `<span class="tag ok">${RES_PRO[x.resultado]}</span>` : ''}</div>
       <div class="pro-nome"><a href="#" data-a="verCliente" data-chave="${esc(x.cliente_chave)}">${esc(x.cliente_nome || c.nome || '')}</a> <small class="mut">${esc(c.cidade || '')}</small></div>
-      <div class="pro-motivo">${esc(x.motivo || '')}</div>
+      <div class="pro-motivo">${esc(x.motivo || '')}${x.dados?.repor_chave && !x.resultado ? ` <button class="btn peq" data-a="proDispensar" data-id="${x.id}" title="Não sugerir mais este produto para este cliente">Compra eventual</button>` : ''}</div>
       <small class="${x.resultado && x.resultado !== 'pular' ? 'c-ok' : 'mut'}">${x.resultado === 'pular' ? '↷ Pulado · não conta como contato' : x.resultado ? `✓ Contato registrado${x.resultado_em ? ' · ' + fmtCurta(x.resultado_em.slice(0, 10)) : ''}` : '○ Ainda não contatado'}</small>
       ${fone ? `<div class="pro-fone">📱 ${esc(fone)}</div>` : `${x.dados?.fone_errado ? `<small class="c-ruim">📵 ${esc(foneFmt(x.dados.fone_errado))} marcado como errado</small>` : ''}<div class="pro-fone sem"><input type="tel" placeholder="Sem telefone: digite com DDD" id="proFone_${x.id}"><button class="btn peq" data-a="proFone" data-id="${x.id}" data-chave="${esc(x.cliente_chave)}">Salvar</button></div>`}
       <textarea class="pro-msg" id="proMsg_${x.id}" data-fid="proMsg_${x.id}" data-pro-rascunho="${x.id}" rows="4">${esc(PRO.rascunhos[x.id] ?? msg)}</textarea><small class="mut">Sugestão para revisar antes de enviar. Abrir o WhatsApp não registra contato.</small>
@@ -242,6 +248,13 @@ async function proRes(id, res) {
   } finally {
     PRO.gravando.delete(x.id);
   }
+}
+/** "Compra eventual": este produto não volta como sugestão de recompra para este cliente. */
+async function proDispensar(id) {
+  const x = (PRO.dados || []).find(r => String(r.id) === String(id)); if (!x?.dados?.repor_chave) return;
+  if (!confirm(`Não sugerir mais "${x.dados.produto_repor}" para ${x.cliente_nome}?\n\nEste contato sai da lista de hoje como pulado.`)) return;
+  await ok(sb.from('recompra_dispensas').upsert({ cliente_chave: x.cliente_chave, produto: x.dados.repor_chave, dispensado_por: EU.id }, { onConflict: 'cliente_chave,produto', ignoreDuplicates: true }));
+  await proRes(x.id, 'pular');
 }
 function proWa(id, fone) {
   const msg = $('#proMsg_' + id)?.value || '';

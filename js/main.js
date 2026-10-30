@@ -422,6 +422,8 @@ const A = {
   proPessoa: el => { UI.proPessoa = el.dataset.v; render(); },
   proRes: el => proRes(el.dataset.id, el.dataset.v).catch(e => avisar(e.message)),
   proWa: el => proWa(el.dataset.id, el.dataset.fone),
+  proDispensar: el => proDispensar(el.dataset.id).catch(e => avisar(e.message)),
+  crmTrava: el => crmTrava(el.dataset.id, el.dataset.v).catch(e => avisar(e.message)),
   proFiltro: el => { UI.proFiltro = el.dataset.v; render(); },
   proFone: el => proFone(el.dataset.id, el.dataset.chave).catch(e => avisar(e.message)),
   proNegocio: el => formProNegocio(el.dataset.id).catch(e => avisar(e.message)),

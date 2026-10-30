@@ -164,6 +164,24 @@ async function atvReagendarSalvar(id) {
 }
 const seloReagendada = a => (a.reagendamentos || []).length ? ` · <span title="${esc(a.reagendamentos.map(r => `${fmtCurta(r.de)} → ${fmtCurta(r.para)}: ${r.motivo}`).join('\n'))}">reagendada ${a.reagendamentos.length}× (combinado ${fmtCurta(a.quando_original)})</span>` : '';
 
+/** Por que o orçamento está parado: cada motivo pede uma ação diferente, em vez de cobrar todo mundo igual. */
+const TRAVAS = {
+  resposta: ['Sem resposta', 'Confirme se o cliente viu o orçamento.', 'Passando para saber se você conseguiu ver o orçamento. Ficou alguma dúvida?'],
+  preco: ['Preço', 'Revise os itens e veja alternativas antes de falar em desconto.', 'Posso rever os itens com você e ver alternativas que caibam melhor no seu orçamento. Quer que eu faça isso?'],
+  estoque: ['Estoque', 'Confira a disponibilidade ou ofereça um similar.', 'Estou conferindo a disponibilidade dos itens do seu orçamento. Se preferir, posso te passar uma alternativa. Pode ser?'],
+  prazo: ['Prazo', 'Confira a data de que o cliente precisa e o prazo real.', 'Para qual data você precisa do material? Assim confiro o prazo certo para o seu orçamento.'],
+  decisao: ['Decisão do cliente', 'Combine uma data para retomar em vez de cobrar agora.', 'Alguma novidade sobre a decisão do orçamento? Se preferir, me diga uma data boa para retomarmos.'],
+};
+function mensagemTrava(n, vendedor) {
+  const c = nomeCurtoCli(n.cliente_nome);
+  return `${c ? `Olá, ${c}!` : 'Olá, tudo bem?'} Aqui é ${vendedor ? vendedor + ', ' : ''}da Protemaxxi. ${TRAVAS[n.travado_motivo || 'resposta'][2]}`;
+}
+async function crmTrava(id, motivo) {
+  const n = CRM.neg.find(x => String(x.id) === String(id)); if (!n) return;
+  const novo = n.travado_motivo === motivo ? null : motivo;
+  Object.assign(n, await ok(sb.from('negocios').update({ travado_motivo: novo }).eq('id', n.id).select().single()));
+  render();
+}
 /** Orçamentos parados: o que está há mais tempo sem fechar, com as tentativas já feitas, para retomar ou decidir. */
 function abaRecuperarCRM(neg) {
   const h = hoje();
@@ -172,12 +190,15 @@ function abaRecuperarCRM(neg) {
       return { n, dias: Math.round((pd(h) - pd(ini)) / 864e5), t, prox: atvAbertas(n)[0] }; })
     .filter(x => x.dias >= 7).sort((a, b) => (b.t.n >= 3) - (a.t.n >= 3) || b.n.valor - a.n.valor);
   const decidir = l.filter(x => x.t.n >= 3);
+  const acaoTrava = n => { const fone = foneNegocio(n), c = (D.clientes || []).find(x => x.chave === n.cliente_chave), v = pessoa(n.pessoa_id)?.nome?.split(' ')[0] || '';
+    return `<div class="chips" style="margin-top:6px">${Object.entries(TRAVAS).map(([k, t]) => `<button class="chip ${n.travado_motivo === k ? 'on' : ''}" data-a="crmTrava" data-id="${n.id}" data-v="${k}">${t[0]}</button>`).join('')}</div>
+      ${n.travado_motivo ? `<small class="mut">${TRAVAS[n.travado_motivo][1]}</small> ` : ''}${linkWa(fone) && !c?.nao_contatar && !contatoPausado(c) ? `<a class="btn peq" href="${linkWa(fone)}?text=${encodeURIComponent(mensagemTrava(n, v))}" target="_blank" rel="noopener" title="Abre o WhatsApp com a mensagem para revisar antes de enviar">💬 Mensagem</a>` : ''}`; };
   return `<p class="explica">Orçamentos com 7 dias ou mais sem fechar, do maior valor para o menor. Com 3 tentativas ou mais, vale decidir com o cliente: ajustar a proposta, marcar uma data ou encerrar como perdido.</p>
     <div class="grid g3"><div class="card kpi-card"><div class="rot">Para recuperar</div><div class="val">${l.length}</div><div class="sub">${R0(soma(l.map(x => +x.n.valor)))}</div></div>
       <div class="card kpi-card"><div class="rot">Decidir (3+ tentativas)</div><div class="val ${decidir.length ? 'c-med' : 'c-ok'}">${decidir.length}</div><div class="sub">${R0(soma(decidir.map(x => +x.n.valor)))}</div></div>
       <div class="card kpi-card"><div class="rot">Sem próximo passo</div><div class="val ${l.some(x => !x.prox) ? 'c-ruim' : 'c-ok'}">${l.filter(x => !x.prox).length}</div><div class="sub">entre os parados</div></div></div>
     <div class="card mt">${l.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Cliente</th><th class="dir">Valor</th><th class="dir">Dias</th><th class="dir">Tentativas</th><th>Última anotação</th><th>Próximo passo</th><th></th></tr></thead><tbody>
-      ${l.map(x => `<tr><td><b>${esc(x.n.cliente_nome || '')}</b><br><small>${esc(x.n.titulo)} · ${esc(nomeP(x.n.pessoa_id))}</small>${x.t.n >= 3 ? '<br><span class="tag med">Decidir</span>' : ''}</td>
+      ${l.map(x => `<tr><td><b>${esc(x.n.cliente_nome || '')}</b><br><small>${esc(x.n.titulo)} · ${esc(nomeP(x.n.pessoa_id))}</small>${x.t.n >= 3 ? '<br><span class="tag med">Decidir</span>' : ''}${acaoTrava(x.n)}</td>
         <td class="dir num">${R0(x.n.valor)}</td><td class="dir">${x.dias}</td><td class="dir">${x.t.n}</td>
         <td><small>${x.t.ultima ? `${fmtCurta(x.t.ultima.feito_em.slice(0, 10))} · ${esc((x.t.ultima.resultado || x.t.ultima.titulo || '').slice(0, 80))}` : '<span class="mut">nenhuma</span>'}</small></td>
         <td><small class="${!x.prox ? 'c-ruim' : x.prox.quando < h ? 'c-ruim' : ''}">${x.prox ? `${fmtCurta(x.prox.quando)} · ${esc(x.prox.titulo.slice(0, 50))}` : '⚠ nenhum'}</small></td>
@@ -387,7 +408,7 @@ function vMeuDiaOp() {
 function filaDoDia(quem) {
   const h = hoje(), cartoes = new Map(), dias = d => Math.max(0, Math.round((pd(h) - pd(d)) / 864e5));
   const negDe = id => (CRM.neg || []).find(n => n.id === id);
-  const cartao = (chave, nome) => { if (!cartoes.has(chave)) cartoes.set(chave, { chave, nome, prio: 9, desde: h, valor: 0, motivos: [], linhas: [] }); return cartoes.get(chave); };
+  const cartao = (chave, nome) => { if (!cartoes.has(chave)) cartoes.set(chave, { chave, nome, prio: 9, grupo: 2, desde: h, valor: 0, motivos: [], linhas: [] }); return cartoes.get(chave); };
   const juntar = (k, prio, desde, motivo, linha, valor) => {
     k.prio = Math.min(k.prio, prio); if (desde < k.desde) k.desde = desde; k.valor = Math.max(k.valor, +valor || 0);
     if (!k.motivos.includes(motivo)) k.motivos.push(motivo); k.linhas.push(linha);
@@ -396,9 +417,13 @@ function filaDoDia(quem) {
     const n = a.negocio_id ? negDe(a.negocio_id) : null;
     const k = cartao(a.cliente_chave || n?.cliente_chave || (a.negocio_id ? 'n' + a.negocio_id : 'a' + a.id), a.cliente_nome || n?.cliente_nome || a.titulo);
     juntar(k, a.quando < h ? 1 : 2, a.quando, a.quando < h ? `Atrasada há ${dias(a.quando)} dia(s)` : 'Agendada para hoje', { tipo: 'atv', a, n }, n?.valor);
+    // compromisso marcado (com hora ou data acertada com o cliente) vem antes; depois, quem pediu contato pelo anúncio
+    if (a.hora || (a.reagendamentos || []).length) { k.grupo = 0; juntar(k, k.prio, k.desde, a.hora ? `Compromisso às ${a.hora.slice(0, 5)}` : 'Data combinada', { tipo: 'nada' }); }
+    else if (ehLead(a)) { k.grupo = Math.min(k.grupo, 1); juntar(k, k.prio, k.desde, 'Pediu contato pelo anúncio', { tipo: 'nada' }); }
   }
   for (const i of followupsHoje(quem)) {
     const k = cartao(i.cliente_chave || 'i' + i.id, i.cliente_nome || '');
+    k.grupo = 0;
     juntar(k, i.proximo_contato < h ? 1 : 2, i.proximo_contato, i.proximo_contato < h ? `Retorno combinado vencido há ${dias(i.proximo_contato)} dia(s)` : 'Retorno combinado para hoje', { tipo: 'fup', i });
   }
   for (const n of (CRM.neg || []).filter(n => n.pessoa_id === quem && !['ganho', 'perdido'].includes(n.etapa))) {
@@ -408,14 +433,30 @@ function filaDoDia(quem) {
     const motivo = sem ? `Negócio de ${R0(n.valor)} sem próximo passo` : r.inativo ? 'Negociação parada há mais de 15 dias' : r.pedidos_conferir ? 'Compra posterior para conferir' : 'Proposta parecida para revisar';
     juntar(k, 3, (n.mov_em || n.atualizado_em || h).slice(0, 10), motivo, { tipo: 'neg', n }, n.valor);
   }
-  return [...cartoes.values()].sort((a, b) => a.prio - b.prio || a.desde.localeCompare(b.desde) || b.valor - a.valor);
+  return [...cartoes.values()].sort((a, b) => a.grupo - b.grupo || a.prio - b.prio || a.desde.localeCompare(b.desde) || b.valor - a.valor);
+}
+const ehLead = a => /^lead_ads:/.test(a.automatica || '');
+const foneLead = a => ehLead(a) ? a.automatica.slice(9) : '';
+/** Primeiro contato com quem veio do anúncio: nome e produto saem do que o lead informou. */
+function mensagemLead(a, vendedor) {
+  const nome = (a.cliente_nome || '').split('~')[1] || '', prod = (a.titulo || '').match(/Kit completo|Câmeras CFTV|Cerca elétrica|Controle de acesso|Alarme de segurança/)?.[0];
+  const ola = nome && !/sem nome/i.test(nome) && nomeCurtoCli(nome) ? `Olá, ${nomeCurtoCli(nome)}!` : 'Olá, tudo bem?';
+  return `${ola} Aqui é ${vendedor ? vendedor + ', ' : ''}da Protemaxxi. Vi que você pediu informações${prod ? ' sobre ' + prod.toLowerCase() : ''} pelo nosso site. Como posso te ajudar?`;
+}
+/** Retorno combinado: lembra o combinado sem repetir oferta. */
+function mensagemRetorno(i, vendedor) {
+  const n = nomeCurtoCli(i.cliente_nome), h = hoje();
+  return `${n ? `Olá, ${n}!` : 'Olá, tudo bem?'} Aqui é ${vendedor ? vendedor + ', ' : ''}da Protemaxxi. Combinamos de nos falar ${i.proximo_contato >= h ? 'hoje' : 'nestes dias'}. Este é um bom momento?`;
 }
 function cartaoFila(k) {
   const h = hoje(), cor = k.prio === 1 ? 'ruim' : k.prio === 2 ? 'azul' : 'med';
-  const linha = l => l.tipo === 'atv' ? `<div class="atv ${l.a.quando < h ? 'atrasada' : ''}"><button class="atv-check" data-a="atvFeita" data-id="${l.a.id}" title="Concluir e registrar o resultado"></button>
+  const eu1 = id => pessoa(id)?.nome?.split(' ')[0] || '', wa = (fone, msg) => linkWa(fone) ? `<a class="btn peq pri" href="${linkWa(fone)}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener" title="Abre o WhatsApp com a mensagem para revisar antes de enviar">💬</a>` : '';
+  const foneCli = chave => (D.clientes || []).find(c => c.chave === chave);
+  const podeChamar = c => !c?.nao_contatar && !contatoPausado(c);
+  const linha = l => l.tipo === 'nada' ? '' : l.tipo === 'atv' ? `<div class="atv ${l.a.quando < h ? 'atrasada' : ''}"><button class="atv-check" data-a="atvFeita" data-id="${l.a.id}" title="Concluir e registrar o resultado"></button>
       <div style="flex:1"><b>${TIPOS_ATV[l.a.tipo] || l.a.tipo}</b> · ${esc(l.a.titulo)}<br><small>${fmtCurta(l.a.quando)}${l.a.automatica ? ' · automática' : ''}${seloReagendada(l.a)}</small></div>
-      <button class="btn peq" data-a="atvReagendar" data-id="${l.a.id}" title="Mudar a data, com motivo">⇢</button><button class="btn peq" data-a="atvContato" data-id="${l.a.id}" title="Contato do cliente: celular e e-mail">+</button>${l.a.negocio_id ? `<button class="btn peq" data-a="crmAbrir" data-id="${l.a.negocio_id}">Negócio</button>` : ''}</div>`
-    : l.tipo === 'fup' ? `<div class="atv"><button class="atv-check" data-a="followupFeito" data-id="${l.i.id}" title="Retorno feito"></button><div style="flex:1"><small>${esc(l.i.texto.slice(0, 140))}</small></div></div>`
+      ${foneLead(l.a) ? wa(foneLead(l.a), mensagemLead(l.a, eu1(l.a.pessoa_id))) : ''}<button class="btn peq" data-a="atvReagendar" data-id="${l.a.id}" title="Mudar a data, com motivo">⇢</button><button class="btn peq" data-a="atvContato" data-id="${l.a.id}" title="Contato do cliente: celular e e-mail">+</button>${l.a.negocio_id ? `<button class="btn peq" data-a="crmAbrir" data-id="${l.a.negocio_id}">Negócio</button>` : ''}</div>`
+    : l.tipo === 'fup' ? `<div class="atv"><button class="atv-check" data-a="followupFeito" data-id="${l.i.id}" title="Retorno feito"></button><div style="flex:1"><small>${esc(l.i.texto.slice(0, 140))}</small></div>${podeChamar(foneCli(l.i.cliente_chave)) ? wa(foneCli(l.i.cliente_chave)?.fone, mensagemRetorno(l.i, eu1(l.i.autor_id))) : ''}</div>`
     : `<div class="atv"><div style="flex:1"><b>🎯 ${esc(l.n.titulo)}</b><br><small>${NOME_ETAPA[l.n.etapa]} · ${R0(l.n.valor)}</small>${alertasNegocio(l.n)}</div><button class="btn peq pri" data-a="crmAbrir" data-id="${l.n.id}">${atvAbertas(l.n).length ? 'Revisar' : 'Agendar'}</button></div>`;
   const cli = k.chave && !/^[nai]\d+$/.test(k.chave) ? k.chave : '';
   return `<div class="card fila-item" style="margin-top:10px;padding:12px 14px">
