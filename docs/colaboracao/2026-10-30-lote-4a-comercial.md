@@ -36,3 +36,8 @@ começa em out/2025, então os ciclos devem melhorar com o tempo. Recompra é su
 
 - Não colocar telefone ou nome real de cliente em testes e notas: o repositório é público.
 - `recompra_dispensas.produto` guarda `repor_chave` (código, ou descrição em minúsculas).
+
+## Revisão do Codex
+
+- 1ª rodada: WhatsApp do lead ignorava restrições (P1); regra antiga ignorava a dispensa (P2); clique repetido em "Compra eventual" desfazia o pulo (P2); telefone virava nome na saudação (P3). Corrigidos.
+- Marcar o motivo não mexe em `mov_em` (o gatilho `negocio_carimbos` só muda em troca de etapa): o relógio de "parado" continua correndo.

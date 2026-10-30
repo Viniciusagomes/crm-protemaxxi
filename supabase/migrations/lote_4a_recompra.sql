@@ -64,5 +64,11 @@ begin
         get diagnostics n = row_count;
         cota := greatest(cota - n, 0);$b$);
   if novo = def then raise exception 'prospeccao_gerar mudou desde a revisão; ajuste a migration'; end if;
+  -- a regra antiga também respeita o que foi dispensado como compra eventual
+  def := novo;
+  novo := replace(def, $a$i.descricao ~* '(cabo|conector|fonte|bateria|balun|abra[cç]adeira|caixa)') z$a$,
+    $b$i.descricao ~* '(cabo|conector|fonte|bateria|balun|abra[cç]adeira|caixa)'
+               and not exists (select 1 from public.recompra_dispensas r where r.cliente_chave = k.chave and r.produto = coalesce(nullif(i.codigo, ''), lower(i.descricao)))) z$b$);
+  if novo = def then raise exception 'prospeccao_gerar (regra antiga) mudou desde a revisão; ajuste a migration'; end if;
   execute novo;
 end $$;

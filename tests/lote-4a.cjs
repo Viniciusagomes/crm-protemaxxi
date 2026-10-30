@@ -60,4 +60,14 @@ assert.equal((rec.match(/Mensagem<\/a>/g) || []).length, 1, 'cliente pausado nã
 assert.ok(run('mensagemTrava(CRM.neg[0],"Ana")').includes('alternativas'));
 assert.ok(run('mensagemTrava(CRM.neg[1],"Ana")').includes('conseguiu ver o orçamento'));
 
+// Revisão do Codex: lead bloqueado ou com número errado não oferece WhatsApp; telefone nunca vira nome.
+run(`D.clientes.push({chave:'c7',nome:'Bloqueado',fone:'(11) 90000-0001',nao_contatar:true});`);
+assert.ok(!run('filaDoDia("vend").map(cartaoFila).join("")').includes('wa.me/5511900000001'));
+run(`D.clientes.pop(); TELF.lista=[{cliente_chave:null,telefone:foneNorm('5511900000001')}];`);
+assert.ok(!run('filaDoDia("vend").map(cartaoFila).join("")').includes('wa.me/5511900000001'));
+run(`TELF.lista=[];`);
+assert.ok(run('filaDoDia("vend").map(cartaoFila).join("")').includes('wa.me/5511900000001'));
+assert.match(run(`mensagemRetorno({cliente_nome:'(11) 90000-0009 ~Maria',proximo_contato:'2026-10-30'},'Ana')`), /^Olá, Maria!/);
+assert.match(run(`mensagemTrava({cliente_nome:'(11) 90000-0009'},'Ana')`), /^Olá, tudo bem\?/);
+
 console.log('OK: prioridade explicada, mensagens por contexto, recompra pelo ciclo e motivo do orçamento parado.');

@@ -173,8 +173,7 @@ const TRAVAS = {
   decisao: ['Decisão do cliente', 'Combine uma data para retomar em vez de cobrar agora.', 'Alguma novidade sobre a decisão do orçamento? Se preferir, me diga uma data boa para retomarmos.'],
 };
 function mensagemTrava(n, vendedor) {
-  const c = nomeCurtoCli(n.cliente_nome);
-  return `${c ? `Olá, ${c}!` : 'Olá, tudo bem?'} Aqui é ${vendedor ? vendedor + ', ' : ''}da Protemaxxi. ${TRAVAS[n.travado_motivo || 'resposta'][2]}`;
+  return `${saudacao(n.cliente_nome)} Aqui é ${vendedor ? vendedor + ', ' : ''}da Protemaxxi. ${TRAVAS[n.travado_motivo || 'resposta'][2]}`;
 }
 async function crmTrava(id, motivo) {
   const n = CRM.neg.find(x => String(x.id) === String(id)); if (!n) return;
@@ -437,16 +436,27 @@ function filaDoDia(quem) {
 }
 const ehLead = a => /^lead_ads:/.test(a.automatica || '');
 const foneLead = a => ehLead(a) ? a.automatica.slice(9) : '';
+/** Saudação pelo nome; nome de lead vem depois do "~" e telefone nunca vira nome. */
+function saudacao(nome) {
+  const s = String(nome || '').split('~').pop().trim(), n = /^\W*\d/.test(s) || /sem nome/i.test(s) ? '' : nomeCurtoCli(s);
+  return n ? `Olá, ${n}!` : 'Olá, tudo bem?';
+}
+/** O WhatsApp do lead respeita número marcado como errado, "não contatar" e pausa, de qualquer cadastro com o mesmo número. */
+function leadPodeChamar(a) {
+  if (!TELF.lista) { if (!TELF.carregando) carregarTelErrados().then(render).catch(() => {}); return false; }
+  const f = foneNorm(foneLead(a));
+  if (TELF.lista.some(t => t.telefone === f)) return false;
+  return !(D.clientes || []).some(c => (c.chave === a.cliente_chave || (c.fone && foneNorm(c.fone) === f)) && (c.nao_contatar || contatoPausado(c)));
+}
 /** Primeiro contato com quem veio do anúncio: nome e produto saem do que o lead informou. */
 function mensagemLead(a, vendedor) {
-  const nome = (a.cliente_nome || '').split('~')[1] || '', prod = (a.titulo || '').match(/Kit completo|Câmeras CFTV|Cerca elétrica|Controle de acesso|Alarme de segurança/)?.[0];
-  const ola = nome && !/sem nome/i.test(nome) && nomeCurtoCli(nome) ? `Olá, ${nomeCurtoCli(nome)}!` : 'Olá, tudo bem?';
-  return `${ola} Aqui é ${vendedor ? vendedor + ', ' : ''}da Protemaxxi. Vi que você pediu informações${prod ? ' sobre ' + prod.toLowerCase() : ''} pelo nosso site. Como posso te ajudar?`;
+  const prod = (a.titulo || '').match(/Kit completo|Câmeras CFTV|Cerca elétrica|Controle de acesso|Alarme de segurança/)?.[0];
+  return `${saudacao(a.cliente_nome)} Aqui é ${vendedor ? vendedor + ', ' : ''}da Protemaxxi. Vi que você pediu informações${prod ? ' sobre ' + prod.toLowerCase() : ''} pelo nosso site. Como posso te ajudar?`;
 }
 /** Retorno combinado: lembra o combinado sem repetir oferta. */
 function mensagemRetorno(i, vendedor) {
-  const n = nomeCurtoCli(i.cliente_nome), h = hoje();
-  return `${n ? `Olá, ${n}!` : 'Olá, tudo bem?'} Aqui é ${vendedor ? vendedor + ', ' : ''}da Protemaxxi. Combinamos de nos falar ${i.proximo_contato >= h ? 'hoje' : 'nestes dias'}. Este é um bom momento?`;
+  const h = hoje();
+  return `${saudacao(i.cliente_nome)} Aqui é ${vendedor ? vendedor + ', ' : ''}da Protemaxxi. Combinamos de nos falar ${i.proximo_contato >= h ? 'hoje' : 'nestes dias'}. Este é um bom momento?`;
 }
 function cartaoFila(k) {
   const h = hoje(), cor = k.prio === 1 ? 'ruim' : k.prio === 2 ? 'azul' : 'med';
@@ -455,7 +465,7 @@ function cartaoFila(k) {
   const podeChamar = c => !c?.nao_contatar && !contatoPausado(c);
   const linha = l => l.tipo === 'nada' ? '' : l.tipo === 'atv' ? `<div class="atv ${l.a.quando < h ? 'atrasada' : ''}"><button class="atv-check" data-a="atvFeita" data-id="${l.a.id}" title="Concluir e registrar o resultado"></button>
       <div style="flex:1"><b>${TIPOS_ATV[l.a.tipo] || l.a.tipo}</b> · ${esc(l.a.titulo)}<br><small>${fmtCurta(l.a.quando)}${l.a.automatica ? ' · automática' : ''}${seloReagendada(l.a)}</small></div>
-      ${foneLead(l.a) ? wa(foneLead(l.a), mensagemLead(l.a, eu1(l.a.pessoa_id))) : ''}<button class="btn peq" data-a="atvReagendar" data-id="${l.a.id}" title="Mudar a data, com motivo">⇢</button><button class="btn peq" data-a="atvContato" data-id="${l.a.id}" title="Contato do cliente: celular e e-mail">+</button>${l.a.negocio_id ? `<button class="btn peq" data-a="crmAbrir" data-id="${l.a.negocio_id}">Negócio</button>` : ''}</div>`
+      ${foneLead(l.a) && leadPodeChamar(l.a) ? wa(foneLead(l.a), mensagemLead(l.a, eu1(l.a.pessoa_id))) : ''}<button class="btn peq" data-a="atvReagendar" data-id="${l.a.id}" title="Mudar a data, com motivo">⇢</button><button class="btn peq" data-a="atvContato" data-id="${l.a.id}" title="Contato do cliente: celular e e-mail">+</button>${l.a.negocio_id ? `<button class="btn peq" data-a="crmAbrir" data-id="${l.a.negocio_id}">Negócio</button>` : ''}</div>`
     : l.tipo === 'fup' ? `<div class="atv"><button class="atv-check" data-a="followupFeito" data-id="${l.i.id}" title="Retorno feito"></button><div style="flex:1"><small>${esc(l.i.texto.slice(0, 140))}</small></div>${podeChamar(foneCli(l.i.cliente_chave)) ? wa(foneCli(l.i.cliente_chave)?.fone, mensagemRetorno(l.i, eu1(l.i.autor_id))) : ''}</div>`
     : `<div class="atv"><div style="flex:1"><b>🎯 ${esc(l.n.titulo)}</b><br><small>${NOME_ETAPA[l.n.etapa]} · ${R0(l.n.valor)}</small>${alertasNegocio(l.n)}</div><button class="btn peq pri" data-a="crmAbrir" data-id="${l.n.id}">${atvAbertas(l.n).length ? 'Revisar' : 'Agendar'}</button></div>`;
   const cli = k.chave && !/^[nai]\d+$/.test(k.chave) ? k.chave : '';

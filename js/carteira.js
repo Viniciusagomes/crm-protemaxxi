@@ -253,8 +253,12 @@ async function proRes(id, res) {
 async function proDispensar(id) {
   const x = (PRO.dados || []).find(r => String(r.id) === String(id)); if (!x?.dados?.repor_chave) return;
   if (!confirm(`Não sugerir mais "${x.dados.produto_repor}" para ${x.cliente_nome}?\n\nEste contato sai da lista de hoje como pulado.`)) return;
-  await ok(sb.from('recompra_dispensas').upsert({ cliente_chave: x.cliente_chave, produto: x.dados.repor_chave, dispensado_por: EU.id }, { onConflict: 'cliente_chave,produto', ignoreDuplicates: true }));
-  await proRes(x.id, 'pular');
+  const trava = 'disp' + x.id; if (PRO.gravando.has(trava)) return;
+  PRO.gravando.add(trava);
+  try {
+    await ok(sb.from('recompra_dispensas').upsert({ cliente_chave: x.cliente_chave, produto: x.dados.repor_chave, dispensado_por: EU.id }, { onConflict: 'cliente_chave,produto', ignoreDuplicates: true }));
+    if (x.resultado !== 'pular') await proRes(x.id, 'pular');
+  } finally { PRO.gravando.delete(trava); }
 }
 function proWa(id, fone) {
   const msg = $('#proMsg_' + id)?.value || '';
