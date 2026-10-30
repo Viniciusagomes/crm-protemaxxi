@@ -50,3 +50,9 @@ Primeira revisão cruzada feita pela ponte Claude → Codex CLI. Os 5 achados pr
 5. "ORÇAMENTO NÃO APROVADO" casava com `/APROVAD/` → reprovado/recusado/cancelado não avança etapa.
 
 Reprocessado o e-mail 5 depois da v7: continua 1 orçamento e 1 evento na T923 (achada pela OS da Intelcamp).
+
+## Junção com a main (30/10)
+
+- Conflito só no `index.html` (versões dos scripts): ficaram as da main e `assistencia`, `emails`, `os-orcamento` e `main` em `20261030a`.
+- 11/11 testes passando. Função `email-entrada` v7 publicada é a mesma do arquivo.
+- Revisão do Codex depois da junção: nenhum achado, "ok para publicar".
