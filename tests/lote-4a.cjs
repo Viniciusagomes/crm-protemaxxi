@@ -16,7 +16,7 @@ UI={},EU={id:'vend'};
 const pessoasQueVejo=()=>['vend'],pessoa=id=>D.pessoas.find(x=>x.id===id),ehDono=()=>false,nomeP=id=>id;
 const seloCredito=()=>'',nomeVendedor=()=>'',corVendedor=()=>'',valido=()=>true,render=()=>{};
 `, ctx);
-for (const file of ['clientes.js', 'agenda.js', 'carteira.js', 'crm.js']) vm.runInContext(fs.readFileSync(path.join(root, 'js', file), 'utf8'), ctx, { filename: file });
+for (const file of ['clientes.js', 'agenda.js', 'carteira.js', 'crm.js', 'campanhas.js']) vm.runInContext(fs.readFileSync(path.join(root, 'js', file), 'utf8'), ctx, { filename: file });
 const run = code => vm.runInContext(code, ctx);
 const json = code => JSON.parse(run(`JSON.stringify(${code})`));
 
@@ -29,13 +29,14 @@ CRM.atv=[{id:1,cliente_chave:'a',cliente_nome:'Tarefa velha',pessoa_id:'vend',ti
 D.interacoes=[{id:7,cliente_chave:'c8',cliente_nome:'Rui',autor_id:'vend',texto:'Pediu retorno',proximo_contato:'2026-10-30',feito:false},
  {id:8,cliente_chave:'c9',cliente_nome:'Pausado',autor_id:'vend',texto:'Pediu retorno',proximo_contato:'2026-10-30',feito:false}];`);
 const fila = json('filaDoDia("vend").map(k=>({nome:k.nome,motivos:k.motivos,linhas:k.linhas.length}))');
-assert.deepEqual(fila.slice(-2).map(k => k.nome), ['(11) 90000-0001 ~Lead Teste', 'Tarefa velha']);
+assert.equal(fila.at(-1).nome, 'Tarefa velha');
+assert.ok(!fila.some(k => k.nome.includes('Lead Teste')), 'lead fica no botão próprio');
+assert.deepEqual(json('filaDoDia("vend",true).map(k=>k.nome)'), ['(11) 90000-0001 ~Lead Teste']);
 assert.ok(fila.find(k => k.nome === 'Com hora').motivos.includes('Compromisso às 14:00'));
 assert.ok(fila.find(k => k.nome === 'Combinada').motivos.includes('Data combinada'));
-assert.ok(fila.find(k => k.nome.includes('Lead Teste')).motivos.includes('Pediu contato pelo anúncio'));
 
 // Passo 34: o lead abre o WhatsApp com a mensagem pronta; retorno de cliente pausado não oferece mensagem.
-const cartoes = run('filaDoDia("vend").map(cartaoFila).join("§")').split('§');
+const cartoes = run('[...filaDoDia("vend"),...filaDoDia("vend",true)].map(cartaoFila).join("§")').split('§');
 const cLead = cartoes.find(c => c.includes('Lead Teste'));
 assert.ok(cLead.includes('wa.me/5511900000001?text='));
 assert.ok(decodeURIComponent(cLead.match(/text=([^"]+)/)[1]).includes('Olá, Lead! Aqui é Ana, da Protemaxxi. Vi que você pediu informações sobre controle de acesso'));
@@ -62,11 +63,30 @@ assert.ok(run('mensagemTrava(CRM.neg[1],"Ana")').includes('conseguiu ver o orça
 
 // Revisão do Codex: lead bloqueado ou com número errado não oferece WhatsApp; telefone nunca vira nome.
 run(`D.clientes.push({chave:'c7',nome:'Bloqueado',fone:'(11) 90000-0001',nao_contatar:true});`);
-assert.ok(!run('filaDoDia("vend").map(cartaoFila).join("")').includes('wa.me/5511900000001'));
+assert.ok(!run('filaDoDia("vend",true).map(cartaoFila).join("")').includes('wa.me/5511900000001'));
 run(`D.clientes.pop(); TELF.lista=[{cliente_chave:null,telefone:foneNorm('5511900000001')}];`);
-assert.ok(!run('filaDoDia("vend").map(cartaoFila).join("")').includes('wa.me/5511900000001'));
-run(`TELF.lista=[];`);
-assert.ok(run('filaDoDia("vend").map(cartaoFila).join("")').includes('wa.me/5511900000001'));
+assert.ok(!run('filaDoDia("vend",true).map(cartaoFila).join("")').includes('wa.me/5511900000001'));
+run(`TELF.lista=[]; D.clientes.push({chave:'c6',telefone:'(11) 90000-0001',contato_pausa_ate:'2026-12-01'});`);
+assert.ok(!run('filaDoDia("vend",true).map(cartaoFila).join("")').includes('wa.me/5511900000001'), 'número em outro campo do cadastro');
+run(`D.clientes.pop(); var salvos=D.clientes; D.clientes=null;`);
+assert.ok(!run('filaDoDia("vend",true).map(cartaoFila).join("")').includes('wa.me/5511900000001'), 'sem carteira carregada não libera');
+run(`D.clientes=salvos;`);
+assert.ok(run('filaDoDia("vend",true).map(cartaoFila).join("")').includes('wa.me/5511900000001'));
+
+// Leads Campanhas: mensagem por contato, restrições e só o que é do vendedor.
+run(`CAMP.lista=[{id:1,nome:'Bateria',ativa:true,mensagem:'{ola} Aqui é {vendedor}. Você comprou a bateria {produto} com a gente{quando}.',mensagem_recompra:'{ola} Como está?'},{id:2,nome:'Parada',ativa:false,mensagem:'x'}];
+CAMP.contatos=[{id:1,campanha_id:1,pessoa_id:'vend',cliente_nome:'Maria Teste',celular:'11900000002',produto:'XB 1270',compra_data:'2024-10-08'},
+ {id:2,campanha_id:1,pessoa_id:'vend',cliente_nome:'Empresa LTDA',email:'teste@example.com',produto:'XB'},
+ {id:3,campanha_id:1,pessoa_id:'outro',cliente_nome:'De outro',celular:'11900000003'},
+ {id:4,campanha_id:2,pessoa_id:'vend',cliente_nome:'Pausada',celular:'11900000004'},
+ {id:5,campanha_id:1,pessoa_id:'vend',cliente_chave:'c9',cliente_nome:'Pausado',celular:'11900000005',ja_comprou:true},
+ {id:6,campanha_id:1,pessoa_id:'vend',cliente_nome:'Feito',celular:'11900000006',resultado:'respondeu'}];`);
+assert.deepEqual(json('campPendentes("vend").map(c=>c.id)'), [1, 2, 5]);
+assert.equal(run('mensagemCampanha(CAMP.contatos[0],"Ana")'), 'Olá, Maria! Aqui é o Ana, da Protemaxxi. Você comprou a bateria XB 1270 com a gente em 10/2024.');
+assert.equal(run('mensagemCampanha(CAMP.contatos[4],"Ana")'), 'Olá, Pausado! Como está?');
+const bc = run('blocoCampanhasDia("vend")');
+assert.ok(bc.includes('wa.me/5511900000002') && bc.includes('mailto:teste@example.com') && !bc.includes('wa.me/5511900000005') && !bc.includes('De outro') && !bc.includes('>Feito<') && !bc.includes('Parada'));
+assert.deepEqual(json(`lerContatosCampanha('Ana; (11) 90000-0000; a@b.c; Fonte\\n\\nBia')`), [{cliente_nome:'Ana',celular:'11900000000',email:'a@b.c',produto:'Fonte'},{cliente_nome:'Bia',celular:null,email:null,produto:null}]);
 assert.match(run(`mensagemRetorno({cliente_nome:'(11) 90000-0009 ~Maria',proximo_contato:'2026-10-30'},'Ana')`), /^Olá, Maria!/);
 assert.match(run(`mensagemTrava({cliente_nome:'(11) 90000-0009'},'Ana')`), /^Olá, tudo bem\?/);
 

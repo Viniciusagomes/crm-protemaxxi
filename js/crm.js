@@ -404,7 +404,8 @@ function vMeuDiaOp() {
 
 /** Fila única do dia: atividades, retornos combinados e negócios parados, um cartão por cliente, em ordem de prioridade.
  *  Prioridade: 1 atrasado (o cliente já esperou) · 2 combinado para hoje · 3 negócio sem próximo passo ou parado. */
-function filaDoDia(quem) {
+/** soLeads: só os leads do Google/Meta, que têm botão próprio no Meu dia; sem ele, só o resto. */
+function filaDoDia(quem, soLeads = false) {
   const h = hoje(), cartoes = new Map(), dias = d => Math.max(0, Math.round((pd(h) - pd(d)) / 864e5));
   const negDe = id => (CRM.neg || []).find(n => n.id === id);
   const cartao = (chave, nome) => { if (!cartoes.has(chave)) cartoes.set(chave, { chave, nome, prio: 9, grupo: 2, desde: h, valor: 0, motivos: [], linhas: [] }); return cartoes.get(chave); };
@@ -412,14 +413,14 @@ function filaDoDia(quem) {
     k.prio = Math.min(k.prio, prio); if (desde < k.desde) k.desde = desde; k.valor = Math.max(k.valor, +valor || 0);
     if (!k.motivos.includes(motivo)) k.motivos.push(motivo); k.linhas.push(linha);
   };
-  for (const a of (CRM.atv || []).filter(a => a.pessoa_id === quem && atvPendente(a) && a.quando <= h)) {
+  for (const a of (CRM.atv || []).filter(a => a.pessoa_id === quem && atvPendente(a) && a.quando <= h && ehLead(a) === soLeads)) {
     const n = a.negocio_id ? negDe(a.negocio_id) : null;
     const k = cartao(a.cliente_chave || n?.cliente_chave || (a.negocio_id ? 'n' + a.negocio_id : 'a' + a.id), a.cliente_nome || n?.cliente_nome || a.titulo);
     juntar(k, a.quando < h ? 1 : 2, a.quando, a.quando < h ? `Atrasada há ${dias(a.quando)} dia(s)` : 'Agendada para hoje', { tipo: 'atv', a, n }, n?.valor);
     // compromisso marcado (com hora ou data acertada com o cliente) vem antes; depois, quem pediu contato pelo anúncio
     if (a.hora || (a.reagendamentos || []).length) { k.grupo = 0; juntar(k, k.prio, k.desde, a.hora ? `Compromisso às ${a.hora.slice(0, 5)}` : 'Data combinada', { tipo: 'nada' }); }
-    else if (ehLead(a)) { k.grupo = Math.min(k.grupo, 1); juntar(k, k.prio, k.desde, 'Pediu contato pelo anúncio', { tipo: 'nada' }); }
   }
+  if (soLeads) return [...cartoes.values()].sort((a, b) => a.desde.localeCompare(b.desde));
   for (const i of followupsHoje(quem)) {
     const k = cartao(i.cliente_chave || 'i' + i.id, i.cliente_nome || '');
     k.grupo = 0;
@@ -444,9 +445,10 @@ function saudacao(nome) {
 /** O WhatsApp do lead respeita número marcado como errado, "não contatar" e pausa, de qualquer cadastro com o mesmo número. */
 function leadPodeChamar(a) {
   if (!TELF.lista) { if (!TELF.carregando) carregarTelErrados().then(render).catch(() => {}); return false; }
+  if (!D.clientes) return false;   // sem a carteira não dá para conferir as restrições
   const f = foneNorm(foneLead(a));
   if (TELF.lista.some(t => t.telefone === f)) return false;
-  return !(D.clientes || []).some(c => (c.chave === a.cliente_chave || (c.fone && foneNorm(c.fone) === f)) && (c.nao_contatar || contatoPausado(c)));
+  return !(D.clientes || []).some(c => (c.chave === a.cliente_chave || [c.fone, c.celular, c.telefone].some(t => t && foneNorm(t) === f)) && (c.nao_contatar || contatoPausado(c)));
 }
 /** Primeiro contato com quem veio do anúncio: nome e produto saem do que o lead informou. */
 function mensagemLead(a, vendedor) {
@@ -502,7 +504,9 @@ function vMeuDia() {
   const atvs = (CRM.atv || []).filter(a => a.pessoa_id === quem && atvPendente(a));
   const revisar = (CRM.atv || []).filter(a => a.pessoa_id === quem && atvRevisar(a));
   const arquivadas = (CRM.atv || []).filter(a => a.pessoa_id === quem && a.arquivada_em);
-  const fila = filaDoDia(quem);
+  const fila = filaDoDia(quem), leads = filaDoDia(quem, true);
+  if (!CAMP.lista && !CAMP.carregando) carregarCampanhas().then(render).catch(() => {});
+  const vista = UI.diaVista || 'fila', nCamp = CAMP.lista ? campPendentes(quem).length : '…';
   // telefones e regras de contato vêm da carteira; carrega uma vez só
   if (!D.clientes && !vMeuDia.carregandoCli) vMeuDia.carregandoCli = carregarClientes().then(render).catch(() => {}).finally(() => { vMeuDia.carregandoCli = null; });
   const atrasadas = atvs.filter(a => a.quando < h), deHoje = atvs.filter(a => a.quando === h), proximas = atvs.filter(a => a.quando > h && a.quando <= addDias(h, 7));
@@ -521,10 +525,13 @@ function vMeuDia() {
       <div class="card kpi-card"><div class="rot">Para hoje</div><div class="val">${deHoje.length + fups.length}</div><div class="sub">${feitasHoje} feita(s) hoje</div></div>
       <div class="card kpi-card clic" data-a="irProspeccao" data-pessoa="${quem}"><div class="rot">Prospecção de hoje</div><div class="val">${pro ? `${pro.contatos}/${pro.total}` : PRO.resumoErro ? 'Indisponível' : '…'}</div><div class="sub">contatos da campanha${pro ? ` · ${pro.pulados} pulado(s) · ${pro.pendentes} pendente(s)` : ''}</div></div>
       <div class="card kpi-card"><div class="rot">Negócios sem atividade</div><div class="val ${semAtv.length ? 'c-med' : 'c-ok'}">${semAtv.length}</div><div class="sub">defina o próximo passo</div></div></div>
+    <div class="chips mt"><button class="chip ${vista === 'fila' ? 'on' : ''}" data-a="diaVista" data-v="fila">✅ Fila de hoje <b>${fila.length}</b></button><button class="chip ${vista === 'leads' ? 'on' : ''}" data-a="diaVista" data-v="leads">📲 Leads Google/Meta <b>${leads.length}</b></button><button class="chip ${vista === 'campanhas' ? 'on' : ''}" data-a="diaVista" data-v="campanhas">📣 Leads Campanhas <b>${nCamp}</b></button></div>
+    ${vista === 'leads' ? `<div class="card mt"><div class="secao-titulo"><h2>📲 Leads Google/Meta</h2><small>${leads.length} lead(s) · do mais antigo para o mais novo</small></div>
+      <p class="explica" style="margin:0">Quem pediu contato pelos anúncios. Responda rápido: a chance de venda cai a cada dia.</p>${leads.map(cartaoFila).join('') || '<div class="vazio">Nenhum lead pendente. 👏</div>'}</div>` : vista === 'campanhas' ? blocoCampanhasDia(quem) : `
     <div class="card mt"><div class="secao-titulo"><h2>✅ Fila de hoje</h2><small>${fila.length} cliente(s) · um cartão por cliente, do mais urgente para o menos</small></div>
-      <p class="explica" style="margin:0">Primeiro o que está atrasado, depois o combinado para hoje e, por último, negócios sem próximo passo ou parados.</p>
+      <p class="explica" style="margin:0">Primeiro os compromissos combinados, depois o que está atrasado, o de hoje e, por último, negócios sem próximo passo ou parados.</p>
       ${fila.map(cartaoFila).join('') || '<div class="vazio">Nada pendente para hoje. 👏</div>'}</div>
-    ${blocoProspeccaoDia(quem)}${blocoTelefones(quem, 5)}
+    ${blocoProspeccaoDia(quem)}${blocoTelefones(quem, 5)}`}
     <div class="card mt"><h3 style="margin-top:0">📅 Próximos 7 dias</h3>${proximas.map(linhaA).join('') || '<p class="mut">Nada agendado.</p>'}</div>
     ${revisar.length ? `<div class="card mt"><h2>Follow-ups de negócios encerrados: revisar</h2><p class="mut">Confirme se ainda há uma ação válida. Pós-vendas continuam na rotina.</p>${revisar.map(a => `<div class="atv"><div style="flex:1"><b>${esc(a.cliente_nome || '')}</b><br>${esc(a.titulo)}</div><button class="btn peq" data-a="atvRevisada" data-id="${a.id}" data-manter="sim">Manter atividade</button><button class="btn peq" data-a="atvRevisada" data-id="${a.id}">Arquivar</button></div>`).join('')}</div>` : ''}
     ${arquivadas.length ? `<details class="card mt"><summary>Atividades arquivadas (${arquivadas.length})</summary>${arquivadas.map(a => `<div class="atv"><div><b>${esc(a.cliente_nome || '')}</b> · ${esc(a.titulo)}<br><small>${esc(a.arquivada_motivo || '')} · ${fmtCurta(a.arquivada_em.slice(0,10))}</small></div>${a.negocio_id ? `<button class="btn peq" data-a="crmAbrir" data-id="${a.negocio_id}">Histórico</button>` : ''}</div>`).join('')}</details>` : ''}`;

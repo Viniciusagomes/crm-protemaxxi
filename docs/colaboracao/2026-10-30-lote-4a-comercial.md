@@ -41,3 +41,12 @@ começa em out/2025, então os ciclos devem melhorar com o tempo. Recompra é su
 
 - 1ª rodada: WhatsApp do lead ignorava restrições (P1); regra antiga ignorava a dispensa (P2); clique repetido em "Compra eventual" desfazia o pulo (P2); telefone virava nome na saudação (P3). Corrigidos.
 - Marcar o motivo não mexe em `mov_em` (o gatilho `negocio_carimbos` só muda em troca de etapa): o relógio de "parado" continua correndo.
+- 2ª rodada: faltava esperar a carteira e olhar todos os números do cadastro antes de liberar o WhatsApp do lead. Corrigido.
+
+## Leads Google/Meta e Leads Campanhas (pedido do Vinícius em 30/10)
+
+- Meu dia ganhou três botões: Fila de hoje, Leads Google/Meta (`automatica` `lead_ads:`, fora da fila normal) e Leads Campanhas.
+- Tabelas `campanhas_venda` e `campanha_contatos`, RPC `campanha_registrar` (mesmo fluxo da prospecção; gera interação, então conta no limite de 30 dias) e `js/campanhas.js`.
+  RLS: só o dono cria; o vendedor vê e registra os próprios; contato sem vendedor fica só com o dono. Update limitado às colunas do resultado.
+- Os contatos vivem só no banco; a importação não entra no repositório porque ele é público.
+- Mensagem abre no WhatsApp ou no e-mail para o vendedor revisar. Nada é enviado sozinho.
