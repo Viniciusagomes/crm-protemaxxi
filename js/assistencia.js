@@ -503,7 +503,7 @@ function avisoAssistencia() {
   const p = pendenciasAT(); if (!p || !(p.fora.length || p.prontasVelhas.length || p.atrasadas.length || p.respondidas.length)) return '';
   const diasFora = o => diasDesde(p.rmaPor[o.id]?.enviado_em ? p.rmaPor[o.id].enviado_em + 'T12:00' : o.status_em);
   const det = p.fora.slice().sort((a, b) => diasFora(b) - diasFora(a)).slice(0, 8).map(o => { const r = p.rmaPor[o.id], atr = r?.previsao_retorno && r.previsao_retorno < hoje();
-    return `${atr ? '⚠ ' : ''}OS ${esc(o.numero)} · ${esc(o.produto_descricao || '')}${r ? ' · ' + esc(r.assistencia) : ''} · há ${diasFora(o)} dia(s)${r?.previsao_retorno ? ` · previsão ${fmtCurta(r.previsao_retorno)}` : ''}`; });
+    return `${atr ? '⚠ ' : ''}OS ${esc(o.numero)} · ${esc(o.produto_descricao || '')}${r ? ' · ' + esc(r.assistencia) : ''} · há ${diasFora(o)} dia(s)${r?.previsao_retorno ? ` · previsão ${fmtCurta(r.previsao_retorno)}` : ''}${r?.situacao_assistencia ? ` · 📧 ${esc(r.situacao_assistencia)}` : ''}`; });
   const partes = [p.fora.length && `${p.fora.length} produto(s) na assistência/fábrica${p.foraAtr.length ? ` (${p.foraAtr.length} passou da previsão: cobre a assistência)` : ''}`,
     p.prontasVelhas.length && `${p.prontasVelhas.length} OS pronta(s) há 7+ dias sem retirada`, p.atrasadas.length && `${p.atrasadas.length} OS passou da previsão dada ao cliente`,
     p.respondidas.length && `cliente respondeu orçamento: ${p.respondidas.map(o => `OS ${esc(o.numero)} ${o.orcamento_resposta.aprova ? '✔ aprovou' : '✕ recusou'}`).join(', ')}`].filter(Boolean);

@@ -214,6 +214,7 @@ const A = {
   emArquivar: el => emArquivar(el.dataset.id).catch(e => avisar(e.message)),
   emBolNF: el => emBolNF(el.dataset.id).catch(e => avisar(e.message)),
   emBolNFOk: el => emBolNFSalvar(el.dataset.id, el.dataset.i).catch(e => avisar(e.message)),
+  emOsConfirmar: el => emOsConfirmar(el.dataset.id, el.dataset.r).catch(e => avisar(e.message)),
   emAtualizar: () => carregarEmails(true).then(render).catch(e => avisar(e.message)),
   sitFiltro: el => { UI.sitFiltro = el.dataset.v; render(); },
   sitAtualizar: async () => { try { await carregarSituacao(true); avisar('Atualizado ✓'); } catch (e) { avisar(e.message); } render(); },
