@@ -97,6 +97,13 @@ const LISTAS_PRO = {
 const RES_PRO = { respondeu: '💬 Respondeu', orcamento: '📝 Pediu orçamento', comprou: '✅ Comprou', sem_resposta: '⏳ Sem resposta', sem_interesse: '🚫 Sem interesse', numero_errado: '☎️ Número errado', pular: '↷ Pular' };
 const PRO = { dados: null, chave: '', carregando: false, hist: null, resumo: null, resumoDia: '', resumoEm: 0, resumoErro: false, resumoPromise: null, gravando: new Set(), rascunhos: {} };
 const contatoPro = x => !!x.resultado && x.resultado !== 'pular';
+const CANAIS_CONTATO = { whatsapp: '💬 WhatsApp', ligacao: '📞 Ligação', email: '✉ E-mail', visita: '🤝 Visita' };
+const contatoPausado = c => !!c?.contato_pausa_ate && c.contato_pausa_ate >= hoje();
+/** Selos das regras de contato do cliente (canal preferido, pausa, não contatar). */
+function seloContato(c) {
+  if (!c) return '';
+  return `${c.nao_contatar ? '<span class="tag ruim">🚫 Não contatar</span>' : ''}${contatoPausado(c) ? `<span class="tag med" title="${esc(c.contato_motivo || '')}">⏸ Pausa até ${fmtCurta(c.contato_pausa_ate)}</span>` : ''}${c.contato_canal ? `<span class="tag" title="Canal preferido">${CANAIS_CONTATO[c.contato_canal]}</span>` : ''}`;
+}
 function resumoPro(lista) {
   return { total: lista.length, contatos: lista.filter(contatoPro).length, pulados: lista.filter(x => x.resultado === 'pular').length, pendentes: lista.filter(x => !x.resultado).length };
 }
@@ -190,13 +197,14 @@ function abaProspeccao() {
     return { v, n: h.length, resp: h.filter(x => ['respondeu', 'orcamento', 'comprou'].includes(x.resultado)).length, orc: h.filter(x => x.resultado === 'orcamento').length, vendas: vend.length, fat }; });
   const card = x => { const c = cli[x.cliente_chave] || {}, l = LISTAS_PRO[x.lista] || [x.lista, ''], fone = c.fone || '', msg = mensagemPro(x, quem?.nome?.split(' ')[0] || ''), wa = linkWa(fone);
     return `<div class="pro-card ${x.resultado === 'pular' ? 'pulado' : x.resultado ? 'feito' : ''}" id="pro_${x.id}">
-      <div class="pro-topo"><span class="tag ${l[1]}">${l[0]}</span>${seloSeg(mapa[x.cliente_chave]?.seg)}${seloCredito(x.cliente_chave)}${x.resultado ? `<span class="tag ok">${RES_PRO[x.resultado]}</span>` : ''}</div>
+      <div class="pro-topo"><span class="tag ${l[1]}">${l[0]}</span>${seloSeg(mapa[x.cliente_chave]?.seg)}${seloCredito(x.cliente_chave)}${seloContato(c)}${x.resultado ? `<span class="tag ok">${RES_PRO[x.resultado]}</span>` : ''}</div>
       <div class="pro-nome"><a href="#" data-a="verCliente" data-chave="${esc(x.cliente_chave)}">${esc(x.cliente_nome || c.nome || '')}</a> <small class="mut">${esc(c.cidade || '')}</small></div>
       <div class="pro-motivo">${esc(x.motivo || '')}</div>
       <small class="${x.resultado && x.resultado !== 'pular' ? 'c-ok' : 'mut'}">${x.resultado === 'pular' ? '↷ Pulado · não conta como contato' : x.resultado ? `✓ Contato registrado${x.resultado_em ? ' · ' + fmtCurta(x.resultado_em.slice(0, 10)) : ''}` : '○ Ainda não contatado'}</small>
-      ${fone ? `<div class="pro-fone">📱 ${esc(fone)}</div>` : `<div class="pro-fone sem"><input type="tel" placeholder="Sem telefone: digite com DDD" id="proFone_${x.id}"><button class="btn peq" data-a="proFone" data-id="${x.id}" data-chave="${esc(x.cliente_chave)}">Salvar</button></div>`}
+      ${fone ? `<div class="pro-fone">📱 ${esc(fone)}</div>` : `${x.dados?.fone_errado ? `<small class="c-ruim">📵 ${esc(foneFmt(x.dados.fone_errado))} marcado como errado</small>` : ''}<div class="pro-fone sem"><input type="tel" placeholder="Sem telefone: digite com DDD" id="proFone_${x.id}"><button class="btn peq" data-a="proFone" data-id="${x.id}" data-chave="${esc(x.cliente_chave)}">Salvar</button></div>`}
       <textarea class="pro-msg" id="proMsg_${x.id}" data-fid="proMsg_${x.id}" data-pro-rascunho="${x.id}" rows="4">${esc(PRO.rascunhos[x.id] ?? msg)}</textarea><small class="mut">Sugestão para revisar antes de enviar. Abrir o WhatsApp não registra contato.</small>
-      <div class="acoes">${wa ? `<a class="btn pri peq" href="#" data-a="proWa" data-id="${x.id}" data-fone="${esc(fone)}">💬 Chamar no WhatsApp</a><a class="btn peq" href="tel:${esc(fone.replace(/\D/g, ''))}">📞 Ligar</a>` : ''}</div>
+      <div class="acoes">${c.nao_contatar || contatoPausado(c) ? `<small class="c-med">${c.nao_contatar ? '🚫 Cliente pediu para não ser contatado' : `⏸ Contato pausado até ${fmtCurta(c.contato_pausa_ate)}`}${c.contato_motivo ? ': ' + esc(c.contato_motivo) : ''}. Use "Pular".</small>` : wa ? `<a class="btn pri peq" href="#" data-a="proWa" data-id="${x.id}" data-fone="${esc(fone)}">💬 Chamar no WhatsApp</a><a class="btn peq" href="tel:${esc(fone.replace(/\D/g, ''))}">📞 Ligar</a>` : ''}</div>
+      ${x.resultado === 'orcamento' ? (negocioDaPro(x.id) ? `<button class="btn peq" data-a="crmAbrir" data-id="${negocioDaPro(x.id).id}">🎯 Ver negócio</button>` : `<button class="btn peq pri" data-a="proNegocio" data-id="${x.id}">🎯 Criar negócio</button>`) : ''}
       <div class="pro-res">${Object.entries(RES_PRO).map(([k, n]) => `<button class="chip ${x.resultado === k ? 'on' : ''}" data-a="proRes" data-id="${x.id}" data-v="${k}">${n}</button>`).join('')}</div></div>`; };
   return `<div class="filtros">${vends.length > 1 ? `<div class="chips">${vends.map(v => `<button class="chip ${UI.proPessoa === v.id ? 'on' : ''}" data-a="proPessoa" data-v="${v.id}">${esc(v.nome)}</button>`).join('')}</div>` : ''}
       ${ehDono() ? `<button class="btn peq" data-a="proGerar">↻ Gerar listas que faltam hoje</button>` : ''}</div>
@@ -205,6 +213,7 @@ function abaProspeccao() {
     <div class="chips mt">${filtros.map(([k, n]) => `<button class="chip ${filtro === k ? 'on' : ''}" data-a="proFiltro" data-v="${k}">${n} <b>${PRO.dados.filter(x => doFiltro(x, k)).length}</b></button>`).join('')}</div>
     ${PRO.dados.length ? `<div class="pro-grid mt">${[...lista].sort((a, b) => !!a.resultado - !!b.resultado).map(card).join('') || '<div class="card vazio">Nenhum cliente neste filtro.</div>'}</div>${PRO.dados.length < (Number(D.config.prospeccao?.por_dia) || 50) ? '<p class="mut">Lista menor que a meta: foram mantidos os limites de frequência e as restrições de contato dos clientes elegíveis.</p>' : ''}`
       : `<div class="card vazio mt">A lista de hoje ainda não foi gerada. Ela sai sozinha às 7h (segunda a sábado).<br><br><button class="btn pri" data-a="proGerar">Gerar a minha lista agora</button></div>`}
+    ${blocoTelefones(UI.proPessoa)}
     <div class="card mt"><div class="secao-titulo"><h2>Resultado da prospecção</h2><small>últimos 30 dias · venda = pedido em até 15 dias depois do contato</small></div>
       <div class="rolagem"><table class="tabela"><thead><tr><th>Vendedor</th><th class="dir">Contatos</th><th class="dir">Responderam</th><th class="dir">Orçamentos</th><th class="dir">Vendas</th><th class="dir">Faturamento gerado</th></tr></thead><tbody>
       ${ind.map(x => `<tr><td><b>${esc(x.v.nome)}</b></td><td class="dir">${x.n}</td><td class="dir">${x.resp} <small>(${P(x.n ? x.resp / x.n : 0)})</small></td><td class="dir">${x.orc}</td><td class="dir"><b>${x.vendas}</b></td><td class="dir num">${R0(x.fat)}</td></tr>`).join('')}
@@ -215,17 +224,21 @@ async function proRes(id, res) {
   const x = PRO.dados.find(r => String(r.id) === String(id)); if (!x) return;
   if (PRO.gravando.has(x.id)) return;
   const novo = x.resultado === res ? null : res;
+  const c = (D.clientes || []).find(k => k.chave === x.cliente_chave);
   PRO.gravando.add(x.id);
   try {
-    const anterior = x.interacao_id;
-    const r = await ok(sb.rpc('prospeccao_registrar', { p_id: x.id, p_resultado: novo, p_esperado: x.resultado || null }));
+    const anterior = x.interacao_id, eraErrado = x.resultado === 'numero_errado';
+    // manda o número que estava na tela: é ele que fica marcado como errado
+    const r = await ok(sb.rpc('prospeccao_registrar', { p_id: x.id, p_resultado: novo, p_esperado: x.resultado || null, p_fone: c?.fone || null }));
     Object.assign(x, r.prospeccao);
+    if (novo === 'numero_errado' || eraErrado) await atualizarFoneCli(x.cliente_chave);
     const velha = D.interacoes.find(i => i.id === anterior); if (velha) velha.feito = true;
     if (r.interacao && !D.interacoes.some(i => i.id === r.interacao.id)) D.interacoes.unshift(r.interacao);
     const h = (PRO.hist || []).find(r => r.id === x.id); if (h) Object.assign(h, x); else (PRO.hist ||= []).push({ ...x });
     if (PRO.resumoDia === hoje()) { const s = PRO.resumo.find(r => r.id === x.id); if (s) s.resultado = x.resultado; else PRO.resumo.push({ id: x.id, pessoa_id: x.pessoa_id, resultado: x.resultado }); }
     avisar(r.interacao?.proximo_contato ? `Contato salvo e retorno marcado para ${fmtCurta(r.interacao.proximo_contato)}.` : novo === 'pular' ? 'Pulado, sem contar como contato.' : novo === 'sem_interesse' ? 'Registrado. Cliente fora da campanha por 90 dias.' : 'Resultado salvo.');
     render();
+    if (novo === 'orcamento') formProNegocio(x.id).catch(e => avisar(e.message));
   } finally {
     PRO.gravando.delete(x.id);
   }
@@ -235,11 +248,100 @@ function proWa(id, fone) {
   const url = linkWa(fone); if (!url) return;
   window.open(`${url}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
 }
+/** Negócio já criado a partir deste contato da campanha. */
+const negocioDaPro = id => (CRM.neg || []).find(n => String(n.prospeccao_id) === String(id));
+/** "Pediu orçamento": oferece criar o negócio já preenchido ou ligar a um negócio aberto do mesmo cliente. */
+async function formProNegocio(id) {
+  const x = (PRO.dados || []).find(r => String(r.id) === String(id)); if (!x) return;
+  if (!CRM.neg) await carregarCRM();
+  const ja = negocioDaPro(x.id);
+  if (ja) return crmAbrir(ja.id);
+  const abertos = (CRM.neg || []).filter(n => n.cliente_chave === x.cliente_chave && !n.prospeccao_id && !['ganho', 'perdido'].includes(n.etapa));
+  const d = x.dados || {}, sug = d.sugestao || d.produto_ultima_compra || d.itens || '';
+  modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>🎯 Pediu orçamento: ${esc(x.cliente_nome || '')}</h2>
+    <p class="mut">Registre o negócio para acompanhar até o fechamento. Quando o orçamento for lançado no Tiny para este cliente, o funil sugere juntar os dois: você confirma se é o mesmo pedido.</p>
+    ${abertos.length ? `<h3>Já existe negociação aberta deste cliente</h3>${abertos.map(n => `<div class="atv"><div style="flex:1"><b>${esc(n.titulo)}</b><br><small>${NOME_ETAPA[n.etapa]} · ${R0(n.valor)} · ${esc(nomeP(n.pessoa_id))}</small></div><button class="btn peq" data-a="proNegocioSalvar" data-id="${x.id}" data-negocio="${n.id}">Ligar a este</button></div>`).join('')}<h3 class="mt">Ou crie um novo</h3>` : ''}
+    <div class="form-grid">
+      <label class="campo inteiro">O que o cliente quer *<input type="text" id="pnTit" maxlength="160" placeholder="Ex.: orçamento de 4 câmeras e gravador" value="${esc(sug ? 'Orçamento: ' + String(sug).slice(0, 120) : '')}"></label>
+      <label class="campo">Valor estimado (R$)<input type="number" step="0.01" min="0" id="pnValor"></label>
+      <label class="campo">Próximo passo em<input type="date" id="pnData" min="${hoje()}" value="${diaUtil(addDias(hoje(), 1))}"></label>
+      <label class="campo inteiro">Próximo passo *<input type="text" id="pnAtv" maxlength="200" value="Montar e enviar o orçamento"></label>
+    </div>
+    <div class="acoes mt"><button class="btn pri" data-a="proNegocioSalvar" data-id="${x.id}">Criar negócio</button><button class="btn" data-a="fecharModal">Agora não</button></div>`);
+}
+async function proNegocioSalvar(id, negocioId) {
+  if (PRO.gravando.has('neg' + id)) return;
+  const tit = $('#pnTit')?.value.trim() || '', data = $('#pnData')?.value || '', atv = $('#pnAtv')?.value.trim() || '';
+  if (!negocioId && !tit) return avisar('Diga o que o cliente quer.');
+  if (!data || data < hoje() || !atv) return avisar('Defina a data e o próximo passo.');
+  PRO.gravando.add('neg' + id);
+  try {
+    const r = await ok(sb.rpc('prospeccao_negocio', { p_prospeccao: Number(id), p_negocio: negocioId ? Number(negocioId) : null, p_titulo: tit,
+      p_valor: Number($('#pnValor')?.value) || 0, p_atv_data: data, p_atv_titulo: atv }));
+    const i = (CRM.neg || []).findIndex(n => n.id === r.negocio.id);
+    if (i >= 0) CRM.neg[i] = r.negocio; else (CRM.neg ||= []).unshift(r.negocio);
+    if (r.atividade && !CRM.atv.some(a => a.id === r.atividade.id)) CRM.atv.push(r.atividade);
+    const x = (PRO.dados || []).find(p => String(p.id) === String(id)), fu = x && D.interacoes.find(k => k.id === x.interacao_id); if (fu) fu.feito = true;
+    fecharModal(); avisar(r.repetido ? 'Este contato já tinha virado negócio.' : negocioId ? 'Contato ligado ao negócio e próximo passo agendado.' : 'Negócio criado com o próximo passo.'); render();
+  } finally { PRO.gravando.delete('neg' + id); }
+}
 async function proFone(id, chave) {
-  const v = $('#proFone_' + id)?.value || '';
-  await ok(sb.rpc('cliente_marcar', { p_chave: chave, p_fone: v }));
-  const c = (D.clientes || []).find(x => x.chave === chave); if (c) c.fone = v.replace(/\D/g, '');
-  avisar('Telefone salvo.'); render();
+  await telCorrigir(chave, $('#proFone_' + id)?.value || '');
+}
+
+// ─── telefones marcados como errados: fila para corrigir ───
+const TELF = { lista: null, em: 0, carregando: false };
+async function carregarTelErrados(forcar) {
+  if (TELF.carregando || (!forcar && TELF.lista && Date.now() - TELF.em < 5 * 60e3)) return;
+  TELF.carregando = true;
+  try {
+    TELF.lista = await todas(() => sb.from('cliente_telefones').select('cliente_chave,telefone,errado_em,errado_por').not('errado_em', 'is', null).order('errado_em', { ascending: false }).order('telefone'));
+    TELF.em = Date.now();
+  } finally { TELF.carregando = false; }
+}
+/** Clientes do vendedor sem nenhum número válido porque o(s) número(s) foram marcados como errados. */
+function filaTelefones(quem) {
+  if (!TELF.lista) { if (!TELF.carregando) carregarTelErrados().then(render).catch(() => {}); return null; }
+  if (!D.clientes) return null;
+  const cli = Object.fromEntries(D.clientes.map(c => [c.chave, c])), tiny = pessoa(quem)?.tiny, vistos = new Set();
+  return TELF.lista.filter(t => { const c = cli[t.cliente_chave];
+    if (!c || c.fone || vistos.has(t.cliente_chave) || !(c.vendedor_id === tiny || t.errado_por === quem)) return false;
+    vistos.add(t.cliente_chave); return true; }).map(t => ({ ...t, c: cli[t.cliente_chave] }));
+}
+function blocoTelefones(quem, limite) {
+  const l = filaTelefones(quem);
+  if (!l?.length) return '';
+  return `<div class="card mt"><div class="secao-titulo"><h2>📵 Telefones para corrigir</h2><small>${l.length} cliente(s) fora da campanha até ter um número certo</small></div>
+    ${l.slice(0, limite || 50).map(t => `<div class="atv"><div style="flex:1"><a href="#" data-a="verCliente" data-chave="${esc(t.cliente_chave)}"><b>${esc(t.c.nome || t.cliente_chave)}</b></a><br>
+      <small class="mut">${esc(foneFmt(t.telefone))} marcado como errado ${fmtCurta(t.errado_em.slice(0, 10))}${t.errado_por ? ' por ' + esc(nomeP(t.errado_por)) : ''}</small></div>
+      <input type="tel" id="telCor_${esc(t.cliente_chave)}" placeholder="Número novo com DDD" style="max-width:170px">
+      <button class="btn peq pri" data-a="telCorrigir" data-chave="${esc(t.cliente_chave)}">Salvar</button>
+      <button class="btn peq" data-a="telCerto" data-chave="${esc(t.cliente_chave)}" data-v="${esc(t.telefone)}" title="O número estava certo: volta para o cadastro">Estava certo</button></div>`).join('')}
+    ${l.length > (limite || 50) ? `<p class="mut">Mostrando ${limite || 50} de ${l.length}.</p>` : ''}</div>`;
+}
+/** Número novo: entra na agenda como incluído na Intranet (passa na frente dos do Tiny) e o cliente volta à campanha. */
+async function telCorrigir(chave, valor) {
+  const f = foneNorm(valor ?? $('#telCor_' + chave)?.value);
+  if (!f) return avisar('Número inválido. Use DDD + número (celular com 9 dígitos).');
+  const { error } = await sb.from('cliente_telefones').insert({ telefone: f, cliente_chave: chave, celular: f.length === 13, origem: 'manual', por: EU.id });
+  if (error && !/duplicate|unique/i.test(error.message)) throw new Error(error.message);
+  // o mesmo número já existia marcado como errado: incluir de novo = confirmar que está certo
+  if (error) await ok(sb.rpc('telefone_errado', { p_chave: chave, p_telefone: f, p_errado: false }));
+  const usado = await atualizarFoneCli(chave);
+  avisar(usado && usado !== f ? `${foneFmt(f)} salvo ✓ · o cadastro continua usando ${foneFmt(usado)}, confirmado antes` : `${foneFmt(f)} salvo ✓`); render();
+}
+async function telCerto(chave, fone) {
+  await ok(sb.rpc('telefone_errado', { p_chave: chave, p_telefone: fone, p_errado: false }));
+  await atualizarFoneCli(chave);
+  avisar('Número confirmado: voltou para o cadastro.'); render();
+}
+/** Relê o telefone que o cadastro usa de fato (v_clientes escolhe entre os números válidos). */
+async function atualizarFoneCli(chave) {
+  const r = await ok(sb.from('v_clientes').select('fone').eq('chave', chave).maybeSingle());
+  const c = (D.clientes || []).find(x => x.chave === chave); if (c) c.fone = r?.fone || '';
+  delete AGD.tels[chave]; TELF.lista = null;
+  if (document.getElementById('cliTels')) carregarTelsFicha(chave);
+  return r?.fone || '';
 }
 async function proGerar() {
   const n = await ok(sb.rpc('prospeccao_gerar'));
@@ -253,12 +355,16 @@ function blocoFichaCRM(c) {
   const x = rfm()[c.chave] || {};
   const hist = (PRO.hist || []).filter(p => p.cliente_chave === c.chave);
   return `<div class="ficha-crm">
-    <div class="ficha-selos">${seloSeg(x.seg)} <span class="tag">Curva ${x.abc || '—'}</span> <span class="tag" title="Recência · Frequência · Valor">R${x.r}·F${x.f}·V${x.m}</span>${c.nao_contatar ? ' <span class="tag ruim">🚫 Não contatar</span>' : ''}</div>
+    <div class="ficha-selos">${seloSeg(x.seg)} <span class="tag">Curva ${x.abc || '—'}</span> <span class="tag" title="Recência · Frequência · Valor">R${x.r}·F${x.f}·V${x.m}</span> ${seloContato(c)}</div>
     <div class="form-grid" style="margin-top:8px">
       <label class="campo">Tipo de cliente<select id="fcTipo"><option value="">${esc('Automático: ' + (TIPOS_CLI[tipoCli({ ...c, tipo_cliente: null })] || ''))}</option>${Object.entries(TIPOS_CLI).map(([k, n]) => `<option value="${k}" ${c.tipo_cliente === k ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
       <label class="campo">Telefone / WhatsApp<input type="tel" id="fcFone" value="${esc(c.fone || '')}" placeholder="DDD + número"></label>
       <label class="campo inteiro">Observações do cliente<textarea id="fcObs" rows="2" placeholder="Ex.: síndico é o Sr. Carlos; prefere WhatsApp à tarde">${esc(c.obs || '')}</textarea></label>
       <label class="campo"><span><input type="checkbox" id="fcNao" ${c.nao_contatar ? 'checked' : ''}> Não incluir em campanhas de prospecção</span></label>
+      <label class="campo">Pausar contato comercial até<input type="date" id="fcPausa" min="${hoje()}" value="${contatoPausado(c) ? c.contato_pausa_ate : ''}"></label>
+      <label class="campo">Canal preferido<select id="fcCanal"><option value="">Sem preferência</option>${Object.entries(CANAIS_CONTATO).map(([k, n]) => `<option value="${k}" ${c.contato_canal === k ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+      <label class="campo inteiro">Motivo da pausa ou da preferência<input type="text" id="fcMotivo" maxlength="300" value="${esc(c.contato_motivo || '')}" placeholder="Ex.: pediu para falar só depois das férias; atendimento só por WhatsApp"></label>
+      <p class="explica inteiro" style="margin:0">A pausa tira o cliente das campanhas até a data. Pedidos em andamento e assistência continuam sendo atendidos normalmente.</p>
     </div>
     ${(CRM.neg || []).filter(n => n.cliente_chave === c.chave).map(n => `<div class="atv"><div style="flex:1"><b>🎯 ${esc(n.titulo)}</b><br><small>${NOME_ETAPA[n.etapa]} · ${R0(n.valor)} · ${esc(nomeP(n.pessoa_id))}</small></div><button class="btn peq" data-a="crmAbrir" data-id="${n.id}">Abrir</button></div>`).join('')}
     <div class="acoes"><button class="btn peq pri" data-a="fichaSalvar" data-chave="${esc(c.chave)}">Salvar dados do cliente</button><button class="btn peq" data-a="crmNovo" data-chave="${esc(c.chave)}" data-nome="${esc(c.nome)}">🎯 Novo negócio</button>
@@ -266,8 +372,11 @@ function blocoFichaCRM(c) {
 }
 async function fichaSalvar(chave) {
   const tipo = $('#fcTipo').value, fone = $('#fcFone').value.trim(), obs = $('#fcObs').value, nao = $('#fcNao').checked;
+  const pausa = $('#fcPausa').value || null, canal = $('#fcCanal').value, motivo = $('#fcMotivo').value.trim();
+  if (pausa && pausa < hoje()) return avisar('A pausa precisa terminar hoje ou depois.');
   await ok(sb.rpc('cliente_marcar', { p_chave: chave, p_tipo: tipo, p_nao_contatar: nao, p_obs: obs, p_fone: fone }));
+  await ok(sb.rpc('contato_regras', { p_chave: chave, p_nao_contatar: nao, p_pausa_ate: pausa, p_canal: canal, p_motivo: motivo }));
   const c = D.clientes.find(x => x.chave === chave);
-  if (c) Object.assign(c, { tipo_cliente: tipo || null, fone: fone.replace(/\D/g, '') || c.fone, obs, nao_contatar: nao });
+  if (c) Object.assign(c, { tipo_cliente: tipo || null, fone: fone.replace(/\D/g, '') || c.fone, obs, nao_contatar: nao, contato_pausa_ate: pausa, contato_canal: canal || null, contato_motivo: motivo || null });
   rfm.cache = null; avisar('Dados do cliente salvos.'); abrirCliente(chave);
 }

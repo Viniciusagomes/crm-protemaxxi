@@ -1,0 +1,12 @@
+# Arquivos do repositório que NÃO devem ser publicados no site (Cloudflare Workers, assets estáticos).
+# Sem isto o site servia /.git/, /docs/, /tests/ e /supabase/ para qualquer um.
+.git
+.github
+.gitignore
+.assetsignore
+.nojekyll
+AGENTS.md
+CLAUDE.md
+docs
+tests
+supabase
