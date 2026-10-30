@@ -1,0 +1,18 @@
+# Roda os testes da Intranet em todo PR e em todo push na main (o deploy da Cloudflare continua separado).
+name: Testes
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node tests/rodar-todos.cjs
