@@ -49,14 +49,35 @@ grant select, insert on public.campanha_contatos to authenticated;
 grant update (resultado, resultado_em, interacao_id) on public.campanha_contatos to authenticated;
 grant usage on sequence public.campanhas_venda_id_seq, public.campanha_contatos_id_seq to authenticated;
 
--- O vendedor da campanha pode marcar o número do contato como errado, mesmo fora da carteira dele.
-create or replace function seg.pode_mexer_cliente(p_chave text) returns boolean
+/** Contato da campanha com cadastro antigo: acha o cadastro pelo número antes de ficar com a chave por nome. */
+create or replace function seg.campanha_contato_chave() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare f text := seg.fone_norm(new.celular), achada text;
+begin
+  if f is not null and (new.cliente_chave is null or new.cliente_chave like 'n:%') then
+    select c.chave into achada from public.clientes c where seg.fone_norm(c.celular) = f or seg.fone_norm(c.fone) = f order by c.chave limit 1;
+    if achada is not null then new.cliente_chave := achada; end if;
+  end if;
+  return new;
+end $$;
+drop trigger if exists campanha_contato_chave on public.campanha_contatos;
+create trigger campanha_contato_chave before insert on public.campanha_contatos for each row execute function seg.campanha_contato_chave();
+
+/** Restrições dos contatos que a pessoa enxerga: pelo cadastro ligado ou por qualquer cadastro com o mesmo número,
+ *  inclusive cliente antigo que não está na carteira carregada na tela. */
+create or replace function public.campanha_restricoes()
+returns table (contato_id bigint, nao_contatar boolean, pausa_ate date)
 language sql stable security definer set search_path = '' as $$
-  select public.eh_dono() or seg.minha_permissao('vendas_todas')
-    or exists (select 1 from public.pedidos p where p.cliente_chave = p_chave and seg.pode_ver_pedido(p.vendedor_id, p.numero_ecommerce))
-    or exists (select 1 from public.prospeccao x where x.cliente_chave = p_chave and x.pessoa_id = seg.minha_pessoa())
-    or exists (select 1 from public.campanha_contatos c where c.cliente_chave = p_chave and c.pessoa_id = seg.minha_pessoa())
+  select x.id, bool_or(c.nao_contatar), max(c.contato_pausa_ate)
+    from public.campanha_contatos x
+    join public.clientes c on c.chave = x.cliente_chave
+      or (seg.fone_norm(x.celular) is not null and seg.fone_norm(x.celular) in (seg.fone_norm(c.celular), seg.fone_norm(c.fone)))
+   where (public.eh_dono() or x.pessoa_id = seg.minha_pessoa() or x.pessoa_id in (select seg.pessoas_visiveis()))
+     and (c.nao_contatar or c.contato_pausa_ate >= (now() at time zone 'America/Sao_Paulo')::date)
+   group by x.id
 $$;
+revoke execute on function public.campanha_restricoes() from public, anon;
+grant execute on function public.campanha_restricoes() to authenticated;
 
 /** Registra o resultado do contato (mesmas regras da prospecção): vira histórico do cliente, e a campanha diária respeita o limite de 30 dias. */
 create or replace function public.campanha_registrar(p_id bigint, p_resultado text, p_esperado text)
@@ -73,7 +94,8 @@ begin
   if x.resultado is distinct from p_esperado then raise exception 'Este contato mudou. Atualize antes de registrar novamente.'; end if;
   if x.interacao_id is not null then update public.interacoes set feito = true where id = x.interacao_id; end if;
   f := seg.fone_norm(x.celular);
-  if x.cliente_chave is not null and f is not null and (x.resultado = 'numero_errado' or p_resultado = 'numero_errado') then
+  -- marca no cadastro só quando a pessoa pode mexer nesse cliente; senão, fica registrado só no contato da campanha
+  if x.cliente_chave is not null and f is not null and (x.resultado = 'numero_errado' or p_resultado = 'numero_errado') and seg.pode_mexer_cliente(x.cliente_chave) then
     perform public.telefone_errado(x.cliente_chave, f, p_resultado = 'numero_errado', p_resultado = 'numero_errado');
   end if;
   if p_resultado is not null and p_resultado <> 'pular' and x.cliente_chave is not null then

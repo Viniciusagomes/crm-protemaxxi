@@ -1,12 +1,13 @@
 // ─── Leads Campanhas: listas de campanhas de venda no Meu dia ───
-const CAMP = { lista: null, contatos: [], carregando: null, gravando: new Set() };
+const CAMP = { lista: null, contatos: [], restricoes: {}, carregando: null, gravando: new Set() };
 async function carregarCampanhas(forcar) {
   if (CAMP.lista && !forcar) return;
   if (CAMP.carregando) return CAMP.carregando;
   CAMP.carregando = Promise.all([
     ok(sb.from('campanhas_venda').select('*').order('id')),
     todas(() => sb.from('campanha_contatos').select('*').order('id')),
-  ]).then(([l, c]) => { CAMP.lista = l; CAMP.contatos = c; }).finally(() => { CAMP.carregando = null; });
+    ok(sb.rpc('campanha_restricoes')),
+  ]).then(([l, c, r]) => { CAMP.lista = l; CAMP.contatos = c; CAMP.restricoes = Object.fromEntries(r.map(x => [x.contato_id, x])); }).finally(() => { CAMP.carregando = null; });
   return CAMP.carregando;
 }
 const campanhaAtiva = c => CAMP.lista?.find(l => l.id === c.campanha_id)?.ativa;
@@ -20,7 +21,9 @@ function mensagemCampanha(c, vendedor) {
 }
 /** WhatsApp só se o cliente pode ser contatado e o número não está marcado como errado. */
 function campBloqueio(c) {
-  const f = c.celular ? foneNorm(c.celular) : '';
+  const r = CAMP.restricoes[c.id], f = c.celular ? foneNorm(c.celular) : '';
+  if (r?.nao_contatar) return '🚫 Cliente pediu para não ser contatado';
+  if (r?.pausa_ate) return `⏸ Contato pausado até ${fmtCurta(r.pausa_ate)}`;
   // cadastro ligado ou qualquer cadastro com o mesmo número
   const ks = (D.clientes || []).filter(x => x.chave === c.cliente_chave || (f && [x.fone, x.celular, x.telefone].some(t => t && foneNorm(t) === f)));
   if (ks.some(k => k.nao_contatar)) return '🚫 Cliente pediu para não ser contatado';

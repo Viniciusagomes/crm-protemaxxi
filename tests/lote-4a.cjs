@@ -86,7 +86,9 @@ assert.equal(run('mensagemCampanha(CAMP.contatos[0],"Ana")'), 'Olá, Maria! Aqui
 assert.equal(run('mensagemCampanha(CAMP.contatos[4],"Ana")'), 'Olá, Pausado! Como está?');
 run(`D.clientes.push({chave:'c5',celular:'(11) 90000-0002',nao_contatar:true});`);
 assert.ok(run('campBloqueio(CAMP.contatos[0])').includes('não ser contatado'), 'bloqueio pelo número, sem chave');
-run(`D.clientes.pop();`);
+run(`D.clientes.pop(); CAMP.restricoes={1:{contato_id:1,nao_contatar:false,pausa_ate:'2026-12-01'}};`);
+assert.ok(run('campBloqueio(CAMP.contatos[0])').includes('pausado'), 'restrição vinda do banco, fora da carteira');
+run(`CAMP.restricoes={};`);
 const bc = run('blocoCampanhasDia("vend")');
 assert.ok(bc.includes('wa.me/5511900000002') && bc.includes('mailto:teste@example.com') && !bc.includes('wa.me/5511900000005') && !bc.includes('De outro') && !bc.includes('>Feito<') && !bc.includes('Parada'));
 assert.deepEqual(json(`lerContatosCampanha('Ana; (11) 90000-0000; a@b.c; Fonte\\n\\nBia')`), [{cliente_nome:'Ana',celular:'11900000000',email:'a@b.c',produto:'Fonte'},{cliente_nome:'Bia',celular:null,email:null,produto:null}]);

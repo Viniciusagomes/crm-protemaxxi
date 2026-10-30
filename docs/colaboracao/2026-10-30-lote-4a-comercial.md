@@ -19,7 +19,7 @@ com o Felipe Menezes; o 40 entra junto com a 3C.
 
 ## RLS
 
-Tabela nova `recompra_dispensas`: select e insert só para quem enxerga a campanha do cliente; sem update/delete. Nenhuma política existente foi ampliada.
+Tabela nova `recompra_dispensas`: select e insert só para quem enxerga a campanha do cliente; sem update/delete. Nenhuma política existente foi ampliada; `seg.pode_mexer_cliente` não mudou. Vendedor fora da carteira registra "número errado" só no contato da campanha.
 
 ## Validação
 
@@ -49,4 +49,5 @@ começa em out/2025, então os ciclos devem melhorar com o tempo. Recompra é su
 - Tabelas `campanhas_venda` e `campanha_contatos`, RPC `campanha_registrar` (mesmo fluxo da prospecção; gera interação, então conta no limite de 30 dias) e `js/campanhas.js`.
   RLS: só o dono cria; o vendedor vê e registra os próprios; contato sem vendedor fica só com o dono. Update limitado às colunas do resultado.
 - Os contatos vivem só no banco; a importação não entra no repositório porque ele é público.
+- `campanha_restricoes` lê "não contatar" e pausa direto de `clientes` (a carteira na tela só tem 12 meses); gatilho `campanha_contato_chave` acha o cadastro pelo número.
 - Mensagem abre no WhatsApp ou no e-mail para o vendedor revisar. Nada é enviado sozinho.
