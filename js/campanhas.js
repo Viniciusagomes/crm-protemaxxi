@@ -37,6 +37,7 @@ function linhaCampanha(c, vendedor) {
   const contato = bloq ? `<small class="c-med">${bloq}. Use "Pular".</small>`
     : !carregado ? ''
     : c.celular ? `<a class="btn pri peq" href="${linkWa(c.celular)}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener" title="Abre o WhatsApp com a mensagem para revisar antes de enviar">💬 WhatsApp</a>`
+    : c.email && CAMP.restricoes[c.id]?.nao_email ? '<small class="c-med">Cliente não recebe e-mail</small>'
     : c.email ? `<a class="btn peq" href="mailto:${esc(c.email)}?subject=${encodeURIComponent('Protemaxxi')}&body=${encodeURIComponent(msg)}" title="Abre seu e-mail com a mensagem para revisar antes de enviar">✉ E-mail</a>` : '<small class="c-med">sem contato</small>';
   return `<div class="atv" style="flex-wrap:wrap"><div style="flex:1;min-width:220px"><b>${c.cliente_chave ? `<a href="#" data-a="verCliente" data-chave="${esc(c.cliente_chave)}">${esc(c.cliente_nome)}</a>` : esc(c.cliente_nome)}</b> <small class="mut">${esc(c.cidade || '')}</small>
       ${c.ja_comprou ? '<span class="tag ok">Já comprou</span>' : ''}<br><small>${esc(c.produto || '')}${c.compra_data ? ' · ' + fmtCurta(c.compra_data) : ''}${c.celular ? '' : c.email ? ' · ' + esc(c.email) : ''}</small></div>

@@ -66,14 +66,14 @@ create trigger campanha_contato_chave before insert on public.campanha_contatos 
 /** Restrições dos contatos que a pessoa enxerga: pelo cadastro ligado ou por qualquer cadastro com o mesmo número,
  *  inclusive cliente antigo que não está na carteira carregada na tela. */
 create or replace function public.campanha_restricoes()
-returns table (contato_id bigint, nao_contatar boolean, pausa_ate date)
+returns table (contato_id bigint, nao_contatar boolean, pausa_ate date, nao_email boolean)
 language sql stable security definer set search_path = '' as $$
-  select x.id, bool_or(c.nao_contatar), max(c.contato_pausa_ate)
+  select x.id, bool_or(c.nao_contatar), max(c.contato_pausa_ate) filter (where c.contato_pausa_ate >= (now() at time zone 'America/Sao_Paulo')::date), bool_or(c.nao_email)
     from public.campanha_contatos x
     join public.clientes c on c.chave = x.cliente_chave
       or (seg.fone_norm(x.celular) is not null and seg.fone_norm(x.celular) in (seg.fone_norm(c.celular), seg.fone_norm(c.fone)))
    where (public.eh_dono() or x.pessoa_id = seg.minha_pessoa() or x.pessoa_id in (select seg.pessoas_visiveis()))
-     and (c.nao_contatar or c.contato_pausa_ate >= (now() at time zone 'America/Sao_Paulo')::date)
+     and (c.nao_contatar or c.nao_email or c.contato_pausa_ate >= (now() at time zone 'America/Sao_Paulo')::date)
    group by x.id
 $$;
 revoke execute on function public.campanha_restricoes() from public, anon;

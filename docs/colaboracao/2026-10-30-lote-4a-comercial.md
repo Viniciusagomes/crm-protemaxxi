@@ -51,3 +51,4 @@ começa em out/2025, então os ciclos devem melhorar com o tempo. Recompra é su
 - Os contatos vivem só no banco; a importação não entra no repositório porque ele é público.
 - `campanha_restricoes` lê "não contatar" e pausa direto de `clientes` (a carteira na tela só tem 12 meses); gatilho `campanha_contato_chave` acha o cadastro pelo número.
 - Mensagem abre no WhatsApp ou no e-mail para o vendedor revisar. Nada é enviado sozinho.
+- 3ª a 5ª rodadas: restrições lidas do banco, cadastro achado pelo número, sem ampliar `pode_mexer_cliente`, restrição relida após salvar a ficha; `nao_email` também respeitado. A última correção não passou por nova rodada.

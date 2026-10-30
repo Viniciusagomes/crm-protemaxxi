@@ -393,6 +393,7 @@ async function fichaSalvar(chave) {
   if (pausa && pausa < hoje()) return avisar('A pausa precisa terminar hoje ou depois.');
   await ok(sb.rpc('cliente_marcar', { p_chave: chave, p_tipo: tipo, p_nao_contatar: nao, p_obs: obs, p_fone: fone }));
   await ok(sb.rpc('contato_regras', { p_chave: chave, p_nao_contatar: nao, p_pausa_ate: pausa, p_canal: canal, p_motivo: motivo }));
+  if (typeof CAMP !== 'undefined') CAMP.lista = null;   // as campanhas relêem as restrições na próxima abertura
   const c = D.clientes.find(x => x.chave === chave);
   if (c) Object.assign(c, { tipo_cliente: tipo || null, fone: fone.replace(/\D/g, '') || c.fone, obs, nao_contatar: nao, contato_pausa_ate: pausa, contato_canal: canal || null, contato_motivo: motivo || null });
   rfm.cache = null; avisar('Dados do cliente salvos.'); abrirCliente(chave);
