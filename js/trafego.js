@@ -55,7 +55,7 @@ function vTrafego() {
       <p class="explica">${st.erro ? `⚠ ${esc(st.erro)}<br><br>` : ''}Conectando, a Intranet passa a acompanhar gasto, cliques, conversões, termos de pesquisa e palavras-chave da conta, e o Brain consegue propor melhorias (negativas, pausas, orçamento) que você aprova aqui antes de qualquer mudança na conta.</p>
       ${ehDono() ? '<button class="btn pri" data-a="conectarGads">🔗 Conectar ao Google Ads</button>' : '<p class="mut">Peça ao administrador para conectar.</p>'}</div>`;
   }
-  if (!TR.d) { carregarTrafego().then(render).catch(e => avisar(e.message)); return topo('Tráfego — Google Ads', '') + '<div class="card vazio">Carregando o Google Ads…</div>'; }
+  if (!TR.d) { if (!TR.carregando) carregarTrafego().then(render).catch(e => avisar(e.message)); return topo('Tráfego — Google Ads', '') + '<div class="card vazio">Carregando o Google Ads…</div>'; }
   const vs = D.sync.gads_varredura || {};
   const cab = topo('Tráfego — Google Ads', `Conta <b>${esc(st.conta || '')}</b>${st.email ? ` · acesso de ${esc(st.email)}` : ''} · ${st.ultima_sync ? 'atualizado há ' + tempoDesde(st.ultima_sync) : 'aguardando a primeira sincronização'}`,
     `<button class="btn" data-a="recarregarGads" ${TR.atualizando ? 'disabled' : ''}>${TR.atualizando ? '⏳ Atualizando…' : '↻ Sincronizar agora'}</button>`);

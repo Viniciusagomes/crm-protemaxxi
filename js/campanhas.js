@@ -44,7 +44,7 @@ function linhaCampanha(c, vendedor) {
     ${contato}<div class="pro-res" style="width:100%">${Object.entries(RES_PRO).map(([k, n]) => `<button class="chip ${c.resultado === k ? 'on' : ''}" data-a="campRes" data-id="${c.id}" data-v="${k}">${n}</button>`).join('')}</div></div>`;
 }
 function blocoCampanhasDia(quem) {
-  if (!CAMP.lista) { carregarCampanhas().then(render).catch(e => avisar(e.message)); return '<div class="card vazio mt">Carregando as campanhas…</div>'; }
+  if (!CAMP.lista) { if (!CAMP.carregando) carregarCampanhas().then(render).catch(e => avisar(e.message)); return '<div class="card vazio mt">Carregando as campanhas…</div>'; }
   if (!TELF.lista && !TELF.carregando) carregarTelErrados().then(render).catch(() => {});
   const vend = pessoa(quem)?.nome?.split(' ')[0] || '', ver = UI.campFiltro || 'pendentes';
   const cards = CAMP.lista.filter(k => k.ativa || ehDono()).map(k => {
