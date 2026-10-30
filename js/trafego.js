@@ -203,6 +203,14 @@ function trDescAcao(a) {
     const f = String(al.telefone || '').replace(/\D/g, ''), fmt = f.length === 11 ? `(${f.slice(0, 2)}) ${f.slice(2, 7)}-${f.slice(7)}` : f ? `(${f.slice(0, 2)}) ${f.slice(2, 6)}-${f.slice(6)}` : '';
     return `${fmt ? `Trocar o telefone da extensão de chamada para <b>${fmt}</b>` : '<b>Tirar</b> a extensão de chamada'} em ${camps.length} campanha(s): ${camps.map(esc).join(', ')}`;
   }
+  if (a.tipo === 'status_campanha') return `${al.status === 'ENABLED' ? '<b class="c-ruim">ATIVAR</b> (volta a gastar o orçamento diário)' : al.status === 'PAUSED' ? '<b>PAUSAR</b> (para de gastar)' : '<b class="c-ruim">SITUAÇÃO INVÁLIDA</b> (' + esc(al.status) + '; o servidor vai recusar)'} a campanha <b>${esc(TR.d.cn[al.campanha_id] || al.campanha_id)}</b>`;
+  if (a.tipo === 'campanha_pesquisa') {
+    const n = v => Array.isArray(v) ? v.length : 0, loc = al.local && typeof al.local === 'object' ? al.local : {}, grupos = Array.isArray(al.grupos) ? al.grupos.filter(g => g && typeof g === 'object') : [];
+    const pal = soma(grupos.map(g => n(g.palavras)));
+    return `<b>Criar campanha de Pesquisa PAUSADA:</b> ${esc(al.nome)}<br><small>Orçamento <b>${R(+al.orcamento_dia || 0)}</b>/dia (só passa a gastar quando for ativada) · maximizar cliques, CPC até ${R(+al.cpc_max || 0)} · raio de ${esc(String(+loc.raio_km || 0))} km, só quem está na região · ${grupos.length} grupo(s), ${pal} palavras-chave, ${n(al.negativas)} negativas, ${n(al.sitelinks)} sitelinks, ${n(al.frases_destaque)} frases de destaque</small>
+      ${grupos.map(g => `<br><small class="mut">Grupo “${esc(g.nome)}”: ${(Array.isArray(g.palavras) ? g.palavras : []).map(p => (p && p.tipo === 'EXACT' ? '[' : '“') + esc(p && p.texto) + (p && p.tipo === 'EXACT' ? ']' : '”')).join(' ')}</small>`).join('')}
+      <br><small class="mut">Para <b>${esc(al.url_final)}</b></small>`;
+  }
   return esc(a.tipo);
 }
 
