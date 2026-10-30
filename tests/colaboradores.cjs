@@ -19,6 +19,7 @@ for (const file of ['clientes.js', 'carteira.js', 'solicitacoes.js', 'assistenci
   vm.runInContext(fs.readFileSync(path.join(root, 'js', file), 'utf8'), ctx, { filename: file });
 }
 const run = code => vm.runInContext(code, ctx);
+run('TELF.lista=[];'); // fila de telefones já carregada (sem números errados) para não buscar no banco
 const json = code => JSON.parse(run(`JSON.stringify(${code})`));
 
 // A ordem solicitada aparece nos dois quadros, com compatibilidade para RMAs antigos.
