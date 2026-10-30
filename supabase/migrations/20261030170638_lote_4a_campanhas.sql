@@ -52,7 +52,7 @@ grant usage on sequence public.campanhas_venda_id_seq, public.campanha_contatos_
 /** Contato da campanha com cadastro antigo: acha o cadastro pelo número antes de ficar com a chave por nome. */
 create or replace function seg.campanha_contato_chave() returns trigger
 language plpgsql security definer set search_path = '' as $$
-declare f text := seg.fone_norm(new.celular), achada text;
+declare f text := seg.fone_norm(new.celular); achada text;
 begin
   if f is not null and (new.cliente_chave is null or new.cliente_chave like 'n:%') then
     select c.chave into achada from public.clientes c where seg.fone_norm(c.celular) = f or seg.fone_norm(c.fone) = f order by c.chave limit 1;

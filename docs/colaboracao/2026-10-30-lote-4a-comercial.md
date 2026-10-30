@@ -52,3 +52,8 @@ começa em out/2025, então os ciclos devem melhorar com o tempo. Recompra é su
 - `campanha_restricoes` lê "não contatar" e pausa direto de `clientes` (a carteira na tela só tem 12 meses); gatilho `campanha_contato_chave` acha o cadastro pelo número.
 - Mensagem abre no WhatsApp ou no e-mail para o vendedor revisar. Nada é enviado sozinho.
 - 3ª a 5ª rodadas: restrições lidas do banco, cadastro achado pelo número, sem ampliar `pode_mexer_cliente`, restrição relida após salvar a ficha; `nao_email` também respeitado. A última correção não passou por nova rodada.
+
+## Publicação
+
+- Migrations aplicadas: `20261030170600_lote_4a_recompra` e `20261030170638_lote_4a_campanhas`.
+- Campanhas "Bateria XB 12seg" e "Switch PoE (HAIZ)" preenchidas com 140 contatos dos 3 vendedores, importados direto no banco (sem dado de cliente no repositório). 111 contatos sem vendedor (A distribuir e E-commerce) aguardam o Vinícius.
