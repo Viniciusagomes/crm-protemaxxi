@@ -6,7 +6,7 @@ const assert = require('assert/strict');
 const root = path.join(__dirname, '..');
 const ctx = vm.createContext({ console, document: { querySelector: () => null, addEventListener: () => {} } });
 vm.runInContext(fs.readFileSync(path.join(root, 'js/util.js'), 'utf8'), ctx);
-vm.runInContext(`let D={sync:{gads:{conectado:true}}},UI={}; const topo=t=>t,ehDono=()=>false; let renders=0; const render=()=>{renders++;};`, ctx);
+vm.runInContext(`let D={sync:{gads:{conectado:true}}},UI={}; const ehDono=()=>false; let renders=0; const render=()=>{renders++;};`, ctx);
 vm.runInContext(fs.readFileSync(path.join(root, 'js/trafego.js'), 'utf8'), ctx, { filename: 'trafego.js' });
 const run = code => vm.runInContext(code, ctx);
 
