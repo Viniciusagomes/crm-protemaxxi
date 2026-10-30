@@ -20,10 +20,13 @@ function mensagemCampanha(c, vendedor) {
 }
 /** WhatsApp só se o cliente pode ser contatado e o número não está marcado como errado. */
 function campBloqueio(c) {
-  const k = (D.clientes || []).find(x => x.chave === c.cliente_chave);
-  if (k?.nao_contatar) return '🚫 Cliente pediu para não ser contatado';
-  if (contatoPausado(k)) return `⏸ Contato pausado até ${fmtCurta(k.contato_pausa_ate)}`;
-  if (c.celular && TELF.lista?.some(t => t.telefone === foneNorm(c.celular))) return '📵 Número marcado como errado';
+  const f = c.celular ? foneNorm(c.celular) : '';
+  // cadastro ligado ou qualquer cadastro com o mesmo número
+  const ks = (D.clientes || []).filter(x => x.chave === c.cliente_chave || (f && [x.fone, x.celular, x.telefone].some(t => t && foneNorm(t) === f)));
+  if (ks.some(k => k.nao_contatar)) return '🚫 Cliente pediu para não ser contatado';
+  const pausa = ks.find(k => contatoPausado(k));
+  if (pausa) return `⏸ Contato pausado até ${fmtCurta(pausa.contato_pausa_ate)}`;
+  if (f && TELF.lista?.some(t => t.telefone === f)) return '📵 Número marcado como errado';
   return '';
 }
 function linhaCampanha(c, vendedor) {
@@ -54,11 +57,12 @@ function blocoCampanhasDia(quem) {
 }
 async function campRes(id, res) {
   const c = CAMP.contatos.find(x => String(x.id) === String(id)); if (!c || CAMP.gravando.has(c.id)) return;
-  const novo = c.resultado === res ? null : res;
+  const novo = c.resultado === res ? null : res, anterior = c.interacao_id;
   CAMP.gravando.add(c.id);
   try {
     const r = await ok(sb.rpc('campanha_registrar', { p_id: c.id, p_resultado: novo, p_esperado: c.resultado || null }));
     Object.assign(c, r.contato);
+    const velha = D.interacoes.find(i => i.id === anterior); if (velha) velha.feito = true;
     if (r.interacao && !D.interacoes.some(i => i.id === r.interacao.id)) D.interacoes.unshift(r.interacao);
     if (novo === 'numero_errado' || res === 'numero_errado') await carregarTelErrados(true);
     avisar(r.interacao?.proximo_contato ? `Salvo. Retorno marcado para ${fmtCurta(r.interacao.proximo_contato)}.` : 'Resultado salvo.');
@@ -88,7 +92,11 @@ async function campNovaSalvar() {
   const nome = $('#cnNome').value.trim(), mensagem = $('#cnMsg').value.trim(), pessoa_id = $('#cnVend').value, lista = lerContatosCampanha($('#cnLista').value);
   if (!nome || !mensagem) return avisar('Preencha o nome e a mensagem.');
   if (!lista.length) return avisar('Cole ao menos um contato.');
+  if (!D.clientes) await carregarClientes();
+  // liga ao cadastro pelo número; sem cadastro, usa a chave por nome (a mesma do funil), para ter histórico e retorno
+  const ligar = c => { const f = c.celular ? foneNorm(c.celular) : '', k = f && D.clientes.find(x => [x.fone, x.celular, x.telefone].some(t => t && foneNorm(t) === f));
+    return { ...c, cliente_chave: k?.chave || 'n:' + semAcento(c.cliente_nome).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() }; };
   const k = await ok(sb.from('campanhas_venda').insert({ nome, mensagem }).select().single());
-  await ok(sb.from('campanha_contatos').insert(lista.map(c => ({ ...c, campanha_id: k.id, pessoa_id }))));
+  await ok(sb.from('campanha_contatos').insert(lista.map(c => ({ ...ligar(c), campanha_id: k.id, pessoa_id }))));
   fecharModal(); await carregarCampanhas(true); avisar('Campanha criada.'); render();
 }

@@ -49,6 +49,15 @@ grant select, insert on public.campanha_contatos to authenticated;
 grant update (resultado, resultado_em, interacao_id) on public.campanha_contatos to authenticated;
 grant usage on sequence public.campanhas_venda_id_seq, public.campanha_contatos_id_seq to authenticated;
 
+-- O vendedor da campanha pode marcar o número do contato como errado, mesmo fora da carteira dele.
+create or replace function seg.pode_mexer_cliente(p_chave text) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select public.eh_dono() or seg.minha_permissao('vendas_todas')
+    or exists (select 1 from public.pedidos p where p.cliente_chave = p_chave and seg.pode_ver_pedido(p.vendedor_id, p.numero_ecommerce))
+    or exists (select 1 from public.prospeccao x where x.cliente_chave = p_chave and x.pessoa_id = seg.minha_pessoa())
+    or exists (select 1 from public.campanha_contatos c where c.cliente_chave = p_chave and c.pessoa_id = seg.minha_pessoa())
+$$;
+
 /** Registra o resultado do contato (mesmas regras da prospecção): vira histórico do cliente, e a campanha diária respeita o limite de 30 dias. */
 create or replace function public.campanha_registrar(p_id bigint, p_resultado text, p_esperado text)
 returns jsonb language plpgsql set search_path = '' as $$
