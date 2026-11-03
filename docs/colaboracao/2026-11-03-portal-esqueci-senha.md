@@ -17,5 +17,5 @@
 
 ## Ao publicar
 
-Aplicar `portal_fornecedor_senha.sql`, publicar `forn-senha` com `verify_jwt` desligado e testar com o endereço de teste do Resend
+Publicado em 03/11/2026: migration `20261103125601_portal_fornecedor_senha`, `forn-senha` v1 (`verify_jwt` desligado). Teste com o endereço de teste do Resend
 (`delivered@resend.dev`), apagando o fornecedor e o login de teste no fim.
