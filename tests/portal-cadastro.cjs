@@ -39,6 +39,6 @@ run('formFornecedor(1)');
 assert.ok(run('htmlModal').includes('data-a="compExcluirForn" data-id="1"'), 'sem proposta: mostra Excluir');
 run('formFornecedor(2)');
 assert.ok(!run('htmlModal').includes('compExcluirForn') && run('htmlModal').includes('Bloqueado'), 'com proposta: sem Excluir, indica Bloqueado');
-const exc = fs.readFileSync(path.join(root, 'supabase/migrations/compras_excluir_fornecedor.sql'), 'utf8');
+const exc = fs.readFileSync(path.join(root, 'supabase/migrations/20261103142634_compras_excluir_fornecedor.sql'), 'utf8');
 assert.ok(exc.includes('pode_compras()') && exc.includes("status <> 'rascunho'") && exc.includes('not exists (select 1 from pessoas where user_id = f.user_id)'), 'excluir: permissão, proposta enviada e login da equipe protegidos');
 console.log('OK: convite com CNPJ, link de quem tem login e excluir cadastro.');

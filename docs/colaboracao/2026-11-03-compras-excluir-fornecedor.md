@@ -19,4 +19,4 @@
 
 ## Ao publicar
 
-Aplicar `compras_excluir_fornecedor.sql`, renomear com a versão e fazer o merge.
+Publicado em 03/11/2026 como `20261103142634_compras_excluir_fornecedor`.
