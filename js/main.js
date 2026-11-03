@@ -398,6 +398,7 @@ const A = {
   compVerForn: el => formFornecedor(el.dataset.id),
   compFornNovo: () => formFornecedor(),
   compSalvarForn: el => salvarFornecedor(el.dataset.id),
+  compExcluirForn: el => excluirFornecedor(el.dataset.id),
   compNovoToken: async el => { if (!confirm('Trocar o link deste fornecedor? O link antigo para de funcionar na hora.')) return; try { await ok(sb.from('fornecedores').update({ token: tokenNovo() }).eq('id', +el.dataset.id)); await carregarCompras(true); formFornecedor(el.dataset.id); avisar('Link trocado: mande o novo ao fornecedor.'); } catch (e) { avisar(e.message); } },
   compConvite: () => carregarCompras().then(formConvite).catch(e => avisar(e.message)),
   compSalvarConvite: () => salvarConvite(),

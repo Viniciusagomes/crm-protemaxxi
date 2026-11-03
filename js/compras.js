@@ -247,7 +247,8 @@ function formFornecedor(id) {
       ${f ? `<label class="campo">Situação<select id="fnStatus"><option value="ativo" ${f.status === 'ativo' ? 'selected' : ''}>Ativo</option><option value="bloqueado" ${f.status === 'bloqueado' ? 'selected' : ''}>Bloqueado (o link para de funcionar)</option></select></label>` : ''}
     </div>
     <div class="acoes mt"><button class="btn pri" data-a="compSalvarForn" data-id="${f?.id || ''}">Salvar</button>
-      ${f && !f.user_id ? `<button class="btn" data-a="compCopiar" data-v="${esc(linkPortal('t=' + f.token))}">📋 Copiar link do portal</button><button class="btn" data-a="compNovoToken" data-id="${f.id}" title="O link antigo deixa de funcionar">🔄 Trocar link</button>` : ''}</div>
+      ${f && !f.user_id ? `<button class="btn" data-a="compCopiar" data-v="${esc(linkPortal('t=' + f.token))}">📋 Copiar link do portal</button><button class="btn" data-a="compNovoToken" data-id="${f.id}" title="O link antigo deixa de funcionar">🔄 Trocar link</button>` : ''}
+      ${f ? (props.length ? '<small class="mut">Já enviou proposta: para tirar do portal, use a situação Bloqueado.</small>' : `<button class="btn perigo" data-a="compExcluirForn" data-id="${f.id}">🗑 Excluir cadastro</button>`) : ''}</div>
     ${f ? `<h3 class="mt2">Histórico</h3><p class="mut">${COMP.conv.filter(c => c.fornecedor_id === f.id).length} convite(s) · ${props.length} proposta(s) enviada(s) · ${props.filter(p => p.vencedora).length} vitória(s) · último acesso ${f.ultimo_acesso ? dtHoraOp(f.ultimo_acesso) : 'nunca'}</p>
       ${props.length ? `<table class="tabela"><tbody>${props.map(p => { const o = COMP.ops.find(x => x.id === p.oportunidade_id) || {}, t = totaisProposta(p); return `<tr class="clic" data-a="compVerOp" data-id="${o.id}"><td>${esc(o.titulo || '')}</td><td><small>${dtHoraOp(p.enviada_em)}</small></td><td class="dir">${R(t.total)}</td><td>${p.vencedora ? '🏆' : ''}</td></tr>`; }).join('')}</tbody></table>` : ''}` : ''}`, true);
 }
@@ -261,6 +262,12 @@ async function salvarFornecedor(id) {
     if (id) await ok(sb.from('fornecedores').update(dados).eq('id', +id)); else await ok(sb.from('fornecedores').insert({ ...dados, criado_por: EU.id }));
     await carregarCompras(true); fecharModal(); avisar('Fornecedor salvo.'); render();
   } catch (e) { avisar(e.message); }
+}
+/** Exclui o cadastro (só sem proposta enviada; o banco confere). Leva junto os convites, os rascunhos e o login do portal. */
+async function excluirFornecedor(id) {
+  const f = fornDe(+id); if (!f) return;
+  if (!confirm(`Excluir o cadastro de ${f.nome}?${f.user_id ? ' O login dele no portal também será apagado.' : ''} Não dá para desfazer.`)) return;
+  try { await ok(sb.rpc('compras_excluir_fornecedor', { p_id: f.id })); await carregarCompras(true); fecharModal(); avisar('Cadastro excluído.'); render(); } catch (e) { avisar(e.message); }
 }
 /** Confere os dígitos verificadores (a mesma regra do banco). */
 function cnpjValido(c) {

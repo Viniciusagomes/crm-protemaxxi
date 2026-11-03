@@ -31,4 +31,14 @@ const senha = fs.readFileSync(path.join(root, 'supabase/functions/forn-senha/ind
 assert.ok(senha.includes('#rec=') && senha.includes('return json({ ok: true })'), 'link no fragmento e resposta sempre igual');
 const sql = fs.readFileSync(path.join(root, 'supabase/migrations/20261103112348_portal_fornecedor_cadastro.sql'), 'utf8');
 assert.ok(sql.includes('revoke execute on function public.forn_cadastrar(text, jsonb, uuid) from anon, authenticated, public'), 'cadastrar fora do alcance do navegador');
-console.log('OK: convite com CNPJ e link de quem tem login.');
+
+// excluir cadastro: botão só para quem não enviou proposta; a regra vale no banco
+run(`var htmlModal = ''; modal = h => { htmlModal = h; }; COMP.forn = [{ id: 1, nome: 'Teste', status: 'ativo', marcas: [] }, { id: 2, nome: 'Com proposta', status: 'ativo', marcas: [] }];
+  COMP.props = [{ fornecedor_id: 2, status: 'enviada', oportunidade_id: 9 }]; COMP.conv = []; COMP.ops = [];`);
+run('formFornecedor(1)');
+assert.ok(run('htmlModal').includes('data-a="compExcluirForn" data-id="1"'), 'sem proposta: mostra Excluir');
+run('formFornecedor(2)');
+assert.ok(!run('htmlModal').includes('compExcluirForn') && run('htmlModal').includes('Bloqueado'), 'com proposta: sem Excluir, indica Bloqueado');
+const exc = fs.readFileSync(path.join(root, 'supabase/migrations/20261103142634_compras_excluir_fornecedor.sql'), 'utf8');
+assert.ok(exc.includes('pode_compras()') && exc.includes("status <> 'rascunho'") && exc.includes('not exists (select 1 from pessoas where user_id = f.user_id)'), 'excluir: permissão, proposta enviada e login da equipe protegidos');
+console.log('OK: convite com CNPJ, link de quem tem login e excluir cadastro.');
