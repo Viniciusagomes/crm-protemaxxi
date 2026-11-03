@@ -1,0 +1,59 @@
+# Lote 4 · entrega A — prioridade, recompra, mensagens e motivo do orçamento parado — 30/10/2026 (Claude)
+
+Versão enxuta aprovada pelo Vinícius da proposta "fase 4" do Codex: passos 31, 32, 34 e só o motivo do 36.
+Boa parte dos passos 31, 35, 36, 37 e 39 já existia (lotes 2 e 3). Os passos 33, 35, 37, 38 e 39 esperam duas semanas de uso real
+com o Felipe Menezes; o 40 entra junto com a 3C.
+
+## O que mudou
+
+- **Passo 31, Meu dia:** ordem da fila: compromisso (retorno combinado, atividade com hora ou com data reagendada) → lead do anúncio →
+  demais por atraso. O `prio` continua dando a cor; o novo `grupo` decide a ordem. Motivos novos: "Compromisso às HH:MM", "Data combinada",
+  "Pediu contato pelo anúncio". O teste `lote-2a` foi ajustado: retorno combinado agora vem antes de tarefa atrasada.
+- **Passo 32, recompra:** `seg.recompra_ciclo` calcula o intervalo real por produto: 3+ datas (qualquer produto, 7+ dias) ou 2 datas de material
+  de reposição (14+ dias), entre 1,2 e 3 ciclos sem comprar, no máximo 240 dias. Serviço e frete fora. `prospeccao_gerar` usa isso primeiro na lista
+  `recompra`; a regra antiga completa a cota. Limites da campanha (30/90 dias, pausa, não contatar) continuam valendo.
+- **Dispensa:** botão "Compra eventual" grava `recompra_dispensas` e pula o contato de hoje. Sem desfazer na tela por enquanto.
+- **Passo 34, mensagens:** `mensagemLead`, `mensagemRetorno`, `mensagemTrava` e recompra por produto; recompra e reativação têm duas versões.
+  O WhatsApp abre com o texto para o vendedor revisar. Cliente pausado ou "não contatar" não recebe botão de mensagem.
+- **Passo 36 (só o motivo):** `negocios.travado_motivo` (sem resposta, preço, estoque, prazo, decisão), marcado na aba Recuperar, com sugestão e mensagem próprias.
+
+## RLS
+
+Tabela nova `recompra_dispensas`: select e insert só para quem enxerga a campanha do cliente; sem update/delete. Nenhuma política existente foi ampliada; `seg.pode_mexer_cliente` não mudou. Vendedor fora da carteira registra "número errado" só no contato da campanha.
+
+## Validação
+
+- `tests/lote-4a.cjs` (novo, com dados fictícios) e `node tests/rodar-todos.cjs`.
+- SQL revertido, gerando a lista de 35 dias à frente: 21 sugestões pelo ciclo, dispensa tira o produto, vendedor barrado em cliente de outro,
+  vendedor consegue marcar o motivo.
+
+## O que os dados mostraram
+
+Com 3+ compras só 11 clientes entram hoje (2 livres do limite de 30 dias). Com 2 compras de material de reposição, o volume sobe. O histórico de itens
+começa em out/2025, então os ciclos devem melhorar com o tempo. Recompra é sugestão de contato, não previsão de venda.
+
+## Para o Codex
+
+- Não colocar telefone ou nome real de cliente em testes e notas: o repositório é público.
+- `recompra_dispensas.produto` guarda `repor_chave` (código, ou descrição em minúsculas).
+
+## Revisão do Codex
+
+- 1ª rodada: WhatsApp do lead ignorava restrições (P1); regra antiga ignorava a dispensa (P2); clique repetido em "Compra eventual" desfazia o pulo (P2); telefone virava nome na saudação (P3). Corrigidos.
+- Marcar o motivo não mexe em `mov_em` (o gatilho `negocio_carimbos` só muda em troca de etapa): o relógio de "parado" continua correndo.
+- 2ª rodada: faltava esperar a carteira e olhar todos os números do cadastro antes de liberar o WhatsApp do lead. Corrigido.
+
+## Leads Google/Meta e Leads Campanhas (pedido do Vinícius em 30/10)
+
+- Meu dia ganhou três botões: Fila de hoje, Leads Google/Meta (`automatica` `lead_ads:`, fora da fila normal) e Leads Campanhas.
+- Tabelas `campanhas_venda` e `campanha_contatos`, RPC `campanha_registrar` (mesmo fluxo da prospecção; gera interação, então conta no limite de 30 dias) e `js/campanhas.js`.
+  RLS: só o dono cria; o vendedor vê e registra os próprios; contato sem vendedor fica só com o dono. Update limitado às colunas do resultado.
+- Os contatos vivem só no banco; a importação não entra no repositório porque ele é público.
+- `campanha_restricoes` lê "não contatar" e pausa direto de `clientes` (a carteira na tela só tem 12 meses); gatilho `campanha_contato_chave` acha o cadastro pelo número.
+- Mensagem abre no WhatsApp ou no e-mail para o vendedor revisar. Nada é enviado sozinho.
+- 3ª a 5ª rodadas: restrições lidas do banco, cadastro achado pelo número, sem ampliar `pode_mexer_cliente`, restrição relida após salvar a ficha; `nao_email` também respeitado. A última correção não passou por nova rodada.
+
+## Publicação
+
+- Migrations aplicadas: `20261030170600_lote_4a_recompra` e `20261030170638_lote_4a_campanhas`.
+- Campanhas "Bateria XB 12seg" e "Switch PoE (HAIZ)" preenchidas com 140 contatos dos 3 vendedores, importados direto no banco (sem dado de cliente no repositório). 111 contatos sem vendedor (A distribuir e E-commerce) aguardam o Vinícius.

@@ -22,7 +22,7 @@ for (const file of ['clientes.js', 'agenda.js', 'carteira.js', 'crm.js']) {
 const run = code => vm.runInContext(code, ctx);
 const json = code => JSON.parse(run(`JSON.stringify(${code})`));
 
-// Fila única: um cartão por cliente, atrasado antes do combinado para hoje, e negócio parado por último.
+// Fila única: um cartão por cliente, retorno combinado primeiro, depois atrasado, e negócio parado por último.
 run(`CRM.neg=[{id:10,cliente_chave:'c1',cliente_nome:'Ana',titulo:'CFTV',etapa:'orcamento',valor:5000,pessoa_id:'pedro',atualizado_em:'2026-10-01T00:00:00Z'},
               {id:11,cliente_chave:'c3',cliente_nome:'Caio',titulo:'Alarme',etapa:'orcamento',valor:900,pessoa_id:'pedro',atualizado_em:'2026-10-20T00:00:00Z'}];
 CRM.revisoes=[];
@@ -31,16 +31,16 @@ CRM.atv=[{id:1,negocio_id:10,cliente_chave:'c1',cliente_nome:'Ana',pessoa_id:'pe
          {id:3,cliente_chave:'c9',cliente_nome:'Outro',pessoa_id:'felipe',tipo:'ligar',titulo:'De outro vendedor',quando:'2026-10-20',feito:false}];
 D.interacoes=[{id:7,cliente_chave:'c1',cliente_nome:'Ana',autor_id:'pedro',texto:'Prospecção: pediu orçamento',proximo_contato:'2026-10-29',feito:false}];`);
 let fila = json('filaDoDia("pedro").map(k=>({chave:k.chave,prio:k.prio,linhas:k.linhas.length,motivos:k.motivos}))');
-assert.deepEqual(fila.map(k => k.chave), ['c2', 'c1', 'c3']);
-assert.equal(fila[0].prio, 1);
-assert.match(fila[0].motivos[0], /Atrasada há 4 dia/);
+assert.deepEqual(fila.map(k => k.chave), ['c1', 'c2', 'c3']);
+assert.equal(fila[1].prio, 1);
+assert.match(fila[1].motivos[0], /Atrasada há 4 dia/);
 // Ana: atividade de hoje + retorno combinado no mesmo cartão (o negócio tem atividade, então não entra como parado)
-assert.equal(fila[1].linhas, 2);
-assert.ok(fila[1].motivos.includes('Retorno combinado para hoje'));
+assert.equal(fila[0].linhas, 2);
+assert.ok(fila[0].motivos.includes('Retorno combinado para hoje'));
 assert.equal(fila[2].prio, 3);
 assert.match(fila[2].motivos[0], /sem próximo passo/);
 assert.ok(!fila.some(k => k.chave === 'c9'), 'atividade de outro vendedor não aparece');
-const html = run('cartaoFila(filaDoDia("pedro")[1])');
+const html = run('cartaoFila(filaDoDia("pedro")[0])');
 assert.ok(html.includes('data-a="atvFeita"') && html.includes('data-a="followupFeito"'));
 
 // Atividade sem cliente_chave, mas ligada a negócio: usa o cliente do negócio (não duplica o cartão).
