@@ -24,9 +24,9 @@
 - Limite conhecido: se as 3 exclusões falharem, o login órfão fica só no log e precisa de limpeza manual.
 - Estas correções não passaram por nova rodada.
 
-## Ao publicar
+## Publicação (03/11/2026)
 
-Conferir `forn_convites` vazia, aplicar a migration, publicar `forn-cadastro` com `verify_jwt` desligado e testar o "Esqueci a senha": a URL do portal precisa estar na lista de redirecionamento do Supabase Auth.
+`forn_convites` estava vazia. Migration aplicada como `20261103112348_portal_fornecedor_cadastro`; `forn-cadastro` publicada (versão 1, `verify_jwt` desligado). O "Esqueci a senha" depende da URL do portal na lista de redirecionamento do Supabase Auth.
 
 ## Fora desta entrega
 

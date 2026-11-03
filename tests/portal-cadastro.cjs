@@ -25,6 +25,6 @@ assert.ok(semLogin.includes('t=bbbb'), 'sem login: continua com o link exclusivo
 const portal = fs.readFileSync(path.join(root, 'js/fornecedor.js'), 'utf8');
 assert.ok(!/id="cCnpj"/.test(portal), 'o fornecedor não digita o CNPJ: ele vem do convite');
 assert.ok(!portal.includes("rpc('forn_cadastrar'"), 'cadastro passa só pela Edge Function');
-const sql = fs.readFileSync(path.join(root, 'supabase/migrations/portal_fornecedor_cadastro.sql'), 'utf8');
+const sql = fs.readFileSync(path.join(root, 'supabase/migrations/20261103112348_portal_fornecedor_cadastro.sql'), 'utf8');
 assert.ok(sql.includes('revoke execute on function public.forn_cadastrar(text, jsonb, uuid) from anon, authenticated, public'), 'cadastrar fora do alcance do navegador');
 console.log('OK: convite com CNPJ e link de quem tem login.');
