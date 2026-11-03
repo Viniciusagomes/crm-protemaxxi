@@ -10,6 +10,8 @@ const veCompras = () => ehDono() || !!EU?.permissoes?.compras || ['compra', 'cot
 const situacaoOp = o => o.status === 'aberta' && o.prazo_resposta && new Date(o.prazo_resposta) <= new Date() ? 'encerrada' : o.status;
 const linkPortal = q => new URL('fornecedor.html?' + q, location.href).href;
 const fornDe = id => COMP.forn.find(f => f.id === id);
+/** Propostas enviadas que impedem excluir o fornecedor (as de oportunidade cancelada não contam; a mesma regra do banco). */
+const propsTravam = f => COMP.props.filter(p => p.fornecedor_id === f.id && p.status !== 'rascunho' && COMP.ops.find(o => o.id === p.oportunidade_id)?.status !== 'cancelada');
 const dtHoraOp = s => s ? new Date(s).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—';
 const tokenNovo = () => [...crypto.getRandomValues(new Uint8Array(24))].map(b => b.toString(16).padStart(2, '0')).join('');
 
@@ -71,10 +73,11 @@ function abaFornecedores() {
     const conv = COMP.conv.filter(c => c.fornecedor_id === f.id).length, env = COMP.props.filter(p => p.fornecedor_id === f.id && p.status === 'enviada'), venc = env.filter(p => p.vencedora).length;
     return `<tr class="clic" data-a="compVerForn" data-id="${f.id}"><td><b>${esc(f.nome)}</b><br><small class="mut">${esc(fmtDoc(f.cnpj))}</small></td><td><small>${esc([f.contato, f.whatsapp, f.email].filter(Boolean).join(' · '))}</small></td>
       <td><small>${esc((f.marcas || []).join(', '))}</small></td><td class="cen">${conv}</td><td class="cen">${env.length}${conv ? ` <small class="mut">(${P(env.length / conv)})</small>` : ''}</td><td class="cen">${venc}</td>
-      <td><small>${f.ultimo_acesso ? dtHoraOp(f.ultimo_acesso) : 'nunca'}</small></td><td>${f.status === 'ativo' ? '<span class="tag ok">Ativo</span>' : '<span class="tag ruim">Bloqueado</span>'}</td></tr>`;
+      <td><small>${f.ultimo_acesso ? dtHoraOp(f.ultimo_acesso) : 'nunca'}</small></td><td>${f.status === 'ativo' ? '<span class="tag ok">Ativo</span>' : '<span class="tag ruim">Bloqueado</span>'}</td>
+      <td class="dir">${propsTravam(f).length ? '' : `<button class="btn peq perigo" data-a="compExcluirForn" data-id="${f.id}" title="Excluir cadastro">🗑</button>`}</td></tr>`;
   };
   return `<div class="card mt"><div class="secao-titulo"><h2>Fornecedores</h2><button class="btn peq" data-a="compFornNovo">+ Cadastrar direto</button></div>
-    ${COMP.forn.length ? listaCurta('compForn', `<table class="tabela"><thead><tr><th>Fornecedor</th><th>Contato</th><th>Marcas</th><th class="cen">Convites</th><th class="cen">Respondeu</th><th class="cen">Venceu</th><th>Último acesso</th><th></th></tr></thead><tbody>${COMP.forn.map(linha).join('')}</tbody></table>`, 'Buscar nome, CNPJ, marca…')
+    ${COMP.forn.length ? listaCurta('compForn', `<table class="tabela"><thead><tr><th>Fornecedor</th><th>Contato</th><th>Marcas</th><th class="cen">Convites</th><th class="cen">Respondeu</th><th class="cen">Venceu</th><th>Último acesso</th><th></th><th></th></tr></thead><tbody>${COMP.forn.map(linha).join('')}</tbody></table>`, 'Buscar nome, CNPJ, marca…')
       : '<div class="vazio">Nenhum fornecedor ainda. Mande um convite (o fornecedor preenche o próprio cadastro) ou cadastre direto.</div>'}</div>`;
 }
 const fmtDoc = d => { const x = String(d || '').replace(/\D/g, ''); return x.length === 14 ? x.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5') : x; };
@@ -248,7 +251,7 @@ function formFornecedor(id) {
     </div>
     <div class="acoes mt"><button class="btn pri" data-a="compSalvarForn" data-id="${f?.id || ''}">Salvar</button>
       ${f && !f.user_id ? `<button class="btn" data-a="compCopiar" data-v="${esc(linkPortal('t=' + f.token))}">📋 Copiar link do portal</button><button class="btn" data-a="compNovoToken" data-id="${f.id}" title="O link antigo deixa de funcionar">🔄 Trocar link</button>` : ''}
-      ${f ? (props.length ? '<small class="mut">Já enviou proposta: para tirar do portal, use a situação Bloqueado.</small>' : `<button class="btn perigo" data-a="compExcluirForn" data-id="${f.id}">🗑 Excluir cadastro</button>`) : ''}</div>
+      ${f ? (propsTravam(f).length ? '<small class="mut">Já enviou proposta: para tirar do portal, use a situação Bloqueado.</small>' : `<button class="btn perigo" data-a="compExcluirForn" data-id="${f.id}">🗑 Excluir cadastro</button>`) : ''}</div>
     ${f ? `<h3 class="mt2">Histórico</h3><p class="mut">${COMP.conv.filter(c => c.fornecedor_id === f.id).length} convite(s) · ${props.length} proposta(s) enviada(s) · ${props.filter(p => p.vencedora).length} vitória(s) · último acesso ${f.ultimo_acesso ? dtHoraOp(f.ultimo_acesso) : 'nunca'}</p>
       ${props.length ? `<table class="tabela"><tbody>${props.map(p => { const o = COMP.ops.find(x => x.id === p.oportunidade_id) || {}, t = totaisProposta(p); return `<tr class="clic" data-a="compVerOp" data-id="${o.id}"><td>${esc(o.titulo || '')}</td><td><small>${dtHoraOp(p.enviada_em)}</small></td><td class="dir">${R(t.total)}</td><td>${p.vencedora ? '🏆' : ''}</td></tr>`; }).join('')}</tbody></table>` : ''}` : ''}`, true);
 }

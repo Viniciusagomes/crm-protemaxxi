@@ -20,3 +20,11 @@
 ## Ao publicar
 
 Publicado em 03/11/2026 como `20261103142634_compras_excluir_fornecedor`.
+
+## Ajuste: botão na lista e oportunidade cancelada
+
+- Botão 🗑 na própria lista de fornecedores (além da ficha).
+- Proposta enviada em oportunidade **cancelada** não impede mais excluir (migration `compras_excluir_fornecedor_cancelada.sql`);
+  a tela usa a mesma regra (`propsTravam`).
+- Validado: `tests/portal-cadastro.cjs` (lista e cancelada) e migration em transação revertida (cancelada exclui; aberta recusa).
+- Codex: único ponto foi o limite de 300 oportunidades carregadas na tela; além disso o botão some (lado seguro). Deixado como está.

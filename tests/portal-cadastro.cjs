@@ -39,6 +39,11 @@ run('formFornecedor(1)');
 assert.ok(run('htmlModal').includes('data-a="compExcluirForn" data-id="1"'), 'sem proposta: mostra Excluir');
 run('formFornecedor(2)');
 assert.ok(!run('htmlModal').includes('compExcluirForn') && run('htmlModal').includes('Bloqueado'), 'com proposta: sem Excluir, indica Bloqueado');
-const exc = fs.readFileSync(path.join(root, 'supabase/migrations/20261103142634_compras_excluir_fornecedor.sql'), 'utf8');
-assert.ok(exc.includes('pode_compras()') && exc.includes("status <> 'rascunho'") && exc.includes('not exists (select 1 from pessoas where user_id = f.user_id)'), 'excluir: permissão, proposta enviada e login da equipe protegidos');
+run('var listaCurta = (id, html) => html;');   // stub do util da tela (não carregado neste teste)
+const lista = run('abaFornecedores()');
+assert.ok(lista.includes('data-a="compExcluirForn" data-id="1"') && !lista.includes('data-a="compExcluirForn" data-id="2"'), 'lista: 🗑 só para quem pode ser excluído');
+run(`COMP.ops = [{ id: 9, status: 'cancelada' }];`);
+assert.ok(run('abaFornecedores()').includes('data-a="compExcluirForn" data-id="2"'), 'proposta em oportunidade cancelada não impede excluir');
+const exc = fs.readFileSync(path.join(root, 'supabase/migrations/compras_excluir_fornecedor_cancelada.sql'), 'utf8');
+assert.ok(exc.includes('pode_compras()') && exc.includes("status <> 'rascunho'") && exc.includes("o.status <> 'cancelada'") && exc.includes('not exists (select 1 from pessoas where user_id = f.user_id)'), 'excluir: permissão, proposta enviada (fora de cancelada) e login da equipe protegidos');
 console.log('OK: convite com CNPJ, link de quem tem login e excluir cadastro.');
