@@ -36,11 +36,25 @@ async function carregarTrafego(forcar) {
     ]);
     for (const e of est) D.sync[e.chave] = { ...e.valor, em_db: e.atualizado_em };
     TR.d = { campanhas, dia, termos, palavras, negativas, conv, hora, acoes, leads, grupos, anuncios, recursos, locais, recom, mudancas, gn: Object.fromEntries(grupos.map(g => [g.id, g.nome])), cn: Object.fromEntries(campanhas.map(c => [c.id, c.nome])) };
+    TR.acoesEm = Date.now();
     return TR.d;
   } finally { TR.carregando = false; }
 }
 
-const trSoma = (rows, k) => soma(rows.map(r => +r[k] || 0));
+/** Relê só a fila de propostas (leve). A aba carrega tudo uma vez; sem isto, proposta nova só aparecia com F5. */
+async function trRecarregarAcoes() {
+  if (!TR.d || TR.recarregandoAcoes) return;
+  TR.recarregandoAcoes = true;
+  TR.acoesEm = Date.now();
+  try {
+    TR.d.acoes = await ok(sb.from('gads_acoes').select('*').order('id', { ascending: false }).limit(200));
+    TR.acoesEm = Date.now();
+    render();
+  } catch (e) { console.warn('propostas do Google Ads', e); /* mantém a lista que já está na tela */ }
+  finally { TR.recarregandoAcoes = false; }
+}
+
+const trSoma =(rows, k) => soma(rows.map(r => +r[k] || 0));
 const trDelta = (a, b, melhorSobe = true) => {
   if (!b) return '';
   const v = a / b - 1, cls = Math.abs(v) < 0.03 ? '' : (v > 0) === melhorSobe ? 'c-ok' : 'c-ruim';
@@ -56,6 +70,8 @@ function vTrafego() {
       ${ehDono() ? '<button class="btn pri" data-a="conectarGads">🔗 Conectar ao Google Ads</button>' : '<p class="mut">Peça ao administrador para conectar.</p>'}</div>`;
   }
   if (!TR.d) { if (!TR.carregando) carregarTrafego().then(render).catch(e => avisar(e.message)); return topo('Tráfego — Google Ads', '') + '<div class="card vazio">Carregando o Google Ads…</div>'; }
+  // na aba Propostas, relê a fila se a lista tem mais de 20 s (acoesEm marcado antes de ler: o render() seguinte não repete)
+  if (TR.aba === 'propostas' && !TR.recarregandoAcoes && Date.now() - (TR.acoesEm || 0) > 20e3) trRecarregarAcoes();
   const vs = D.sync.gads_varredura || {};
   const cab = topo('Tráfego — Google Ads', `Conta <b>${esc(st.conta || '')}</b>${st.email ? ` · acesso de ${esc(st.email)}` : ''} · ${st.ultima_sync ? 'atualizado há ' + tempoDesde(st.ultima_sync) : 'aguardando a primeira sincronização'}`,
     `<button class="btn" data-a="recarregarGads" ${TR.atualizando ? 'disabled' : ''}>${TR.atualizando ? '⏳ Atualizando…' : '↻ Sincronizar agora'}</button>`);
@@ -202,6 +218,14 @@ function trDescAcao(a) {
   if (a.tipo === 'telefone_chamada') {
     const f = String(al.telefone || '').replace(/\D/g, ''), fmt = f.length === 11 ? `(${f.slice(0, 2)}) ${f.slice(2, 7)}-${f.slice(7)}` : f ? `(${f.slice(0, 2)}) ${f.slice(2, 6)}-${f.slice(6)}` : '';
     return `${fmt ? `Trocar o telefone da extensão de chamada para <b>${fmt}</b>` : '<b>Tirar</b> a extensão de chamada'} em ${camps.length} campanha(s): ${camps.map(esc).join(', ')}`;
+  }
+  if (a.tipo === 'status_campanha') return `${al.status === 'ENABLED' ? '<b class="c-ruim">ATIVAR</b> (volta a gastar o orçamento diário)' : al.status === 'PAUSED' ? '<b>PAUSAR</b> (para de gastar)' : '<b class="c-ruim">SITUAÇÃO INVÁLIDA</b> (' + esc(al.status) + '; o servidor vai recusar)'} a campanha <b>${esc(TR.d.cn[al.campanha_id] || al.campanha_id)}</b>`;
+  if (a.tipo === 'campanha_pesquisa') {
+    const n = v => Array.isArray(v) ? v.length : 0, loc = al.local && typeof al.local === 'object' ? al.local : {}, grupos = Array.isArray(al.grupos) ? al.grupos.filter(g => g && typeof g === 'object') : [];
+    const pal = soma(grupos.map(g => n(g.palavras)));
+    return `<b>Criar campanha de Pesquisa PAUSADA:</b> ${esc(al.nome)}<br><small>Orçamento <b>${R(+al.orcamento_dia || 0)}</b>/dia (só passa a gastar quando for ativada) · maximizar cliques, CPC até ${R(+al.cpc_max || 0)} · raio de ${esc(String(+loc.raio_km || 0))} km, só quem está na região · ${grupos.length} grupo(s), ${pal} palavras-chave, ${n(al.negativas)} negativas, ${n(al.sitelinks)} sitelinks, ${n(al.frases_destaque)} frases de destaque</small>
+      ${grupos.map(g => `<br><small class="mut">Grupo “${esc(g.nome)}”: ${(Array.isArray(g.palavras) ? g.palavras : []).map(p => (p && p.tipo === 'EXACT' ? '[' : '“') + esc(p && p.texto) + (p && p.tipo === 'EXACT' ? ']' : '”')).join(' ')}</small>`).join('')}
+      <br><small class="mut">Para <b>${esc(al.url_final)}</b></small>`;
   }
   return esc(a.tipo);
 }
