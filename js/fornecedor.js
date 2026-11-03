@@ -11,10 +11,12 @@
   const dh = s => s ? new Date(s).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
   const num = s => { const t = String(s ?? '').trim().replace(/\s|R\$/g, ''); if (!t) return null; const n = Number(t.includes(',') ? t.replace(/\./g, '').replace(',', '.') : t); return isFinite(n) && n >= 0 ? n : NaN; };
   const el = document.getElementById('conteudo'), $ = s => document.querySelector(s);
-  const q = new URLSearchParams(location.search), recuperando = location.hash.includes('type=recovery');
+  const q = new URLSearchParams(location.search), REC = new URLSearchParams(location.hash.slice(1)).get('rec');
   const sb = window.supabase.createClient(window.CRM_CONFIG.url, window.CRM_CONFIG.anonKey, { auth: { persistSession: true, storageKey: 'portal-fornecedor', detectSessionInUrl: true } });
   const guardar = t => { try { t ? localStorage.setItem('forn-token', t) : localStorage.removeItem('forn-token'); } catch { /* sem armazenamento */ } };
   const lido = () => { try { return localStorage.getItem('forn-token'); } catch { return null; } };
+  // troca de senha pendente: sobrevive a recarregar a página até a nova senha ser salva
+  const trocaPendente = v => { try { if (v === undefined) return sessionStorage.getItem('forn-nova-senha') === '1'; v ? sessionStorage.setItem('forn-nova-senha', '1') : sessionStorage.removeItem('forn-nova-senha'); } catch { return false; } };
   let TOKEN = q.get('t') || null, PORTAL = null, OP = null;
   const valido = t => /^[a-f0-9]{32,}$/.test(t || '');
   const erro = m => { el.oninput = el.onchange = null; el.innerHTML = `<div class="card vazio">${esc(m)}</div>`; };
@@ -100,7 +102,7 @@
       const { error: e } = await sb.rpc('forn_meus_dados', { p_token: TOKEN, p: { contato: $('#mContato').value, telefone: $('#mTelefone').value, whatsapp: $('#mZap').value, email: $('#mEmail').value, marcas: $('#mMarcas').value.split(','), ...lerEndereco('m') } });
       alert(e ? 'Não foi possível salvar: ' + e.message : 'Dados salvos.');
     };
-    if ($('#mSair')) $('#mSair').onclick = async () => { await sb.auth.signOut(); history.replaceState(null, '', location.pathname); telaEntrar(); };
+    if ($('#mSair')) $('#mSair').onclick = async () => { await sb.auth.signOut(); trocaPendente(false); history.replaceState(null, '', location.pathname); telaEntrar(); };
   }
 
   // ─── uma cotação: preencher e enviar a proposta ───
@@ -180,9 +182,12 @@
       TOKEN = null; guardar(null); await telaPortal(+q.get('o') || null);
     };
     $('#eEsqueci').onclick = async () => {
-      const email = $('#eEmail').value.trim(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return alert('Digite seu e-mail no campo acima.');
-      await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
-      alert('Se este e-mail tiver acesso, o link para criar a nova senha chega em alguns minutos.');   // mesma resposta sempre: não revela quem é cadastrado
+      const b = $('#eEsqueci'), email = $('#eEmail').value.trim(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return alert('Digite seu e-mail no campo acima.');
+      b.disabled = true;
+      const { error: e } = await sb.functions.invoke('forn-senha', { body: { email } });
+      b.disabled = false;
+      if (e) return alert('Não foi possível pedir a nova senha agora. Tente de novo em alguns minutos.');
+      alert('Se este e-mail tiver acesso, o link para criar a nova senha chega em alguns minutos. Confira também o spam.');   // mesma resposta sempre: não revela quem é cadastrado
     };
   }
   function telaNovaSenha() {
@@ -197,15 +202,21 @@
       if (s !== $('#nSenha2').value) return alert('As senhas não são iguais.');
       const { error: e } = await sb.auth.updateUser({ password: s });
       if (e) return alert('Não foi possível trocar a senha: ' + e.message);
-      history.replaceState(null, '', location.pathname); await telaPortal();
+      trocaPendente(false); history.replaceState(null, '', location.pathname); await telaPortal();
     };
   }
 
   (async () => {
     const c = q.get('c');
     if (c) return valido(c) ? telaCadastro(c) : erro('Link de convite inválido.');
+    if (REC) {   // link do e-mail de nova senha: troca o código por uma sessão e tira o código da barra de endereço
+      history.replaceState(null, '', location.pathname + location.search);
+      const { error: e } = await sb.auth.verifyOtp({ token_hash: REC, type: 'recovery' });
+      if (e) return telaEntrar('Este link de nova senha venceu ou já foi usado. Peça outro em "Esqueci a senha".');
+      trocaPendente(true); return telaNovaSenha();
+    }
     const { data: { session } } = await sb.auth.getSession();
-    if (recuperando && session) return telaNovaSenha();
+    if (session && trocaPendente()) return telaNovaSenha();
     if (session) { TOKEN = null; guardar(null); }   // logado: as funções reconhecem o fornecedor pelo usuário (token nulo)
     else {
       if (TOKEN && !valido(TOKEN)) TOKEN = null;

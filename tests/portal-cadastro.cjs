@@ -25,6 +25,10 @@ assert.ok(semLogin.includes('t=bbbb'), 'sem login: continua com o link exclusivo
 const portal = fs.readFileSync(path.join(root, 'js/fornecedor.js'), 'utf8');
 assert.ok(!/id="cCnpj"/.test(portal), 'o fornecedor não digita o CNPJ: ele vem do convite');
 assert.ok(!portal.includes("rpc('forn_cadastrar'"), 'cadastro passa só pela Edge Function');
+assert.ok(!portal.includes('resetPasswordForEmail'), 'nova senha não depende do e-mail do Supabase Auth');
+assert.ok(portal.includes("invoke('forn-senha'") && portal.includes("verifyOtp({ token_hash: REC, type: 'recovery' })"), 'nova senha: pedido pela função e link trocado por sessão');
+const senha = fs.readFileSync(path.join(root, 'supabase/functions/forn-senha/index.ts'), 'utf8');
+assert.ok(senha.includes('#rec=') && senha.includes('return json({ ok: true })'), 'link no fragmento e resposta sempre igual');
 const sql = fs.readFileSync(path.join(root, 'supabase/migrations/20261103112348_portal_fornecedor_cadastro.sql'), 'utf8');
 assert.ok(sql.includes('revoke execute on function public.forn_cadastrar(text, jsonb, uuid) from anon, authenticated, public'), 'cadastrar fora do alcance do navegador');
 console.log('OK: convite com CNPJ e link de quem tem login.');
