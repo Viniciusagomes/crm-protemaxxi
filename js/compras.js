@@ -81,7 +81,7 @@ const fmtDoc = d => { const x = String(d || '').replace(/\D/g, ''); return x.len
 function abaConvites() {
   const agora = new Date();
   const linha = c => { const st = c.usado_em ? `<span class="tag ok">Cadastrado</span> <small>${esc(fornDe(c.fornecedor_id)?.nome || '')}</small>` : new Date(c.expira_em) < agora ? '<span class="tag ruim">Vencido</span>' : `<span class="tag med">Aguardando</span> <small class="mut">vence ${dtHoraOp(c.expira_em)}</small>`;
-    return `<tr><td><b>${esc(c.nome || '—')}</b><br><small class="mut">${esc([c.whatsapp, c.email].filter(Boolean).join(' · '))}</small></td><td><small>${esc((c.marcas || []).join(', '))}</small></td><td><small>${esc(nomeP(c.criado_por))} · ${dtHoraOp(c.criado_em)}</small></td><td>${st}</td>
+    return `<tr><td><b>${esc(c.nome || '—')}</b><br><small class="mut">${esc([fmtDoc(c.cnpj), c.whatsapp, c.email].filter(Boolean).join(' · '))}</small></td><td><small>${esc((c.marcas || []).join(', '))}</small></td><td><small>${esc(nomeP(c.criado_por))} · ${dtHoraOp(c.criado_em)}</small></td><td>${st}</td>
       <td class="dir">${!c.usado_em && new Date(c.expira_em) > agora ? `<button class="btn peq" data-a="compConviteLink" data-id="${c.id}">🔗 Link</button> ` : ''}${!c.usado_em ? `<button class="btn peq" data-a="compConviteApagar" data-id="${c.id}">Apagar</button>` : ''}</td></tr>`; };
   return `<div class="card mt"><div class="secao-titulo"><h2>Convites de cadastro</h2><small>o link vale 14 dias e só pode ser usado uma vez</small></div>
     ${COMP.convites.length ? listaCurta('compConv', `<table class="tabela"><thead><tr><th>Para</th><th>Marcas</th><th>Criado por</th><th>Situação</th><th></th></tr></thead><tbody>${COMP.convites.map(linha).join('')}</tbody></table>`, 'Buscar…') : '<div class="vazio">Nenhum convite ainda.</div>'}</div>`;
@@ -186,8 +186,8 @@ function verOportunidade(id) {
     ${st === 'concluida' ? blocoOrdemCompra(o, its, env.find(p => p.vencedora)) : ''}`, true);
 }
 function botoesLinkForn(f, o) {
-  const link = linkPortal(`t=${f.token}&o=${o.id}`), zap = String(f.whatsapp || '').replace(/\D/g, '');
-  const texto = `Olá${f.contato ? ', ' + f.contato.split(' ')[0] : ''}! A Protemaxxi está pedindo preço de ${o.titulo}. Mande sua proposta até ${dtHoraOp(o.prazo_resposta)} por este link (é só seu, não compartilhe): ${link}`;
+  const link = linkPortal(f.user_id ? `o=${o.id}` : `t=${f.token}&o=${o.id}`), zap = String(f.whatsapp || '').replace(/\D/g, '');
+  const texto = `Olá${f.contato ? ', ' + f.contato.split(' ')[0] : ''}! A Protemaxxi está pedindo preço de ${o.titulo}. Mande sua proposta até ${dtHoraOp(o.prazo_resposta)} por este link${f.user_id ? ' (entre com seu e-mail e senha)' : ' (é só seu, não compartilhe)'}: ${link}`;
   return `<button class="btn peq" data-a="compCopiar" data-v="${esc(link)}" title="Copiar o link exclusivo deste fornecedor">📋 Link</button>
     <a class="btn peq" href="https://wa.me/${zap ? (zap.length > 11 ? zap : '55' + zap) : ''}?text=${encodeURIComponent(texto)}" target="_blank" rel="noopener">💬 WhatsApp</a>
     ${f.email ? `<a class="btn peq" href="mailto:${esc(f.email)}?subject=${encodeURIComponent('Pedido de cotação — ' + o.titulo)}&body=${encodeURIComponent(texto)}">✉ E-mail</a>` : ''}`;
@@ -229,6 +229,7 @@ function blocoOrdemCompra(o, its, p) {
 }
 
 // ─── fornecedores e convites ───
+const enderecoForn = f => !f?.logradouro ? '' : `${f.logradouro}, ${f.numero || 's/n'}${f.complemento ? ' - ' + f.complemento : ''} · ${f.bairro || ''} · ${f.cidade || ''}/${f.uf || ''} · CEP ${f.cep || ''}`;
 function formFornecedor(id) {
   const f = id ? fornDe(+id) : null;
   const props = f ? COMP.props.filter(p => p.fornecedor_id === f.id && p.status === 'enviada') : [];
@@ -237,14 +238,16 @@ function formFornecedor(id) {
       <label class="campo inteiro">Razão social / nome *<input type="text" id="fnNome" maxlength="160" value="${esc(f?.nome || '')}"></label>
       <label class="campo">CNPJ<input type="text" id="fnCnpj" value="${esc(fmtDoc(f?.cnpj))}"></label>
       <label class="campo">Contato (vendedor)<input type="text" id="fnContato" value="${esc(f?.contato || '')}"></label>
+      <label class="campo">Telefone<input type="tel" id="fnTelefone" value="${esc(f?.telefone || '')}"></label>
       <label class="campo">WhatsApp<input type="tel" id="fnZap" value="${esc(f?.whatsapp || '')}"></label>
-      <label class="campo">E-mail<input type="email" id="fnEmail" value="${esc(f?.email || '')}"></label>
+      <label class="campo">E-mail${f?.user_id ? ' <small class="mut">(login do portal)</small>' : ''}<input type="email" id="fnEmail" value="${esc(f?.email || '')}" ${f?.user_id ? 'disabled' : ''}></label>
+      ${enderecoForn(f) ? `<div class="campo inteiro"><small class="mut">Endereço</small><br>${esc(enderecoForn(f))}</div>` : ''}
       <label class="campo inteiro">Marcas que atende <small class="mut">(separadas por vírgula; usadas para sugerir convites)</small><input type="text" id="fnMarcas" value="${esc((f?.marcas || []).join(', '))}" placeholder="Intelbras, Hikvision, Giga"></label>
       <label class="campo inteiro">Observações internas <small class="mut">(o fornecedor não vê)</small><textarea id="fnObs" rows="2">${esc(f?.obs || '')}</textarea></label>
       ${f ? `<label class="campo">Situação<select id="fnStatus"><option value="ativo" ${f.status === 'ativo' ? 'selected' : ''}>Ativo</option><option value="bloqueado" ${f.status === 'bloqueado' ? 'selected' : ''}>Bloqueado (o link para de funcionar)</option></select></label>` : ''}
     </div>
     <div class="acoes mt"><button class="btn pri" data-a="compSalvarForn" data-id="${f?.id || ''}">Salvar</button>
-      ${f ? `<button class="btn" data-a="compCopiar" data-v="${esc(linkPortal('t=' + f.token))}">📋 Copiar link do portal</button><button class="btn" data-a="compNovoToken" data-id="${f.id}" title="O link antigo deixa de funcionar">🔄 Trocar link</button>` : ''}</div>
+      ${f && !f.user_id ? `<button class="btn" data-a="compCopiar" data-v="${esc(linkPortal('t=' + f.token))}">📋 Copiar link do portal</button><button class="btn" data-a="compNovoToken" data-id="${f.id}" title="O link antigo deixa de funcionar">🔄 Trocar link</button>` : ''}</div>
     ${f ? `<h3 class="mt2">Histórico</h3><p class="mut">${COMP.conv.filter(c => c.fornecedor_id === f.id).length} convite(s) · ${props.length} proposta(s) enviada(s) · ${props.filter(p => p.vencedora).length} vitória(s) · último acesso ${f.ultimo_acesso ? dtHoraOp(f.ultimo_acesso) : 'nunca'}</p>
       ${props.length ? `<table class="tabela"><tbody>${props.map(p => { const o = COMP.ops.find(x => x.id === p.oportunidade_id) || {}, t = totaisProposta(p); return `<tr class="clic" data-a="compVerOp" data-id="${o.id}"><td>${esc(o.titulo || '')}</td><td><small>${dtHoraOp(p.enviada_em)}</small></td><td class="dir">${R(t.total)}</td><td>${p.vencedora ? '🏆' : ''}</td></tr>`; }).join('')}</tbody></table>` : ''}` : ''}`, true);
 }
@@ -252,33 +255,42 @@ async function salvarFornecedor(id) {
   const v = k => ($('#' + k)?.value || '').trim(), nome = v('fnNome'), cnpj = v('fnCnpj').replace(/\D/g, '');
   if (nome.length < 2) return avisar('Escreva o nome do fornecedor.');
   if (cnpj && ![11, 14].includes(cnpj.length)) return avisar('CNPJ inválido.');
-  const dados = { nome, cnpj: cnpj || null, contato: v('fnContato') || null, whatsapp: v('fnZap').replace(/\D/g, '') || null, email: v('fnEmail').toLowerCase() || null,
+  const dados = { nome, cnpj: cnpj || null, contato: v('fnContato') || null, telefone: v('fnTelefone').replace(/\D/g, '') || null, whatsapp: v('fnZap').replace(/\D/g, '') || null, ...($('#fnEmail')?.disabled ? {} : { email: v('fnEmail').toLowerCase() || null }),
     marcas: v('fnMarcas').split(',').map(x => x.trim()).filter(Boolean), obs: v('fnObs') || null, ...($('#fnStatus') ? { status: v('fnStatus') } : {}) };
   try {
     if (id) await ok(sb.from('fornecedores').update(dados).eq('id', +id)); else await ok(sb.from('fornecedores').insert({ ...dados, criado_por: EU.id }));
     await carregarCompras(true); fecharModal(); avisar('Fornecedor salvo.'); render();
   } catch (e) { avisar(e.message); }
 }
+/** Confere os dígitos verificadores (a mesma regra do banco). */
+function cnpjValido(c) {
+  if (!/^\d{14}$/.test(c || '') || /^(\d)\1{13}$/.test(c)) return false;
+  const dv = n => { let s = 0, p = n - 7; for (let i = 0; i < n; i++) { s += +c[i] * p--; if (p < 2) p = 9; } const r = s % 11; return r < 2 ? 0 : 11 - r; };
+  return dv(12) === +c[12] && dv(13) === +c[13];
+}
 function formConvite() {
   modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>Convidar fornecedor</h2>
-    <p class="mut">Gera um link de cadastro (vale 14 dias, uso único). O fornecedor preenche CNPJ, contato e marcas e já entra no portal.</p>
+    <p class="mut">Gera um link de cadastro para este CNPJ (vale 14 dias, uso único). O fornecedor cria o login e preenche os contatos e o endereço.</p>
     <div class="form-grid">
-      <label class="campo inteiro">Nome da empresa (para você reconhecer)<input type="text" id="cvNome"></label>
+      <label class="campo">CNPJ *<input type="text" id="cvCnpj" inputmode="numeric" placeholder="00.000.000/0000-00"></label>
+      <label class="campo">Nome da empresa (para você reconhecer)<input type="text" id="cvNome"></label>
       <label class="campo">WhatsApp<input type="tel" id="cvZap"></label><label class="campo">E-mail<input type="email" id="cvEmail"></label>
       <label class="campo inteiro">Marcas<input type="text" id="cvMarcas" placeholder="Intelbras, Hikvision"></label></div>
     <div class="mt"><button class="btn pri" data-a="compSalvarConvite">Gerar link</button></div>`);
 }
 async function salvarConvite() {
-  const v = k => ($('#' + k)?.value || '').trim();
+  const v = k => ($('#' + k)?.value || '').trim(), cnpj = v('cvCnpj').replace(/\D/g, '');
+  if (!cnpjValido(cnpj)) return avisar('CNPJ inválido: confira os números.');
+  if (COMP.forn.some(f => f.cnpj === cnpj)) return avisar('Este CNPJ já é fornecedor cadastrado.');
   try {
-    const c = await ok(sb.from('forn_convites').insert({ nome: v('cvNome') || null, whatsapp: v('cvZap').replace(/\D/g, '') || null, email: v('cvEmail').toLowerCase() || null, marcas: v('cvMarcas').split(',').map(x => x.trim()).filter(Boolean), criado_por: EU.id }).select().single());
-    COMP.convites.unshift(c); UI.compAba = 'conv'; render(); linkConvite(c.id);
+    const c = await ok(sb.from('forn_convites').insert({ cnpj, nome: v('cvNome') || null, whatsapp: v('cvZap').replace(/\D/g, '') || null, email: v('cvEmail').toLowerCase() || null, marcas: v('cvMarcas').split(',').map(x => x.trim()).filter(Boolean), criado_por: EU.id }).select().single());
+    await carregarCompras(true); UI.compAba = 'conv'; render(); linkConvite(c.id);   // recarrega: o convite anterior deste CNPJ deixa de valer
   } catch (e) { avisar(e.message); }
 }
 function linkConvite(id) {
   const c = COMP.convites.find(x => x.id === +id); if (!c) return;
   const link = linkPortal('c=' + c.token), zap = String(c.whatsapp || '').replace(/\D/g, '');
-  const texto = `Olá! A Protemaxxi quer receber suas cotações pelo nosso portal de fornecedores. Faça seu cadastro por este link (vale até ${dtHoraOp(c.expira_em)}): ${link}`;
+  const texto = `Olá! A Protemaxxi quer receber suas cotações pelo nosso portal de fornecedores. Faça o cadastro do CNPJ ${fmtDoc(c.cnpj)} por este link, que só pode ser usado uma vez e vale até ${dtHoraOp(c.expira_em)}: ${link}`;
   modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>Link de cadastro${c.nome ? ' — ' + esc(c.nome) : ''}</h2>
     <input type="text" readonly value="${esc(link)}" style="width:100%">
     <div class="acoes mt"><button class="btn pri" data-a="compCopiar" data-v="${esc(link)}">📋 Copiar</button>
