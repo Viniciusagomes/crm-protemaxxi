@@ -77,6 +77,9 @@ function cardExp2(x) {
     else if (x.faturamento && !x.nfOk) botaoMat = '<small class="c-ruim">Só sai com a nota fiscal ↓</small>';
     else botaoMat = `<button class="btn pri" data-a="expEtapa" data-id="${p.id}" data-k="despachado">${x.loja ? '📦 Entregue ao cliente' : '🚚 Despachado'}</button>`;
   }
+  // balcão já cobrado e entregue: fecha as etapas que faltam de uma vez (as regras do servidor continuam valendo)
+  if (x.loja && !x.despachado && !x.pagPendente && x.nfOk && !(e.separado_em && pagoOk(x)))
+    botaoMat += ` <button class="btn peq" data-a="expFinalizar" data-id="${p.id}" title="Já cobrou e entregou: marca separado, pago e entregue">✅ Finalizado</button>`;
   // trilha do pagamento
   const [pagCls, pagTxt] = pagDe(x);
   let botaoPag = '';
@@ -109,6 +112,30 @@ function cardExp2(x) {
         ${!p.numero_ecommerce && !x.despachado ? `<button class="btn peq" data-a="expFrete" data-id="${p.id}">🚚 Trocar frete</button>` : ''}
         ${!p.numero_ecommerce && !x.despachado && podeAprovarPag() ? `<button class="btn peq perigo" data-a="expCancelar" data-id="${p.id}">✖ Cancelar venda</button>` : ''}</div></details></div>
   </div>`;
+}
+
+/** Balcão: o Fefão já cobrou e entregou. Grava as etapas que faltam (separado → pago → entregue) numa confirmação só. */
+const EXP_FINALIZANDO = new Set();   // trava contra clique duplo enquanto as etapas são gravadas
+async function expFinalizar(id) {
+  const p = EXP.ecom.find(x => x.id === id); if (!p || EXP_FINALIZANDO.has(id)) return;
+  if (!confirm(`FINALIZAR o pedido ${p.numero}?\n\nConfirme que você já COBROU (${R(p.valor)} · ${p.pag_forma || p.forma_pagamento || ''}) e ENTREGOU ao cliente.\n\nNo Tiny ele vai para "Entregue".`)) return;
+  const e0 = EXP.exp[id] || {};
+  const faltam = [!e0.separado_em && 'separado', !(e0.pago_em || e0.pagamento_aprovado_em) && 'pago', 'despachado'].filter(Boolean);
+  const avisos = [];
+  EXP_FINALIZANDO.add(id);
+  try {
+    for (const etapa of faltam) {
+      const r = await chamarFuncao('expedicao', { acao: 'etapa', pedido_id: id, etapa });
+      EXP.exp[id] = r.expedicao; if (r.aviso) avisos.push(r.aviso);
+      if (etapa === 'pago') {
+        const { error } = await sb.rpc('exp_pago_como', { p_pedido: id, p_como: 'retirada' });
+        if (error) avisos.push('O pagamento foi gravado, mas sem a forma "recebido no balcão": ' + error.message); else EXP.exp[id].pago_como = 'retirada';
+      }
+    }
+    if (avisos.length) alert(`Pedido ${p.numero} finalizado, com aviso:\n\n` + avisos.join('\n\n')); else avisar(`Pedido ${p.numero} finalizado ✓`);
+  } catch (e) { alert(`Não finalizou: ${e.message}\n\nO que já tinha sido gravado ficou; confira o pedido.`); }
+  finally { EXP_FINALIZANDO.delete(id); }
+  render();
 }
 
 /** Pagamento do balcão: "Recebi no balcão" ou "Já estava pago (link)". */
