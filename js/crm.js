@@ -398,6 +398,7 @@ function vMeuDiaOp() {
       + kpi('Atrasados', EXP ? atrasados.length : '…', 'pedidos fora do prazo', atrasados.length ? 'c-ruim' : 'c-ok', 'expedicao')
       + kpi('Ocorrências abertas', EXP ? ocs.length : '…', `${aguard.length} aguardando pagamento`, ocs.length ? 'c-ruim' : '', 'expedicao') : ''}
       ${kpi('Solicitações para mim', paraMim.length, `${pedi.length} que eu pedi em aberto`, paraMim.length ? 'c-med' : '', 'solicitacoes')}</div>
+    ${cardChecklistHoje(EU)}
     <div class="grid g2 mt"><div class="card"><div class="secao-titulo"><h2>Para mim resolver</h2><a href="#/solicitacoes">ver todas</a></div>${paraMim.length ? `<table class="tabela"><tbody>${paraMim.slice(0, 10).map(linhaSol).join('')}</tbody></table>` : '<div class="vazio">Nada pendente para você. 🎉</div>'}</div>
       ${veExp() ? `<div class="card"><div class="secao-titulo"><h2>Próximos a separar</h2><a href="#/expedicao">expedição</a></div>${separar.length ? `<table class="tabela"><tbody>${separar.slice(0, 10).map(x => `<tr><td><b>${esc(x.p.numero || '')}</b> · ${esc(x.p.cliente_nome || '')}<br><small>${esc(nomeCanal(x.canal))}${x.prazo ? ' · até ' + dataHora(x.prazo) : ''}</small></td><td>${x.atrasado ? '<span class="tag ruim">atrasado</span>' : ''}</td></tr>`).join('')}</tbody></table>` : `<div class="vazio">${EXP ? 'Nada para separar agora. 👏' : 'Carregando…'}</div>`}</div>` : ''}</div>`;
 }
@@ -525,6 +526,7 @@ function vMeuDia() {
       <div class="card kpi-card"><div class="rot">Para hoje</div><div class="val">${deHoje.length + fups.length}</div><div class="sub">${feitasHoje} feita(s) hoje</div></div>
       <div class="card kpi-card clic" data-a="irProspeccao" data-pessoa="${quem}"><div class="rot">Prospecção de hoje</div><div class="val">${pro ? `${pro.contatos}/${pro.total}` : PRO.resumoErro ? 'Indisponível' : '…'}</div><div class="sub">contatos da campanha${pro ? ` · ${pro.pulados} pulado(s) · ${pro.pendentes} pendente(s)` : ''}</div></div>
       <div class="card kpi-card"><div class="rot">Negócios sem atividade</div><div class="val ${semAtv.length ? 'c-med' : 'c-ok'}">${semAtv.length}</div><div class="sub">defina o próximo passo</div></div></div>
+    ${cardChecklistHoje(pessoa(quem))}
     <div class="chips mt"><button class="chip ${vista === 'fila' ? 'on' : ''}" data-a="diaVista" data-v="fila">✅ Fila de hoje <b>${fila.length}</b></button><button class="chip ${vista === 'leads' ? 'on' : ''}" data-a="diaVista" data-v="leads">📲 Leads Google/Meta <b>${leads.length}</b></button><button class="chip ${vista === 'campanhas' ? 'on' : ''}" data-a="diaVista" data-v="campanhas">📣 Leads Campanhas <b>${nCamp}</b></button></div>
     ${vista === 'leads' ? `<div class="card mt"><div class="secao-titulo"><h2>📲 Leads Google/Meta</h2><small>${leads.length} lead(s) · do mais antigo para o mais novo</small></div>
       <p class="explica" style="margin:0">Quem pediu contato pelos anúncios. Responda rápido: a chance de venda cai a cada dia.</p>${leads.map(cartaoFila).join('') || '<div class="vazio">Nenhum lead pendente. 👏</div>'}</div>` : vista === 'campanhas' ? blocoCampanhasDia(quem) : `

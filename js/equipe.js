@@ -419,6 +419,19 @@ function linhaTarefa(p, t, ctx) {
     <div class="lado">${prazo}${t.freq === 'D' ? `<button class="icone-btn" title="Anotar observação" data-a="nota" data-p="${p.id}" data-d="${ctx.d}" data-t="${t.id}">✎</button>` : ''}</div>
   </div>`;
 }
+/** Checklist de hoje dentro do "Meu dia": as diárias por bloco e as semanais/mensais ainda pendentes. */
+function cardChecklistHoje(p) {
+  if (!p?.tarefas?.length) return '';
+  const d = hoje(), td = tarefas(p, 'D'), pc = pctDia(p, d);
+  const abrir = `<button class="btn peq" data-a="abrirPessoa" data-p="${p.id}" data-d="${d}">Abrir o checklist completo</button>`;
+  if (!trabalha(p, d)) return `<div class="card mt"><div class="secao-titulo"><h2>☑ Checklist de hoje</h2>${abrir}</div><p class="mut">Hoje não conta no checklist de ${esc(p.nome)} (folga, feriado ou fora da escala).</p></div>`;
+  const blocos = [['abertura', 'Abertura do dia'], ['dia', 'Durante o dia'], ['fechamento', 'Fechamento']].map(([b, nome]) => {
+    const ts = td.filter(t => (t.bloco || 'dia') === b); if (!ts.length) return '';
+    return `<h4>${nome} <small class="mut">${ts.filter(t => feitaD(p, d, t)).length}/${ts.length}</small></h4>${ts.map(t => linhaTarefa(p, t, { d })).join('')}`; }).join('');
+  const pend = [...tarefas(p, 'S').filter(t => !feitaS(p, d, t)), ...tarefas(p, 'M').filter(t => !feitaM(p, mesDe(d), t))];
+  return `<div class="card mt"><div class="secao-titulo"><h2>☑ Checklist de hoje</h2><span><b class="c-${classe(pc)}">${pc == null ? '—' : P(pc)}</b> ${abrir}</span></div>
+    <div class="mt">${barra(pc)}</div>${blocos}${pend.length ? `<h4>Da semana e do mês, ainda pendentes</h4>${pend.map(t => linhaTarefa(p, t, { d })).join('')}` : ''}</div>`;
+}
 function vChecklist() {
   const grupos = gruposPessoas();
   if (!pessoa(UI.pessoa) || !pessoa(UI.pessoa).ativo) UI.pessoa = (grupos[1]?.[1][0] || grupos[0]?.[1][0])?.id || D.pessoas[0].id;
@@ -459,10 +472,13 @@ function vChecklist() {
   const mes = sM.length || km.length ? `<div class="card"><div class="secao-titulo"><h3>Tarefas do mês</h3><span><small>${fmtMes(m)}</small> ${sM.length ? `<span class="tag ${feitosM === sM.length ? 'ok' : ''}">${feitosM}/${sM.length}</span>` : ''}</span></div>${sM.map(t => linhaTarefa(p, t, { d })).join('')}
     ${km.length ? `<div class="mt"><h3>Números do mês</h3><div class="kpi-entrada">${km.map(k => { const v = D.mes[p.id]?.[m]?.kpi?.[k.id]; return `<label>${esc(k.nome)} ${k.un !== 'un' ? `(${k.un})` : ''}<input type="number" step="any" min="0" value="${v ?? ''}" data-c="kpiM" data-p="${p.id}" data-m="${m}" data-k="${k.id}" data-fid="km-${k.id}"><span class="acum">Meta: ${k.dir === 'menor' ? 'no máximo ' : ''}${fmtK(k, k.meta)}</span></label>`; }).join('')}</div></div>` : ''}</div>` : '';
   const conf = sup && trab ? `<div class="card conferencia ${r?.conferido ? 'ok' : ''}"><div class="secao-titulo"><h3>Conferência do supervisor</h3>${r?.conferido ? `<span class="tag ok">conferido${r.conferidoEm ? ' em ' + esc(r.conferidoEm) : ''}</span>` : '<span class="tag">pendente</span>'}</div>
-    <label style="display:flex;gap:8px;align-items:center;font-weight:600;margin:6px 0 10px"><input type="checkbox" ${r?.conferido ? 'checked' : ''} data-c="conferido" data-p="${p.id}" data-d="${d}" ${d > h ? 'disabled' : ''}> ${esc(sup.nome)} conferiu este dia (as tarefas marcadas foram mesmo feitas)</label>
+    <label style="display:flex;gap:8px;align-items:center;font-weight:600;margin:6px 0 10px"><input type="checkbox" ${r?.conferido ? 'checked' : ''} data-c="conferido" data-p="${p.id}" data-d="${d}" ${d > h || p.id === EU.id ? 'disabled title="Quem confere é o supervisor"' : ''}> ${esc(sup.nome)} conferiu este dia (as tarefas marcadas foram mesmo feitas)</label>
     <textarea placeholder="Observação do supervisor sobre o dia (opcional)" data-c="obs" data-p="${p.id}" data-d="${d}" data-fid="obs">${esc(r?.obs || '')}</textarea></div>` : '';
-  return topo('Checklist do dia', 'Marque cada atividade quando ela for feita. O supervisor confere e dá o "conferido".', `<button class="btn" data-a="print">🖨 Imprimir</button>`)
-    + `<div class="check-layout">${lista}<div>${cab}<div class="bloco mt">${corpo}</div>${auto ? `<div class="mt">${auto}</div>` : ''}${numeros ? `<div class="mt">${numeros}</div>` : ''}${semana ? `<div class="mt">${semana}</div>` : ''}${mes ? `<div class="mt">${mes}</div>` : ''}${conf ? `<div class="mt">${conf}</div>` : ''}</div></div>`;
+  const editar = ehDono() && UI.chkEditar;
+  const botoes = (ehDono() ? `<button class="btn ${editar ? 'pri' : ''}" data-a="chkEditar">${editar ? '✓ Concluir edição' : '✎ Editar tarefas'}</button> ` : '') + `<button class="btn" data-a="print">🖨 Imprimir</button>`;
+  const edicao = `<div class="card"><div class="secao-titulo"><h3>✎ Tarefas de ${esc(p.nome)}</h3><small class="mut">Cada mudança salva sozinha. As marcações já feitas continuam guardadas.</small></div>${editorTarefas(D.pessoas.indexOf(p))}</div>`;
+  return topo('Checklist do dia', 'Marque cada atividade quando ela for feita. O supervisor confere e dá o "conferido".', botoes)
+    + `<div class="check-layout">${lista}<div>${cab}${editar ? `<div class="mt">${edicao}</div>` : `<div class="bloco mt">${corpo}</div>${auto ? `<div class="mt">${auto}</div>` : ''}${numeros ? `<div class="mt">${numeros}</div>` : ''}${semana ? `<div class="mt">${semana}</div>` : ''}${mes ? `<div class="mt">${mes}</div>` : ''}${conf ? `<div class="mt">${conf}</div>` : ''}`}</div></div>`;
 }
 
 // ═══════════════════════════ SUPERVISÃO ═══════════════════════════
@@ -622,6 +638,33 @@ function vFeedbacks() {
     </div></div>`;
 }
 
+const LOTE_QUANDO = [['D:abertura', 'Diária · Abertura do dia'], ['D:dia', 'Diária · Durante o dia'], ['D:fechamento', 'Diária · Fechamento'], ['S:5', 'Semanal · até sexta'], ['M:5', 'Mensal · até dia 5']];
+/** Tarefas novas a partir do texto colado (uma por linha) e do "quando" escolhido. */
+function tarefasDoLote(texto, quando) {
+  const [freq, q] = String(quando || 'D:dia').split(':');
+  return String(texto || '').split(/\r?\n/).map(l => l.replace(/^\s*(?:[-•*]|\d+[.)])\s+/, '').trim()).filter(Boolean).map(titulo => ({
+    id: 't' + uid(), titulo, freq, bloco: freq === 'D' ? q : 'dia', diaSemana: freq === 'S' ? +q : 5, diaMes: freq === 'M' ? +q : 5, conferir: '', critica: false }));
+}
+/** Editor das tarefas de uma pessoa (Configurações › Tarefas e o modo Editar do checklist). Só o dono grava (RLS). */
+function editorTarefas(pi) {
+  const p = D.pessoas[pi], base = `pessoas.${pi}.tarefas`;
+  return `<div class="cfg-linha cfg-tarefa cfg-cab"><span>Tarefa</span><span>Frequência</span><span>Quando</span><span>Como o supervisor confere</span><span>Crítica</span><span></span></div>
+    ${p.tarefas.map((t, i) => `<div class="cfg-linha cfg-tarefa">
+      <input type="text" value="${esc(t.titulo)}" data-c="set" data-path="${base}.${i}.titulo" data-fid="tt${i}">
+      <select data-c="set" data-path="${base}.${i}.freq"><option value="D" ${t.freq === 'D' ? 'selected' : ''}>Diária</option><option value="S" ${t.freq === 'S' ? 'selected' : ''}>Semanal</option><option value="M" ${t.freq === 'M' ? 'selected' : ''}>Mensal</option></select>
+      ${t.freq === 'D' ? `<select data-c="set" data-path="${base}.${i}.bloco">${[['abertura', 'Abertura'], ['dia', 'Durante o dia'], ['fechamento', 'Fechamento']].map(([k, v]) => `<option value="${k}" ${t.bloco === k ? 'selected' : ''}>${v}</option>`).join('')}</select>`
+        : t.freq === 'S' ? `<select data-c="set" data-t="num" data-path="${base}.${i}.diaSemana">${[1, 2, 3, 4, 5, 6].map(dd => `<option value="${dd}" ${t.diaSemana === dd ? 'selected' : ''}>até ${DIAS_LONGO[dd]}</option>`).join('')}</select>`
+        : `<label style="display:flex;gap:4px;align-items:center;font-size:13px">até dia <input type="number" min="1" max="31" value="${t.diaMes}" data-c="set" data-t="num" data-path="${base}.${i}.diaMes" style="width:60px"></label>`}
+      <input type="text" value="${esc(t.conferir)}" placeholder="Ex.: conferir no painel do ML" data-c="set" data-path="${base}.${i}.conferir" data-fid="tc${i}">
+      <input type="checkbox" ${t.critica ? 'checked' : ''} data-c="set" data-t="bool" data-path="${base}.${i}.critica">
+      <span><button class="icone-btn" data-a="mov" data-path="${base}" data-i="${i}" data-v="-1" title="Subir">↑</button><button class="icone-btn" data-a="mov" data-path="${base}" data-i="${i}" data-v="1" title="Descer">↓</button><button class="icone-btn" data-a="del" data-path="${base}" data-i="${i}" title="Apagar">🗑</button></span></div>`).join('')}
+    <div class="mt"><button class="btn pri" data-a="addTarefa" data-path="${base}">+ Nova tarefa</button></div>
+    <div class="card mt lote-tarefas"><b>📋 Adicionar várias de uma vez</b> <small class="mut">uma tarefa por linha</small>
+      <textarea id="loteTarefas" rows="4" placeholder="Ex.:&#10;Responder as perguntas do Mercado Livre&#10;Conferir os pedidos atrasados"></textarea>
+      <div class="acoes"><select id="loteQuando">${LOTE_QUANDO.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select><button class="btn pri" data-a="addTarefasLote" data-path="${base}">Adicionar</button></div></div>
+    <p class="mut"><small><b>Crítica</b> = se não for feita, aparece em vermelho para o supervisor cobrar. Tarefas semanais e mensais aparecem no checklist durante a semana/o mês inteiro, com o prazo.</small></p>`;
+}
+
 // ═══════════════════════════ CONFIGURAÇÕES ═══════════════════════════
 function vConfig() {
   const tabs = [['pessoas', 'Pessoas e organograma'], ['acessos', 'Logins e acessos'], ['tarefas', 'Tarefas'], ['kpis', 'Indicadores e metas'], ['regras', 'Regras de remuneração'], ['solicitacoes', 'Solicitações'], ['tiny', 'Integração Tiny'], ['auditoria', 'Auditoria'], ['geral', 'Geral e backup']];
@@ -644,20 +687,8 @@ function vConfig() {
     <div class="mt acoes"><span>Adicionar pessoa copiando tarefas, metas e regras de:</span><select id="novoModelo">${optPessoas('felipe_moreira')}</select><button class="btn pri" data-a="addPessoa">+ Adicionar</button></div>
     <p class="mut"><small>Desmarque "Ativo" para vagas em aberto ou pessoas desligadas: elas somem do checklist e da folha, mas o histórico fica guardado. A data de início faz os dias anteriores não contarem.</small></p></div>`;
   } else if (UI.cfgTab === 'tarefas') {
-    const base = `pessoas.${pi}.tarefas`;
     corpo = `<div class="card"><div class="secao-titulo">${selP}<div class="acoes"><select id="copiarDe">${optPessoas('', D.pessoas.filter(o => o.id !== p.id && o.tarefas.length))}</select><button class="btn" data-a="copiarTarefas">Substituir pelas tarefas desta pessoa</button></div></div>
-    <div class="cfg-linha cfg-tarefa cfg-cab"><span>Tarefa</span><span>Frequência</span><span>Quando</span><span>Como o supervisor confere</span><span>Crítica</span><span></span></div>
-    ${p.tarefas.map((t, i) => `<div class="cfg-linha cfg-tarefa">
-      <input type="text" value="${esc(t.titulo)}" data-c="set" data-path="${base}.${i}.titulo" data-fid="tt${i}">
-      <select data-c="set" data-path="${base}.${i}.freq"><option value="D" ${t.freq === 'D' ? 'selected' : ''}>Diária</option><option value="S" ${t.freq === 'S' ? 'selected' : ''}>Semanal</option><option value="M" ${t.freq === 'M' ? 'selected' : ''}>Mensal</option></select>
-      ${t.freq === 'D' ? `<select data-c="set" data-path="${base}.${i}.bloco">${[['abertura', 'Abertura'], ['dia', 'Durante o dia'], ['fechamento', 'Fechamento']].map(([k, v]) => `<option value="${k}" ${t.bloco === k ? 'selected' : ''}>${v}</option>`).join('')}</select>`
-        : t.freq === 'S' ? `<select data-c="set" data-t="num" data-path="${base}.${i}.diaSemana">${[1, 2, 3, 4, 5, 6].map(dd => `<option value="${dd}" ${t.diaSemana === dd ? 'selected' : ''}>até ${DIAS_LONGO[dd]}</option>`).join('')}</select>`
-        : `<label style="display:flex;gap:4px;align-items:center;font-size:13px">até dia <input type="number" min="1" max="31" value="${t.diaMes}" data-c="set" data-t="num" data-path="${base}.${i}.diaMes" style="width:60px"></label>`}
-      <input type="text" value="${esc(t.conferir)}" placeholder="Ex.: conferir no painel do ML" data-c="set" data-path="${base}.${i}.conferir" data-fid="tc${i}">
-      <input type="checkbox" ${t.critica ? 'checked' : ''} data-c="set" data-t="bool" data-path="${base}.${i}.critica">
-      <span><button class="icone-btn" data-a="mov" data-path="${base}" data-i="${i}" data-v="-1" title="Subir">↑</button><button class="icone-btn" data-a="mov" data-path="${base}" data-i="${i}" data-v="1" title="Descer">↓</button><button class="icone-btn" data-a="del" data-path="${base}" data-i="${i}" title="Apagar">🗑</button></span></div>`).join('')}
-    <div class="mt"><button class="btn pri" data-a="addTarefa" data-path="${base}">+ Nova tarefa</button></div>
-    <p class="mut"><small><b>Crítica</b> = se não for feita, aparece em vermelho para o supervisor cobrar. Tarefas semanais e mensais aparecem no checklist durante a semana/o mês inteiro, com o prazo.</small></p></div>`;
+    ${editorTarefas(pi)}</div>`;
   } else if (UI.cfgTab === 'kpis') {
     const base = `pessoas.${pi}.kpis`;
     corpo = `<div class="card"><div class="secao-titulo">${selP}</div>
