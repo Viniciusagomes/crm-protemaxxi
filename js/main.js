@@ -318,6 +318,7 @@ const A = {
   expTela: () => { UI.expClassica = !UI.expClassica; render(); window.scrollTo(0, 0); },
   expAtualizar: () => expAtualizar(),
   expEtapa: el => expEtapa(el.dataset.id, el.dataset.k),
+  expFinalizar: el => expFinalizar(el.dataset.id),
   expAprovarPag: el => expAprovarPag(el.dataset.id),
   tvAtivar: () => ativarTV(),
   avaAtualizar: () => carregarAva(true).then(render).catch(e => avisar(e.message)),
