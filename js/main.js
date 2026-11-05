@@ -50,6 +50,7 @@ function abasDoPerfil() {
   if (P.suporte) add('suporte');
   if (veEmails()) add('emails');
   if (veMonitoria()) add('monitoria');
+  if (EU.tarefas?.length) add('checklist');   // o próprio checklist, mesmo sem equipe (estagiários)
   if (temEquipe()) { add('supervisao', 'checklist', 'metas'); if (comercial) add('creditos', 'brindes'); }
   return s;
 }
@@ -576,6 +577,12 @@ const A = {
     arr.splice(i, 1); marcarPath(el.dataset.path); render();
   },
   mov: el => { const arr = getPath(el.dataset.path), i = +el.dataset.i, j = i + +el.dataset.v; if (j < 0 || j >= arr.length) return; [arr[i], arr[j]] = [arr[j], arr[i]]; marcarPath(el.dataset.path); render(); },
+  addTarefasLote: el => {
+    const caixa = $('#loteTarefas'), novas = tarefasDoLote(caixa?.value, $('#loteQuando')?.value);
+    if (!novas.length) { avisar('Escreva uma tarefa por linha.'); return; }
+    getPath(el.dataset.path).push(...novas); marcarPath(el.dataset.path); render(); avisar(`${novas.length} tarefa(s) adicionada(s) ✓`);
+  },
+  chkEditar: () => { UI.chkEditar = !UI.chkEditar; render(); },
   addTarefa: el => { getPath(el.dataset.path).push({ id: 't' + uid(), titulo: 'Nova tarefa', freq: 'D', bloco: 'dia', diaSemana: 5, diaMes: 5, conferir: '', critica: false }); marcarPath(el.dataset.path); render(); },
   addKpi: el => { getPath(el.dataset.path).push({ id: 'k_' + uid(), nome: 'Novo indicador', un: 'un', meta: 0, entrada: 'D', agreg: 'soma', dir: 'maior', fonte: 'manual' }); marcarPath(el.dataset.path); render(); },
   addFaixaDesc: el => { const arr = getPath(el.dataset.path), ult = [...arr].sort((a, b) => a.ate - b.ate).pop(); arr.push({ ate: ult ? +(ult.ate + 1).toFixed(2) : 0.1, taxa: ult ? Math.max(0, +(ult.taxa - 0.1).toFixed(2)) : 1 }); marcarPath(el.dataset.path); render(); },
@@ -645,7 +652,7 @@ const C = {
   kpiD: el => { const r = reg(el.dataset.p, el.dataset.d, true); if (el.value === '') delete r.kpi[el.dataset.k]; else r.kpi[el.dataset.k] = Number(el.value); marcar('dia', el.dataset.p, el.dataset.d); render(); },
   kpiM: el => { const r = mesReg(el.dataset.p, el.dataset.m, true); if (el.value === '') delete r.kpi[el.dataset.k]; else r.kpi[el.dataset.k] = Number(el.value); marcar('mes', el.dataset.p, el.dataset.m); render(); },
   status: el => { const r = reg(el.dataset.p, el.dataset.d, true); if (el.value === 'normal') delete r.status; else r.status = el.value; marcar('dia', el.dataset.p, el.dataset.d); render(); },
-  conferido: el => { const r = reg(el.dataset.p, el.dataset.d, true); r.conferido = el.checked; r.conferidoEm = el.checked ? `${fmtCurta(hoje())} ${hora()} por ${EU.nome}` : ''; marcar('dia', el.dataset.p, el.dataset.d); render(); },
+  conferido: el => { const r = reg(el.dataset.p, el.dataset.d, true); r.conferido = el.checked; r.conferidoEm = el.checked ? `${fmtCurta(hoje())} ${hora()} por ${EU.nome}` : ''; r.conferidoPor = el.checked ? EU.id : null; marcar('dia', el.dataset.p, el.dataset.d); render(); },
   obs: el => { reg(el.dataset.p, el.dataset.d, true).obs = el.value; marcar('dia', el.dataset.p, el.dataset.d); },
   irData: async el => { if (el.value) { UI.data = el.value; await garantirMes(mesDe(UI.data)); render(); } },
   meta: el => { const p = pessoa(el.dataset.p), k = kpiDe(p, el.dataset.k); k.meta = Number(el.value) || 0; marcar('pessoa', p.id); render(); },

@@ -59,7 +59,7 @@ async function carregarTudo() {
     sync: Object.fromEntries(est.map(x => [x.chave, { ...x.valor, em_db: x.atualizado_em }])),
     pedidos: [], vendas: {}, ecom: {}, clientes: null, solicitacoes: [], interacoes: [],
   };
-  for (const r of rdia) (D.reg[r.pessoa_id] ||= {})[r.data] = { checks: r.checks || {}, notas: r.notas || {}, kpi: r.kpi || {}, status: r.status || undefined, conferido: r.conferido, conferidoEm: r.conferido_em, obs: r.obs };
+  for (const r of rdia) (D.reg[r.pessoa_id] ||= {})[r.data] = { checks: r.checks || {}, notas: r.notas || {}, kpi: r.kpi || {}, status: r.status || undefined, conferido: r.conferido, conferidoEm: r.conferido_em, conferidoPor: r.conferido_por, obs: r.obs };
   for (const r of rsem) (D.sem[r.pessoa_id] ||= {})[r.segunda] = r.checks || {};
   for (const r of rmes) (D.mes[r.pessoa_id] ||= {})[r.mes] = { checks: r.checks || {}, kpi: r.kpi || {} };
   D.feedbacks = fbs.map(f => ({ id: f.id, pessoa: f.pessoa_id, autor: f.autor_id, tipo: f.tipo, data: f.data, texto: f.texto }));
@@ -110,7 +110,7 @@ async function garantirMes(m) {
     todas(() => sb.from('registros_dia').select('*').gte('data', ini).lte('data', fim)),
     todas(() => sb.from('registros_semana').select('*').gte('segunda', addDias(ini, -7)).lte('segunda', fim)),
   ]);
-  for (const r of rdia) (D.reg[r.pessoa_id] ||= {})[r.data] = { checks: r.checks || {}, notas: r.notas || {}, kpi: r.kpi || {}, status: r.status || undefined, conferido: r.conferido, conferidoEm: r.conferido_em, obs: r.obs };
+  for (const r of rdia) (D.reg[r.pessoa_id] ||= {})[r.data] = { checks: r.checks || {}, notas: r.notas || {}, kpi: r.kpi || {}, status: r.status || undefined, conferido: r.conferido, conferidoEm: r.conferido_em, conferidoPor: r.conferido_por, obs: r.obs };
   for (const r of rsem) (D.sem[r.pessoa_id] ||= {})[r.segunda] = r.checks || {};
   if (m < `${addMes(mesDe(hoje()), -13)}`) {
     const mais = await todas(() => sb.from('pedidos').select('id,numero,numero_ecommerce,canal,data,cliente_nome,cliente_chave,vendedor_id,vendedor_nome,valor,situacao,total_produtos,desconto,detalhado').gte('data', ini).lte('data', fim));
@@ -143,7 +143,8 @@ const GRAVAR = {
   dia: async (pid, d) => {
     const r = D.reg[pid]?.[d]; if (!r) return;
     await ok(sb.from('registros_dia').upsert({ pessoa_id: pid, data: d, checks: r.checks, notas: r.notas, kpi: r.kpi, status: r.status || null,
-      conferido: !!r.conferido, conferido_em: r.conferidoEm || null, conferido_por: r.conferido ? EU?.id : null, obs: r.obs || null, atualizado_em: new Date().toISOString() }));
+      conferido: !!r.conferido, conferido_em: r.conferidoEm || null, conferido_por: r.conferido ? (r.conferidoPor || EU?.id) : null,   // quem conferiu continua sendo o supervisor, mesmo se a pessoa marcar outra tarefa depois
+      obs: r.obs || null, atualizado_em: new Date().toISOString() }));
   },
   sem: async (pid, seg) => { await ok(sb.from('registros_semana').upsert({ pessoa_id: pid, segunda: seg, checks: D.sem[pid]?.[seg] || {} })); },
   mes: async (pid, m) => { const r = D.mes[pid]?.[m] || {}; await ok(sb.from('registros_mes').upsert({ pessoa_id: pid, mes: m, checks: r.checks || {}, kpi: r.kpi || {} })); },
