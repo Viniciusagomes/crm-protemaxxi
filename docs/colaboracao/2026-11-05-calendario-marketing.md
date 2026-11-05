@@ -5,7 +5,7 @@ O Vinícius quer um calendário de marketing no dia do Vinicius Gonçalves (esta
 em que ele e o Marcos (supervisor) acompanhem o trabalho e incluam itens por dia.
 
 ## O que mudou
-- **Banco:** tabela nova `calendario` (migration `*_calendario_marketing.sql`). Cada item tem pessoa, dia, título, canal, andamento
+- **Banco:** tabela nova `calendario` (migration `20261105211629_calendario_marketing.sql`). Cada item tem pessoa, dia, título, canal, andamento
   (a fazer, em produção, para revisar, feito), briefing, link e a observação da pessoa.
   - A RLS usa `seg.pessoas_visiveis()`: a própria pessoa, a cadeia de supervisores acima dela e o dono.
   - O trigger `seg.calendario_antes` grava `criado_por`, `feito_em` e `feito_por` e não deixa trocar a pessoa do item.
@@ -46,5 +46,5 @@ em que ele e o Marcos (supervisor) acompanhem o trabalho e incluam itens por dia
 - Prévia visual com dados fictícios, no tema escuro e no celular (375px): a tela não estoura a largura.
 
 ## Fora
-- A migration ainda não foi aplicada em produção: aguarda o OK do Vinícius. Depois disso, ligar `permissoes.calendario` no `vinicius_g`.
+- Migration aplicada em 05/11 (versão 20261105211629) e `permissoes.calendario` ligada no `vinicius_g`.
 - Não há notificação quando alguém inclui item. A pessoa vê o item no Meu dia.
