@@ -478,7 +478,7 @@ function vChecklist() {
   const botoes = (ehDono() ? `<button class="btn ${editar ? 'pri' : ''}" data-a="chkEditar">${editar ? '✓ Concluir edição' : '✎ Editar tarefas'}</button> ` : '') + `<button class="btn" data-a="print">🖨 Imprimir</button>`;
   const edicao = `<div class="card"><div class="secao-titulo"><h3>✎ Tarefas de ${esc(p.nome)}</h3><small class="mut">Cada mudança salva sozinha. As marcações já feitas continuam guardadas.</small></div>${editorTarefas(D.pessoas.indexOf(p))}</div>`;
   return topo('Checklist do dia', 'Marque cada atividade quando ela for feita. O supervisor confere e dá o "conferido".', botoes)
-    + `<div class="check-layout">${lista}<div>${cab}${editar ? `<div class="mt">${edicao}</div>` : `<div class="bloco mt">${corpo}</div>${auto ? `<div class="mt">${auto}</div>` : ''}${numeros ? `<div class="mt">${numeros}</div>` : ''}${semana ? `<div class="mt">${semana}</div>` : ''}${mes ? `<div class="mt">${mes}</div>` : ''}${conf ? `<div class="mt">${conf}</div>` : ''}`}</div></div>`;
+    + `<div class="check-layout">${lista}<div>${cab}${editar ? `<div class="mt">${edicao}</div>` : `<div class="bloco mt">${corpo}</div>${cardCalendario(p, d)}${auto ? `<div class="mt">${auto}</div>` : ''}${numeros ? `<div class="mt">${numeros}</div>` : ''}${semana ? `<div class="mt">${semana}</div>` : ''}${mes ? `<div class="mt">${mes}</div>` : ''}${conf ? `<div class="mt">${conf}</div>` : ''}`}</div></div>`;
 }
 
 // ═══════════════════════════ SUPERVISÃO ═══════════════════════════

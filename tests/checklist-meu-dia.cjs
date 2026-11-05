@@ -8,7 +8,7 @@ const ctx = vm.createContext({ console, URL, location: { href: 'https://exemplo.
 vm.runInContext(fs.readFileSync(path.join(root, 'js/util.js'), 'utf8'), ctx);
 vm.runInContext(`var UI = {}, EU = null;
   var D = { config: { inicioUso: '2026-01-01', feriados: [] }, reg: {}, sem: {}, mes: {}, pessoas: [] };
-  const ehDono = () => !!EU && EU.papel === 'dono';`, ctx);
+  const ehDono = () => !!EU && EU.papel === 'dono', cardCalendario = () => '';`, ctx);
 vm.runInContext(fs.readFileSync(path.join(root, 'js/equipe.js'), 'utf8'), ctx, { filename: 'equipe.js' });
 const run = code => vm.runInContext(code, ctx);
 

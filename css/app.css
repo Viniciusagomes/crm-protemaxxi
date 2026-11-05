@@ -709,3 +709,33 @@ body.tvestoque .barra-inf { display: none !important; }
 .em-html { width: 100%; height: 62vh; border: 1px solid var(--borda, #E8DFD3); border-radius: 8px; background: #fff; }
 .em-texto { white-space: pre-wrap; word-break: break-word; font-family: inherit; font-size: 14px; max-height: 62vh; overflow: auto; margin: 0; }
 @media (max-width: 900px) { .em-grid { grid-template-columns: 1fr; } .em-leitor { position: static; } }
+
+/* Calendário de marketing */
+.cal-card { padding: 10px; }
+.cal-grade { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.cal-cab { text-align: center; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--txt3); padding: 4px 0; }
+.cal-dia { min-height: 108px; border: 1px solid var(--borda); border-radius: 8px; padding: 4px; background: var(--card); display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cal-dia.fora { background: var(--card2); opacity: .6; }
+.cal-dia.hoje { border: 2px solid #2B7BB9; }
+.cal-dia.atrasado { box-shadow: inset 0 3px 0 var(--ruim); }
+.cal-dia.sobre { background: var(--med-bg); border-style: dashed; }
+.cal-num { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 700; }
+.cal-num a { color: var(--txt2); text-decoration: none; padding: 0 4px; border-radius: 4px; }
+.cal-dia.hoje .cal-num a { background: #2B7BB9; color: #fff; }
+.cal-mais { border: 0; background: none; color: var(--txt3); font-size: 16px; line-height: 1; cursor: pointer; padding: 0 4px; opacity: 0; }
+.cal-dia:hover .cal-mais, .cal-mais:focus { opacity: 1; }
+.cal-item { font-size: 12px; line-height: 1.3; padding: 3px 6px; border-radius: 5px; border-left: 4px solid #8AA0B4; background: var(--card2); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-item:hover { filter: brightness(.96); }
+.cal-item.st-fazendo { background: #E1EEF8; color: #1F5F8F; }
+.cal-item.st-revisar { background: var(--med-bg); }
+.cal-item.st-feito { text-decoration: line-through; opacity: .55; }
+.cal-item.arrastando { opacity: .4; }
+.cal-acoes { display: flex; gap: 6px; align-items: center; }
+.cal-acoes select { max-width: 130px; }
+@media (hover: none) { .cal-mais { opacity: 1; } }
+@media (max-width: 700px) {
+  .cal-dia { min-height: 64px; padding: 2px; }
+  .cal-item { font-size: 0; padding: 0; height: 6px; border-left-width: 0; background: #2B7BB9; }
+  .cal-item.st-feito { background: var(--ok); }
+  .tarefa .cal-acoes { flex-direction: column; align-items: stretch; }
+}

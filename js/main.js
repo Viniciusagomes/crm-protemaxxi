@@ -14,7 +14,7 @@ function menu() {
     ...(veExp() ? [['Operação'], ['', 'visaoestoque', '📋', 'Visão geral do estoque'], ['', 'expedicao', '📦', 'Expedição', EXP ? EXP.ecom.map(infoPedido).filter(x => !x.despachado && x.atrasado).length : 0], ['', 'estoque', '🏷', 'Estoque', EXP ? EXP.alertas.length : 0], ['', 'abrirTV', '📺', 'TV do estoque']] : []),
     ...(veCompras() ? [...(veExp() ? [] : [['Operação']]), ['', 'compras', '🤝', 'Compras e fornecedores', COMP.ops ? COMP.ops.filter(o => situacaoOp(o) === 'encerrada').length : 0]] : []),
     ['Comunicação'], ['', 'solicitacoes', '📨', 'Solicitações', minhasPendentes().length], ...(veEmails() ? [['', 'emails', '✉', 'Caixa de e-mails', EM.naoLidos]] : []), ['', 'suporte', '🔧', 'Assistência (OS)', AT.os ? AT.os.filter(o => o.status === 'pronto' || (o.previsao && o.previsao < hoje() && !['entregue', 'cancelado'].includes(o.status))).length : 0],
-    ['Equipe'], ['', 'checklist', '☑', 'Checklist do dia'],
+    ['Equipe'], ['', 'checklist', '☑', 'Checklist do dia'], ...(calPessoas().length ? [['', 'calendario', '📅', 'Calendário de marketing']] : []),
     ...(temEquipe() ? [['', 'supervisao', '👥', 'Supervisão']] : []),
     ...(ehDono() ? [['', 'geral', '◉', 'Visão da equipe']] : []),
     ['', 'metas', '🎯', 'Metas e números'], ['', 'remuneracao', '💰', ehDono() ? 'Remuneração' : 'Meu ganho'],
@@ -29,7 +29,7 @@ function menu() {
 const VIEWS_FN = {
   inicio: () => vInicio(), vendas: () => vVendas(), ml: () => vML(), trafego: () => vTrafego(), pedidos: () => vPedidos(), clientes: () => vClientes(),
   solicitacoes: () => vIntranet(), suporte: () => vAssistencia(), expedicao: () => vExpedicao(), estoque: () => vEstoque(), visaoestoque: () => vVisaoEstoque(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(), creditos: () => vCreditos(), brindes: () => vBrindes(), crm: () => vCRM(), meudia: () => vMeuDia(), situacao: () => vSituacao(), boletos: () => vBoletos(), emails: () => vEmails(), avaliacoes: () => vAvaliacoes(), compras: () => vCompras(),
-  checklist: () => vChecklist(), supervisao: () => vSupervisao(), geral: () => vGeral(), metas: () => vMetas(),
+  checklist: () => vChecklist(), calendario: () => vCalendario(), supervisao: () => vSupervisao(), geral: () => vGeral(), metas: () => vMetas(),
   remuneracao: () => vRemuneracao(), feedbacks: () => vFeedbacks(), config: () => vConfig(), ajuda: () => vAjuda(),
 };
 const SO_DONO = ['config', 'geral', 'logs'];
@@ -51,6 +51,7 @@ function abasDoPerfil() {
   if (veEmails()) add('emails');
   if (veMonitoria()) add('monitoria');
   if (EU.tarefas?.length) add('checklist');   // o próprio checklist, mesmo sem equipe (estagiários)
+  if (calPessoas().length) add('calendario');   // o próprio calendário de marketing ou o da equipe
   if (temEquipe()) { add('supervisao', 'checklist', 'metas'); if (comercial) add('creditos', 'brindes'); }
   return s;
 }
@@ -132,7 +133,7 @@ function vConfigExtra(tab) {
         return `<div class="cfg-linha cfg-acesso"><div style="display:flex;gap:8px;align-items:center">${av(p)}<div><b>${esc(p.nome)}</b><br><small>${esc(p.cargo)}${p.ativo ? '' : ' · inativo'}</small></div></div>
         <select data-c="set" data-path="pessoas.${i}.papel">${Object.entries(PAPEIS).map(([k, v]) => `<option value="${k}" ${p.papel === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
         <select data-c="set" data-path="pessoas.${i}.tiny"><option value="">— não vende —</option>${D.vendedoresTiny.map(v => `<option value="${v.id}" ${p.tiny === v.id ? 'selected' : ''}>${esc(v.nome)}</option>`).join('')}${p.tiny && !D.vendedoresTiny.some(v => v.id === p.tiny) ? `<option value="${p.tiny}" selected>id ${p.tiny}</option>` : ''}</select>
-        <div style="display:flex;flex-direction:column;gap:2px;font-size:13px">${[['vendas_todas', 'Todas as vendas e clientes'], ['ecommerce', 'Pedidos do e-commerce'], ['expedicao', 'Expedição e estoque'], ['aprovar_pagamento', 'Aprovar pagamento (depósito/Tray)'], ['suporte', 'Ordens de serviço (suporte)'], ['trafego', 'Tráfego (Google Ads)'], ['admin', 'Configurações (admin)']].map(([k, n]) => `<label><input type="checkbox" ${p.permissoes?.[k] ? 'checked' : ''} data-c="perm" data-i="${i}" data-k="${k}"> ${n}</label>`).join('')}</div>
+        <div style="display:flex;flex-direction:column;gap:2px;font-size:13px">${[['vendas_todas', 'Todas as vendas e clientes'], ['ecommerce', 'Pedidos do e-commerce'], ['expedicao', 'Expedição e estoque'], ['aprovar_pagamento', 'Aprovar pagamento (depósito/Tray)'], ['suporte', 'Ordens de serviço (suporte)'], ['trafego', 'Tráfego (Google Ads)'], ['calendario', 'Calendário de marketing'], ['admin', 'Configurações (admin)']].map(([k, n]) => `<label><input type="checkbox" ${p.permissoes?.[k] ? 'checked' : ''} data-c="perm" data-i="${i}" data-k="${k}"> ${n}</label>`).join('')}</div>
         <div>${p.user_id ? `<b>${esc(p.email || u?.email || '')}</b><br><small>${u?.bloqueado ? '<span class="c-ruim">bloqueado</span>' : u?.ultimo_login ? 'último acesso ' + new Date(u.ultimo_login).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'nunca entrou'}</small>
           <br><small>2FA: ${u?.mfa ? '<span class="c-ok">ativo</span>' : (['dono', 'supervisor'].includes(p.papel) || p.permissoes?.admin || p.permissoes?.mfa) ? '<span class="c-med">obrigatório, cadastra no próximo acesso</span>' : 'não exigido'}</small>
           <div class="acoes" style="margin-top:4px"><button class="btn peq" data-a="loginSenha" data-p="${p.id}">Trocar senha</button>${u?.mfa && p.id !== EU.id ? `<button class="btn peq" data-a="zerar2fa" data-p="${p.id}" title="Use se a pessoa perdeu ou trocou de celular">Zerar 2FA</button>` : ''}${p.papel !== 'dono' ? `<button class="btn peq" data-a="loginBloq" data-p="${p.id}" data-v="${u?.bloqueado ? 'desbloquear' : 'bloquear'}">${u?.bloqueado ? 'Desbloquear' : 'Bloquear'}</button><button class="btn peq perigo" data-a="loginRemover" data-p="${p.id}">Remover login</button>` : ''}</div>`
@@ -237,6 +238,16 @@ const A = {
     fecharModal(); avisar('Senha alterada.');
   },
   fecharModal: () => fecharModal(),
+  calNovo: el => calForm(null, el.dataset.d || hoje(), el.dataset.p || calQuem()),
+  calAbrir: el => { const i = calItem(el.dataset.id); if (i) calForm(i); },
+  calDia: el => calDiaModal(el.dataset.d, calQuem()),
+  calSalvar: el => calSalvar(el),
+  calExcluir: el => calExcluir(el.dataset.id),
+  calIr: el => { UI.view = 'calendario'; UI.calPessoa = el.dataset.p; UI.calMes = mesDe(el.dataset.d || hoje()); fecharModal(); render(); window.scrollTo(0, 0); },
+  calPessoa: el => { UI.calPessoa = el.dataset.v; render(); },
+  calMes: el => { UI.calMes = +el.dataset.v ? addMes(UI.calMes || mesDe(hoje()), +el.dataset.v) : mesDe(hoje()); render(); },
+  calVista: el => { UI.calVista = el.dataset.v; render(); },
+  calRecarregar: () => { CAL.erro = ''; CAL.mes = ''; CAL.itens = null; render(); },
   tv: () => {
     const on = document.body.classList.toggle('tv');
     clearInterval(timerTV);
@@ -640,6 +651,8 @@ const numOuVazio = v => v === '' ? '' : Number(v);
 
 let timerBusca = null;
 const C = {
+  calStatus: el => calMudar(el.dataset.id, { status: el.value }),
+  calFeito: el => calMudar(el.dataset.id, { status: el.checked ? 'feito' : 'a_fazer' }),
   adsEtapa: el => adsEtapa(el.dataset.id, el.value).catch(e => alert(e.message)),
   bolComp: el => { const a = el.files?.[0]; if (a) bolCompEnviar(el.dataset.id, a).catch(e => alert(e.message)); el.value = ''; },
   atFotos: el => { const arqs = [...el.files]; if (arqs.length) atFotos(el.dataset.id, arqs).catch(e => avisar(e.message)); },
@@ -823,7 +836,7 @@ async function iniciar() {
   render();
   if (veExp()) carregarExp().then(render).catch(e => console.warn('expedição', e));
   // mantém atualizado: a cada 10 min recarrega pedidos e solicitações; ao voltar para a aba também
-  const atualizar = async () => { try { await Promise.all([carregarPedidos(`${addMes(mesDe(hoje()), -13)}-01`), carregarSolicitacoes(), carregarInteracoes(), carregarBonif(mesDe(hoje())), veML() && D.ml ? carregarML(true) : null, veExp() && EXP ? carregarExp(true) : null, ok(sb.from('sync_estado').select('*')).then(est => { D.sync = Object.fromEntries(est.map(x => [x.chave, { ...x.valor, em_db: x.atualizado_em }])); })]); if (!$('#modal')) render(); } catch { /* offline */ } };
+  const atualizar = async () => { try { await Promise.all([carregarPedidos(`${addMes(mesDe(hoje()), -13)}-01`), carregarSolicitacoes(), carregarInteracoes(), carregarBonif(mesDe(hoje())), veML() && D.ml ? carregarML(true) : null, veExp() && EXP ? carregarExp(true) : null, CAL.itens && CAL.mes ? carregarCal(CAL.mes) : null, ok(sb.from('sync_estado').select('*')).then(est => { D.sync = Object.fromEntries(est.map(x => [x.chave, { ...x.valor, em_db: x.atualizado_em }])); })]); if (!$('#modal')) render(); } catch { /* offline */ } };
   setInterval(atualizar, 10 * 60e3);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !document.activeElement?.matches('input,textarea,select')) atualizar(); });
   let diaAtual = hoje();
