@@ -5,7 +5,7 @@ preparar título e descrição para o Mercado Livre. Decisão dele: **lista para
 Hoje são 1.168 produtos ativos sem GTIN (~39 dias de rotina).
 
 ## O que mudou
-- Migration `cadastro_produtos_gtin`:
+- Migration `20261109211539_cadastro_produtos_gtin`:
   - `seg.gtin_valido(text)`: GTIN-8/12/13/14 com dígito verificador (usada no CHECK; `execute` para `authenticated`).
   - Tabela `produto_sugestoes` (gtin + fonte + certeza, peso bruto/líquido, A×L×C da embalagem, título/descrição ML,
     status pendente/aplicada/recusada/erro/sem_dados, resultado). RLS: só o dono lê e altera; inserir só pelo servidor.
@@ -27,7 +27,7 @@ Hoje são 1.168 produtos ativos sem GTIN (~39 dias de rotina).
 - **Sem revisão do Codex** (só o app de desktop está instalado; o Vinícius pediu para não mexer nisso agora).
 
 ## Pendente
-- Aplicar a migration e publicar a função (precisa do ok do Vinícius: o filtro do Claude Code barra deploy em produção).
+- ~~Aplicar a migration e publicar a função~~ feito em 09/11 com o ok do Vinícius (versão 20261109211539; `produto-sugestoes` v1; chamada sem login = 403).
 - Primeira aprovação real: conferir no Tiny o 1º produto gravado (a conferência automática já compara antes/depois).
 - A rotina da manhã (agendamento do Brain) grava as sugestões direto na tabela.
 
