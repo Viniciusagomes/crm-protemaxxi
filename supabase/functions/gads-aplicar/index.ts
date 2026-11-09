@@ -4,7 +4,7 @@
 //  POST {acao:"recusar", id, motivo?}
 //  POST {acao:"desfazer", id}           reverte uma ação aplicada
 // Tipos: negativa_campanha · remover_negativa · pausar_palavra · orcamento_dia · local_presenca · vincular_extensoes · telefone_chamada
-//        anuncio_textos · lance_campanha · status_campanha · campanha_pesquisa
+//        anuncio_textos · lance_campanha · status_campanha · campanha_pesquisa · programacao_horario
 // Nada aqui apaga campanhas, anúncios ou palavras: o máximo que faz é pausar/ativar uma campanha ou palavra, remover uma negativa
 // ou tirar o vínculo de uma extensão com a campanha (a extensão continua na conta).
 // Única exceção: desfazer "campanha_pesquisa" remove a campanha CRIADA POR ESSA AÇÃO, e só se ela nunca teve impressão.
@@ -195,6 +195,22 @@ async function executar(ads: Ads, a: any, teste: boolean): Promise<{ resultado: 
     return { resultado: { campanha_id: idCamp, ...resumo }, desfazer: idCamp ? { tipo: "remover_campanha_nova", campanha_id: Number(idCamp) } : null };
   }
 
+  if (a.tipo === "programacao_horario") {
+    // Anúncios só entre inicio_hora e fim_hora, todos os dias (ex.: 5 → 24 corta a madrugada). Cria 7 critérios por campanha.
+    const ini = Number(alvo.inicio_hora), fim = Number(alvo.fim_hora ?? 24);
+    if (!Number.isInteger(ini) || !Number.isInteger(fim) || ini < 0 || fim > 24 || fim - ini < 4) throw new Error("Horário inválido (horas inteiras de 0 a 24, com pelo menos 4 h de anúncio).");
+    const ids = await campanhasValidas(alvo.campanha_ids);
+    const ja = await ads.gaql(`SELECT campaign.id, campaign.name FROM campaign_criterion WHERE campaign_criterion.type = 'AD_SCHEDULE' AND campaign.id IN (${ids.join(",")})`);
+    if (ja.length) throw new Error(`Já existe programação de horário em: ${[...new Set(ja.map((x: any) => x.campaign.name))].join(", ")}. Ajuste no Google Ads ou tire essa campanha da proposta.`);
+    const dias = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
+    const ops = ids.flatMap((id) => dias.map((dayOfWeek) => ({ create: { campaign: `customers/${c}/campaigns/${id}`,
+      adSchedule: { dayOfWeek, startHour: ini, startMinute: "ZERO", endHour: fim, endMinute: "ZERO" } } })));
+    const r = await ads.mutar("campaignCriteria", { operations: ops, validateOnly });
+    const recursos = (r.results ?? []).map((x: any) => x.resourceName).filter(Boolean);
+    return { resultado: { campanhas: ids, inicio_hora: ini, fim_hora: fim, criterios: ops.length, recursos },
+      desfazer: recursos.length ? { tipo: "remover_programacao", recursos } : null };
+  }
+
   if (a.tipo === "remover_campanha_nova") {
     const id = Number(alvo.campanha_id);
     const x = (await ads.gaql(`SELECT campaign.id, campaign.status, metrics.impressions FROM campaign WHERE campaign.id = ${id}`))[0];
@@ -212,6 +228,7 @@ async function reverter(ads: Ads, d: any) {
   if (d.tipo === "remover_negativa") return executar(ads, { tipo: "remover_negativa", alvo: { recursos: d.recursos } }, false);
   if (d.tipo === "pausar_palavra" || d.tipo === "orcamento_dia" || d.tipo === "local_presenca" || d.tipo === "anuncio_textos" || d.tipo === "lance_campanha" || d.tipo === "status_campanha") return executar(ads, { tipo: d.tipo, alvo: d.alvo }, false);
   if (d.tipo === "remover_campanha_nova") return executar(ads, { tipo: "remover_campanha_nova", alvo: { campanha_id: d.campanha_id } }, false);
+  if (d.tipo === "remover_programacao") { await ads.mutar("campaignCriteria", { operations: d.recursos.map((resourceName: string) => ({ remove: resourceName })) }); return { resultado: { removidos: d.recursos.length }, desfazer: null }; }
   if (d.tipo === "remover_vinculos") { await ads.mutar("campaignAssets", { operations: d.recursos.map((resourceName: string) => ({ remove: resourceName })) }); return { resultado: { removidos: d.recursos.length }, desfazer: null }; }
   if (d.tipo === "telefone_restaurar") {
     const c = ads.cliente, ops = [...(d.novos ?? []).map((x: string) => ({ campaignAssetOperation: { remove: x } })),

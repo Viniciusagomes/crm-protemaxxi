@@ -220,6 +220,10 @@ function trDescAcao(a) {
     return `${fmt ? `Trocar o telefone da extensão de chamada para <b>${fmt}</b>` : '<b>Tirar</b> a extensão de chamada'} em ${camps.length} campanha(s): ${camps.map(esc).join(', ')}`;
   }
   if (a.tipo === 'status_campanha') return `${al.status === 'ENABLED' ? '<b class="c-ruim">ATIVAR</b> (volta a gastar o orçamento diário)' : al.status === 'PAUSED' ? '<b>PAUSAR</b> (para de gastar)' : '<b class="c-ruim">SITUAÇÃO INVÁLIDA</b> (' + esc(al.status) + '; o servidor vai recusar)'} a campanha <b>${esc(TR.d.cn[al.campanha_id] || al.campanha_id)}</b>`;
+  if (a.tipo === 'programacao_horario') {
+    const ini = +al.inicio_hora, fim = +(al.fim_hora ?? 24), h = n => String(n).padStart(2, '0') + 'h';
+    return `Anúncios só das <b>${h(ini)} às ${h(fim)}</b>, todos os dias (para de mostrar ${ini ? `de 00h às ${h(ini)}` : ''}${ini && fim < 24 ? ' e ' : ''}${fim < 24 ? `de ${h(fim)} à meia-noite` : ''}) em ${camps.length} campanha(s): ${camps.map(esc).join(', ')}`;
+  }
   if (a.tipo === 'campanha_pesquisa') {
     const n = v => Array.isArray(v) ? v.length : 0, loc = al.local && typeof al.local === 'object' ? al.local : {}, grupos = Array.isArray(al.grupos) ? al.grupos.filter(g => g && typeof g === 'object') : [];
     const pal = soma(grupos.map(g => n(g.palavras)));
