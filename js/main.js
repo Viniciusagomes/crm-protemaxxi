@@ -13,6 +13,7 @@ function menu() {
     ...(veTrafego() ? [['Marketing'], ['', 'trafego', '📣', 'Tráfego (Google Ads)', trPendentes()]] : []),
     ...(veExp() ? [['Operação'], ['', 'visaoestoque', '📋', 'Visão geral do estoque'], ['', 'expedicao', '📦', 'Expedição', EXP ? EXP.ecom.map(infoPedido).filter(x => !x.despachado && x.atrasado).length : 0], ['', 'estoque', '🏷', 'Estoque', EXP ? EXP.alertas.length : 0], ['', 'abrirTV', '📺', 'TV do estoque']] : []),
     ...(veCompras() ? [...(veExp() ? [] : [['Operação']]), ['', 'compras', '🤝', 'Compras e fornecedores', COMP.ops ? COMP.ops.filter(o => situacaoOp(o) === 'encerrada').length : 0]] : []),
+    ...(ehDono() ? [['', 'cadastroprod', '🧩', 'Cadastro de produtos', cpPendentes()]] : []),
     ['Comunicação'], ['', 'solicitacoes', '📨', 'Solicitações', minhasPendentes().length], ...(veEmails() ? [['', 'emails', '✉', 'Caixa de e-mails', EM.naoLidos]] : []), ['', 'suporte', '🔧', 'Assistência (OS)', AT.os ? AT.os.filter(o => o.status === 'pronto' || (o.previsao && o.previsao < hoje() && !['entregue', 'cancelado'].includes(o.status))).length : 0],
     ['Equipe'], ['', 'checklist', '☑', 'Checklist do dia'], ...(calPessoas().length ? [['', 'calendario', '📅', 'Calendário de marketing']] : []),
     ...(temEquipe() ? [['', 'supervisao', '👥', 'Supervisão']] : []),
@@ -28,11 +29,11 @@ function menu() {
 }
 const VIEWS_FN = {
   inicio: () => vInicio(), vendas: () => vVendas(), ml: () => vML(), trafego: () => vTrafego(), pedidos: () => vPedidos(), clientes: () => vClientes(),
-  solicitacoes: () => vIntranet(), suporte: () => vAssistencia(), expedicao: () => vExpedicao(), estoque: () => vEstoque(), visaoestoque: () => vVisaoEstoque(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(), creditos: () => vCreditos(), brindes: () => vBrindes(), crm: () => vCRM(), meudia: () => vMeuDia(), situacao: () => vSituacao(), boletos: () => vBoletos(), emails: () => vEmails(), avaliacoes: () => vAvaliacoes(), compras: () => vCompras(),
+  solicitacoes: () => vIntranet(), suporte: () => vAssistencia(), expedicao: () => vExpedicao(), estoque: () => vEstoque(), visaoestoque: () => vVisaoEstoque(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(), creditos: () => vCreditos(), brindes: () => vBrindes(), crm: () => vCRM(), meudia: () => vMeuDia(), situacao: () => vSituacao(), boletos: () => vBoletos(), emails: () => vEmails(), avaliacoes: () => vAvaliacoes(), compras: () => vCompras(), cadastroprod: () => vCadastroProd(),
   checklist: () => vChecklist(), calendario: () => vCalendario(), supervisao: () => vSupervisao(), geral: () => vGeral(), metas: () => vMetas(),
   remuneracao: () => vRemuneracao(), feedbacks: () => vFeedbacks(), config: () => vConfig(), ajuda: () => vAjuda(),
 };
-const SO_DONO = ['config', 'geral', 'logs'];
+const SO_DONO = ['config', 'geral', 'logs', 'cadastroprod'];
 
 /** Abas de cada perfil (o dono vê tudo). Vendedor: comercial + situação dos pedidos; estoque: expedição e TV;
  *  supervisor: tudo da própria área + supervisão da equipe. Remuneração, avaliações e configurações ficam só com o dono. */
@@ -269,6 +270,12 @@ const A = {
   monSelo: el => { UI.monSelo = el.dataset.v; render(); },
   monVend: el => { UI.monVend = el.dataset.v; UI.monSelo = 'todos'; render(); },
   monAtualizar: () => carregarMonitoria(true).then(render).catch(e => avisar(e.message)),
+  cpFiltro: el => { UI.cpFiltro = el.dataset.v; CP.sel.clear(); render(); },
+  cpAtualizar: () => carregarCadastroProd(true).then(render).catch(e => avisar(e.message)),
+  cpAprovar: el => cpAprovar([+el.dataset.id]).catch(e => avisar(e.message)),
+  cpRecusar: el => cpRecusar(+el.dataset.id).catch(e => avisar(e.message)),
+  cpAprovarSel: () => cpAprovar([...CP.sel]).catch(e => avisar(e.message)),
+  cpAprovarAltas: () => cpAprovar(CP.lista.filter(s => (s.status === 'pendente' || s.status === 'erro') && s.gtin_certeza === 'alta' && cpGtinValido(s.gtin)).map(s => s.id)).catch(e => avisar(e.message)),
   monRever: el => monRever(el.dataset.k, el.dataset.s).catch(e => avisar(e.message)),
   syncAgora: async () => {
     avisar('Buscando no Tiny… pode levar até 2 minutos.');
@@ -658,6 +665,8 @@ const C = {
   atFotos: el => { const arqs = [...el.files]; if (arqs.length) atFotos(el.dataset.id, arqs).catch(e => avisar(e.message)); },
   crmEtapa: el => crmMover(el.dataset.id, el.value).then(() => crmAbrir(el.dataset.id)).catch(e => avisar(e.message)),
   monRevTodos: el => { UI.monRev = el.checked ? 'todos' : ''; render(); },
+  cpCampo: el => cpCampo(el),
+  cpSel: el => { el.checked ? CP.sel.add(+el.dataset.id) : CP.sel.delete(+el.dataset.id); render(); },
   ui: el => { UI[el.dataset.k] = el.value; if (el.type === 'search') { clearTimeout(timerBusca); timerBusca = setTimeout(render, 150); } else render(); },
   chk: el => { const r = reg(el.dataset.p, el.dataset.d, true); if (el.checked) r.checks[el.dataset.t] = true; else delete r.checks[el.dataset.t]; marcar('dia', el.dataset.p, el.dataset.d); render(); },
   chkS: el => { const s = semReg(el.dataset.p, el.dataset.s, true); if (el.checked) s[el.dataset.t] = true; else delete s[el.dataset.t]; marcar('sem', el.dataset.p, el.dataset.s); render(); },
