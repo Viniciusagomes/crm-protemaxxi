@@ -26,7 +26,15 @@
 ## Ficou de fora
 - Revisão do Codex: o Codex do PC novo é o app da loja, sem o comando `codex` no terminal. **Entrega sem revisão cruzada.**
 - Situação da ordem no Tiny (atendida/cancelada) não é relida; a Entrada de NF segue como hoje.
-- O nome do arquivo da migration troca de `VERSAO_` para a versão remota quando for aplicada.
+- ~~O nome do arquivo da migration troca de `VERSAO_` para a versão remota quando for aplicada.~~ Feito.
+
+## Publicação (11/11/2026)
+- Migration aplicada no banco como `20261111190853_compras_ordem_tiny` (arquivo renomeado). Antes de aplicar, conferi que
+  `op_vencedor`, `forn_portal` e `forn_oportunidade` no banco eram idênticas à base desta mudança (nada de outra entrega sobrescrito).
+- Conferido depois: 9 colunas `oc_*`, gatilho `oc_trava`, `forn_pedido_json` sem execute para anon, `forn_pedido_confirmar` com execute para anon.
+- Edge Function `compras-oc` publicada (v1) igual à cópia deste PR.
+- Merge feito a pedido do Vinícius ("autorizo acesso total"). O check "Workers Builds" da Cloudflare falha em todos os PRs
+  (inclusive os já publicados) — é a prévia de branch, não bloqueia o deploy da `main`.
 
 ## Para o Codex
 - Se mexer em `oportunidades` pelo site, lembre do gatilho `oc_trava`: os campos `oc_*` só mudam pela função `compras-oc`.
