@@ -44,3 +44,16 @@ passo a passo da Meta para o Vinícius: `projetos/WHATSAPP-META-PASSO-A-PASSO.md
 ## Para o Codex
 - `atendimento.js` usa globais com prefixo `WA`/`wa`. Não criar nomes com esse prefixo em outros arquivos.
 - Conflito esperado com o PR #25 só em `index.html` e `main.js` (versões `?v=`): ao rebasear, manter as duas mudanças.
+
+## Publicação (11/11/2026)
+- Branch atualizada com a `main` (conflito só nas versões do `index.html`: mantidos `compras.js?v=20261110a` do #25 e
+  `atendimento.js`; `main.js` juntou as duas mudanças e subiu para `?v=20261111a`). 23/23 testes ok.
+- Antes de aplicar: conferidas todas as dependências (seg.fone_norm/minha_permissao/pessoas_visiveis/minha_pessoa,
+  privado.segredos, colunas de cliente_telefones/pessoas/clientes/pedidos) e que nenhum objeto `wa_*` existia.
+- Migration aplicada como `20261111204044_whatsapp_fase1` (arquivo renomeado). Conferido: 3 tabelas, 13 funções `wa_*`,
+  bucket `whatsapp`, segredo `wa_verify`, Realtime nas 2 tabelas; `wa_entrada` sem execute para anon/authenticated.
+- Edge Functions publicadas (v1) iguais às cópias: `whatsapp-webhook` (verify_jwt false) e `whatsapp-enviar` (verify_jwt true).
+- Teste de fumaça do webhook (sem gravar nada): GET com token errado → 403; POST sem assinatura → 401; assinatura falsa → 401.
+- **Falta para funcionar de verdade:** secrets `META_APP_SECRET` e `META_WA_TOKEN` no Supabase e os IDs em ⚙ Configurar
+  (depende do app da Meta que o Vinícius está criando). Sem eles o envio responde "ainda não está configurado".
+- Merge feito a pedido do Vinícius ("autorizo acesso total"), sem revisão do Codex (CLI fora do PC novo).
