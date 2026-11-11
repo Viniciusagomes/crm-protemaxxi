@@ -13,7 +13,7 @@ async function scenario(mailConfig,person){
   const main=fs.readFileSync(path.join(repo,'js/main.js'),'utf8');
   const start=main.indexOf('function abasDoPerfil()');
   const end=main.indexOf('function render()',start);
-  vm.runInContext('globalThis.veML=()=>false;globalThis.veTrafego=()=>false;globalThis.veExp=()=>false;globalThis.veCompras=()=>false;globalThis.veMonitoria=()=>false;globalThis.calPessoas=()=>[];'+main.slice(start,end),ctx);
+  vm.runInContext('globalThis.veML=()=>false;globalThis.veTrafego=()=>false;globalThis.veExp=()=>false;globalThis.veCompras=()=>false;globalThis.veAtendimento=()=>false;globalThis.veMonitoria=()=>false;globalThis.calPessoas=()=>[];'+main.slice(start,end),ctx);
   return JSON.parse(vm.runInContext('JSON.stringify({menu:veEmails(),route:podeAba("emails"),boxes:emCaixasMinhas(),config:D.config.caixa_emails})',ctx));
 }
 (async()=>{
