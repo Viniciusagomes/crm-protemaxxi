@@ -414,6 +414,8 @@ const A = {
   compStatusOp: el => mudarStatusOp(el.dataset.id, el.dataset.v),
   compPrazoOp: el => prorrogarOp(el.dataset.id),
   compVencedor: el => escolherVencedor(el.dataset.op, el.dataset.p),
+  compGerarOC: el => gerarOrdemCompra(el.dataset.op, el),
+  compCodItem: el => codigoItemOC(el.dataset.id, el.dataset.op),
   compAddConv: async el => { const f = +$('#opAddForn')?.value; if (!f) return avisar('Escolha o fornecedor.'); try { await ok(sb.from('op_fornecedores').insert({ oportunidade_id: +el.dataset.op, fornecedor_id: f, convidado_por: EU.id })); await carregarCompras(true); verOportunidade(el.dataset.op); } catch (e) { avisar(e.message); } },
   compTirarConv: async el => { try { await ok(sb.from('op_fornecedores').delete().eq('oportunidade_id', +el.dataset.op).eq('fornecedor_id', +el.dataset.f)); await carregarCompras(true); verOportunidade(el.dataset.op); } catch (e) { avisar(e.message); } },
   compCopiar: el => copiarTexto(el.dataset.v),
