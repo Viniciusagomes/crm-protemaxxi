@@ -2,7 +2,7 @@
 /* Intranet Protemaxxi — Compras e Portal do fornecedor (Fase 8).
    A equipe de compras publica uma oportunidade (itens vindos da cotação), convida fornecedores pelo link do portal
    (fornecedor.html) e compara as propostas lado a lado. Cada fornecedor só vê a própria proposta (regras no banco: forn_*).
-   A ordem de compra no Tiny fica só preparada: o botão fica desligado até o Vinícius aprovar a integração. */
+   Com o vencedor escolhido, o dono gera a ordem de compra no Tiny (Edge Function compras-oc); o número aparece aqui e no portal do vencedor. */
 
 const COMP = { ops: null, itens: [], conv: [], props: [], pitens: [], forn: [], convites: [], carregando: false, em: 0 };
 const ST_OP = { rascunho: ['📝 Rascunho', ''], aberta: ['🟢 Recebendo propostas', 'ok'], encerrada: ['⏹ Prazo encerrado', 'med'], concluida: ['🏆 Vencedor escolhido', 'azul'], cancelada: ['🚫 Cancelada', 'ruim'] };
@@ -214,21 +214,55 @@ function comparativo(o, its, env, st) {
     <tr><td class="mut">Pagamento</td>${cols.map(c => `<td class="dir"><small>${esc(c.p.pagamento || '—')}</small></td>`).join('')}</tr>
     <tr><td class="mut">Validade</td>${cols.map(c => `<td class="dir"><small>${c.p.validade ? fmtCurta(c.p.validade) : '—'}</small></td>`).join('')}</tr>
     ${cols.some(c => c.p.obs) ? `<tr><td class="mut">Observações</td>${cols.map(c => `<td class="dir"><small>${esc(c.p.obs || '')}</small></td>`).join('')}</tr>` : ''}
-    <tr><td></td>${cols.map(c => `<td class="dir">${decidir ? `<button class="btn peq pri" data-a="compVencedor" data-op="${o.id}" data-p="${c.p.id}">🏆 Escolher</button>` : c.p.vencedora && st === 'concluida' ? `<button class="btn peq" data-a="compVencedor" data-op="${o.id}" data-p="">Desfazer escolha</button>` : ''}</td>`).join('')}</tr>
+    <tr><td></td>${cols.map(c => `<td class="dir">${decidir ? `<button class="btn peq pri" data-a="compVencedor" data-op="${o.id}" data-p="${c.p.id}">🏆 Escolher</button>` : c.p.vencedora && st === 'concluida' && !['criada', 'enviando'].includes(o.oc_status) ? `<button class="btn peq" data-a="compVencedor" data-op="${o.id}" data-p="">Desfazer escolha</button>` : ''}</td>`).join('')}</tr>
     </tbody></table></div><p class="mut" style="font-size:12.5px">Verde = melhor preço do item, menor total (só entre quem cotou todos os itens) e menor prazo.</p>`;
 }
-/** Prévia da ordem de compra no Tiny: só preparada, o envio depende da aprovação do Vinícius. */
+/** Ordem de compra no Tiny: prévia + botão (só o dono gera). Depois de gerada mostra número, previsão e se o fornecedor confirmou. */
 function blocoOrdemCompra(o, its, p) {
   if (!p) return '';
   const f = fornDe(p.fornecedor_id) || {}, pis = COMP.pitens.filter(x => x.proposta_id === p.id), t = totaisProposta(p);
   const linhas = its.map(i => ({ i, x: pis.find(y => y.item_id === i.id) })).filter(({ x }) => x?.disponivel && +x.preco_unit > 0);
-  return `<div class="card mt"><div class="secao-titulo"><h2>📄 Ordem de compra (prévia)</h2><small>vencedor: <b>${esc(f.nome || '')}</b> · ${fmtDoc(f.cnpj)}</small></div>
+  const semCod = linhas.filter(({ i }) => !i.produto_codigo).length;
+  return `<div class="card mt"><div class="secao-titulo"><h2>📄 Ordem de compra${o.oc_status === 'criada' ? ` nº ${esc(o.oc_numero || '')}` : ' (prévia)'}</h2><small>vencedor: <b>${esc(f.nome || '')}</b> · ${fmtDoc(f.cnpj)}</small></div>
     <table class="tabela"><thead><tr><th>Item</th><th>Código</th><th class="dir">Qtd</th><th class="dir">Preço un.</th><th class="dir">Subtotal</th></tr></thead><tbody>
-      ${linhas.map(({ i, x }) => `<tr><td>${esc(i.descricao)}</td><td><small>${esc(i.produto_codigo || '—')}</small></td><td class="dir">${N(+i.quantidade)}</td><td class="dir">${R(x.preco_unit)}</td><td class="dir">${R(x.preco_unit * i.quantidade)}</td></tr>`).join('')}
+      ${linhas.map(({ i, x }) => `<tr><td>${esc(i.descricao)}</td><td><small>${i.produto_codigo ? esc(i.produto_codigo) : o.oc_status === 'criada' || !ehDono() ? '<span class="c-ruim">sem código</span>' : `<input id="ocCod${i.id}" placeholder="SKU do Tiny" style="width:110px"> <button class="btn peq" data-a="compCodItem" data-id="${i.id}" data-op="${o.id}">OK</button>`}</small></td><td class="dir">${N(+i.quantidade)}</td><td class="dir">${R(x.preco_unit)}</td><td class="dir">${R(x.preco_unit * i.quantidade)}</td></tr>`).join('')}
       <tr><td colspan="4" class="dir mut">Frete</td><td class="dir">${R(t.frete)}</td></tr><tr class="total"><td colspan="4" class="dir"><b>Total</b></td><td class="dir"><b>${R(t.total)}</b></td></tr></tbody></table>
-    <p class="mut">Entrega em ${p.prazo_entrega_dias ?? '—'} dia(s) · Pagamento: ${esc(p.pagamento || o.pagamento || '—')}${t.cotados < t.itens ? ` · <span class="c-med">${t.itens - t.cotados} item(ns) sem cotação deste fornecedor</span>` : ''}</p>
-    <div class="acoes"><button class="btn pri" disabled title="A integração com o Tiny está pronta para ser ligada depois da aprovação do Vinícius">📤 Gerar ordem de compra no Tiny</button><small class="mut">⏳ aguardando aprovação do Vinícius</small></div>
-    <p class="explica mt">Quando ligado, este botão cria a ordem de compra no Tiny (API v3) com o fornecedor, os itens e o frete acima. Quando a NF chegar, a <b>Entrada de NF</b> confere e lança o estoque.</p></div>`;
+    <p class="mut">Entrega em ${p.prazo_entrega_dias ?? '—'} dia(s) · Pagamento: ${esc(p.pagamento || o.pagamento || '—')}${t.cotados < t.itens ? ` · <span class="c-med">${t.itens - t.cotados} item(ns) sem cotação deste fornecedor (ficam fora da ordem)</span>` : ''}</p>
+    ${situacaoOC(o, semCod)}</div>`;
+}
+function situacaoOC(o, semCod) {
+  if (o.oc_status === 'criada') return `<div class="aviso">✅ Ordem nº <b>${esc(o.oc_numero || '')}</b> gerada no Tiny em ${dtHoraOp(o.oc_em)}${o.oc_por ? ' por ' + esc(nomeP(o.oc_por)) : ''}${o.oc_previsao ? ` · entrega prevista ${fmtCurta(o.oc_previsao)}` : ''}.<br>
+      ${o.oc_confirmada_em ? `📬 O fornecedor confirmou o recebimento em ${dtHoraOp(o.oc_confirmada_em)}.` : '⏳ O pedido já aparece no portal do fornecedor; aguardando ele confirmar.'}</div>
+    <p class="explica mt">Quando a NF chegar, a <b>Entrada de NF</b> confere e lança o estoque.</p>`;
+  const travada = o.oc_status === 'enviando' && Date.now() - new Date(o.oc_em) < 10 * 60e3;
+  const aviso = o.oc_status === 'erro' ? `<div class="aviso ruim mt">⚠ Última tentativa: ${esc(o.oc_erro || 'erro')}</div>`
+    : o.oc_status === 'enviando' ? `<div class="aviso med mt">⏳ Uma tentativa ficou sem resposta em ${dtHoraOp(o.oc_em)}. ${travada ? 'Espere 10 minutos.' : '<b>Confira no Tiny</b> se a ordem não foi criada antes de tentar de novo.'}</div>` : '';
+  if (!ehDono()) return `${aviso}<p class="mut">⏳ A ordem de compra no Tiny é gerada pelo administrador.</p>`;
+  return `${aviso}${semCod ? `<p class="c-ruim">Digite o código (SKU) do Tiny nos ${semCod} item(ns) sem código antes de gerar.</p>` : ''}
+    <div class="acoes"><button class="btn pri" data-a="compGerarOC" data-op="${o.id}" ${semCod || travada ? 'disabled' : ''}>📤 Gerar ordem de compra no Tiny</button></div>
+    <p class="explica mt">Cria a ordem no Tiny com o fornecedor, os itens, o frete e a previsão de entrega acima. Depois disso o vencedor não pode mais ser trocado, e o fornecedor vê o pedido no portal.</p>`;
+}
+async function codigoItemOC(itemId, op) {
+  const cod = ($('#ocCod' + itemId)?.value || '').trim().toUpperCase(); if (!cod) return avisar('Digite o código do produto no Tiny.');
+  try {
+    const pr = await ok(sb.from('produtos').select('codigo, nome').eq('codigo', cod).limit(1));
+    if (!pr.length) return avisar(`O código ${cod} não existe no Tiny (confira o SKU).`);
+    if (!confirm(`Ligar este item a ${pr[0].codigo} — ${pr[0].nome}?`)) return;
+    const it = await ok(sb.from('op_itens').update({ produto_codigo: pr[0].codigo }).eq('id', +itemId).select().single());
+    Object.assign(COMP.itens.find(x => x.id === it.id) || {}, it); verOportunidade(op);
+  } catch (e) { avisar(e.message); }
+}
+async function gerarOrdemCompra(op, btn) {
+  const o = COMP.ops.find(x => x.id === +op); if (!o) return;
+  if (!confirm(`Gerar a ordem de compra de "${o.titulo}" no Tiny? Ela é criada de verdade no Tiny.`)) return;
+  if (btn) btn.disabled = true;
+  try {
+    const { data, error } = await sb.functions.invoke('compras-oc', { body: { acao: 'gerar', op: o.id } });
+    let m = data?.erro; if (error && !m) { try { m = (await error.context?.json())?.erro; } catch { /* sem detalhe */ } }
+    if (error || !data?.ok) throw new Error(m || error?.message || 'Não foi possível gerar a ordem.');
+    avisar(`Ordem nº ${data.numero} gerada no Tiny.`);
+  } catch (e) { avisar(e.message); }
+  await carregarCompras(true); render(); verOportunidade(o.id);
 }
 
 // ─── fornecedores e convites ───

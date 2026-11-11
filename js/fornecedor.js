@@ -87,7 +87,7 @@
     if (irPara) return telaOp(irPara);
     el.oninput = el.onchange = null;
     const ops = data.oportunidades || [], abertas = ops.filter(o => o.aberta), outras = ops.filter(o => !o.aberta);
-    const linha = o => { const [n, c] = o.vencedora ? ['🏆 Sua proposta venceu', 'ok'] : SIT[o.situacao] || ['', ''];
+    const linha = o => { const [n, c] = o.pedido ? [`📦 Pedido nº ${o.pedido.numero}${o.pedido.confirmado_em ? '' : ' · confirme'}`, o.pedido.confirmado_em ? 'ok' : 'med'] : o.vencedora ? ['🏆 Sua proposta venceu', 'ok'] : SIT[o.situacao] || ['', ''];
       return `<div class="op" data-op="${o.id}"><div><b>${esc(o.titulo)}</b><br><small class="mut">${o.itens} item(ns)${o.prazo_resposta ? ' · responder até ' + dh(o.prazo_resposta) : ''}</small></div>
         <div style="text-align:right"><span class="tag ${c}">${n}</span><br><small class="mut">${o.proposta === 'enviada' ? '✓ proposta enviada' : o.proposta === 'rascunho' ? 'rascunho salvo' : o.aberta ? 'aguardando sua proposta' : ''}</small></div></div>`; };
     el.innerHTML = `<div class="card"><h2>Abertas (${abertas.length})</h2>${abertas.map(linha).join('') || '<p class="mut">Nenhuma cotação aberta para você agora.</p>'}</div>
@@ -112,7 +112,10 @@
     OP = o; history.replaceState(null, '', TOKEN ? `?t=${TOKEN}&o=${o.id}` : `?o=${o.id}`);
     const p = o.proposta || {}, pi = Object.fromEntries((p.itens || []).map(x => [x.item_id, x])), ed = o.aberta;
     const [sn, sc] = SIT[o.situacao] || ['', ''];
-    const status = o.situacao === 'concluida' ? (p.vencedora ? '<div class="aviso">🏆 Sua proposta foi a escolhida! A equipe de compras vai entrar em contato com o pedido.</div>' : p.status === 'enviada' ? '<div class="aviso med">Esta cotação foi encerrada e desta vez escolhemos outra proposta. Obrigado por participar!</div>' : '<div class="aviso med">Esta cotação foi encerrada.</div>')
+    const dt = s => s ? s.split('-').reverse().join('/') : '';
+    const ped = o.pedido, blocoPedido = ped ? `<div class="aviso">📦 <b>Pedido de compra nº ${esc(ped.numero)}</b> emitido em ${dh(ped.emitido_em)}. Total ${R(ped.total)}${ped.previsao ? ` · entrega prevista até <b>${dt(ped.previsao)}</b>` : ''}.<br>
+        ${ped.confirmado_em ? `✓ Você confirmou o recebimento em ${dh(ped.confirmado_em)}.` : 'Os itens e preços são os da sua proposta abaixo. <button class="btn pri" id="pConfirmar" style="margin-top:8px">Confirmar recebimento do pedido</button>'}</div>` : '';
+    const status = o.situacao === 'concluida' ? (ped ? blocoPedido : p.vencedora ? '<div class="aviso">🏆 Sua proposta foi a escolhida! A equipe de compras vai gerar o pedido e ele aparece aqui.</div>' : p.status === 'enviada' ? '<div class="aviso med">Esta cotação foi encerrada e desta vez escolhemos outra proposta. Obrigado por participar!</div>' : '<div class="aviso med">Esta cotação foi encerrada.</div>')
       : o.situacao === 'cancelada' ? '<div class="aviso ruim">Esta cotação foi cancelada pela loja.</div>'
       : !ed ? '<div class="aviso med">O prazo para responder terminou.</div>'
       : p.status === 'enviada' ? `<div class="aviso">✓ Proposta enviada em ${dh(p.enviada_em)}. Você pode alterar e reenviar até ${dh(o.prazo_resposta)}.</div>` : '';
@@ -143,6 +146,12 @@
     };
     el.oninput = el.onchange = recalcular; recalcular();
     if (ed) { $('#pRasc').onclick = () => salvar(false); $('#pEnviar').onclick = () => salvar(true); }
+    if ($('#pConfirmar')) $('#pConfirmar').onclick = async () => {
+      const b = $('#pConfirmar'); b.disabled = true;
+      const { data: r, error: e } = await sb.rpc('forn_pedido_confirmar', { p_token: TOKEN, p_op: o.id });
+      if (e || !r?.ok) { b.disabled = false; return alert('Não foi possível confirmar agora. Tente de novo.'); }
+      await telaOp(o.id);
+    };
   }
   async function salvar(enviar) {
     const itens = [...el.querySelectorAll('tr[data-item]')].map(tr => ({ item_id: +tr.dataset.item, preco_unit: num(tr.querySelector('.preco').value), disponivel: tr.querySelector('.tem').checked, marca_modelo: tr.querySelector('.marca').value.trim() || null }));
