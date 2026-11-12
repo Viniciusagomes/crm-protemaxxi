@@ -5,7 +5,7 @@
    Quem vê: o dono e quem tem a permissão "Atendimento WhatsApp" (conversas sem dono, as suas e as da sua equipe).
    Os botões desta tela usam data-wa (ouvinte próprio no fim do arquivo), para não depender da ordem dos scripts. */
 
-const WA = { conv: null, msgs: {}, resp: [], aberta: null, aba: 'minhas', busca: '', carregando: false, canal: null, ficha: {}, urls: {}, cfg: null, info: null };
+const WA = { conv: null, msgs: {}, resp: [], aberta: null, aba: 'minhas', busca: '', carregando: false, canal: null, ficha: {}, urls: {}, cfg: null, info: null, equipe: null, hor: [] };
 const veAtendimento = () => ehDono() || !!EU?.permissoes?.atendimento;
 const waNaoLidas = () => (WA.conv || []).filter(c => c.status === 'aberta' && (c.responsavel === EU.id || !c.responsavel)).reduce((s, c) => s + (c.nao_lidas || 0), 0);
 const waFone = t => { const d = String(t || '').replace(/\D/g, '').replace(/^55/, ''); return d.length === 11 ? `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}` : d.length === 10 ? `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}` : t || ''; };
@@ -13,17 +13,33 @@ const waHora = s => { if (!s) return ''; const d = new Date(s), h = new Date(); 
 const waNome = c => c.nome_perfil || waFone(c.telefone || c.wa_id);
 const waJanela = c => !!c.ultima_entrada_em && Date.now() - new Date(c.ultima_entrada_em) < 24 * 3600e3;
 const WA_STATUS = { enviando: '🕓', enviada: '✓', entregue: '✓✓', lida: '<span style="color:#34B7F1">✓✓</span>', falhou: '⚠️' };
+// Fase 2 — expediente: mesmas regras de seg.wa_disponivel (trabalhando + sinal da tela do WhatsApp nos últimos 3 min + sem bloqueio).
+const WA_DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const waEu = () => WA.equipe?.find(a => a.pessoa === EU?.id);
+const waBloq = a => !!a?.bloqueado_ate && new Date(a.bloqueado_ate) > Date.now();
+const waDisp = (pid, agora = Date.now()) => {
+  const a = WA.equipe?.find(x => x.pessoa === pid), lim = agora - 3 * 60e3;
+  return !!a && a.estado === 'trabalhando' && new Date(a.visto_em || 0) > lim && new Date(a.tela_em || 0) > lim && !(a.bloqueado_ate && new Date(a.bloqueado_ate) > agora);
+};
+/** Perfil de atendimento (mesma regra da função whatsapp-enviar): o cadastrado, ou "Nome - Setor". */
+const waAssinatura = pid => {
+  const a = WA.equipe?.find(x => x.pessoa === pid);
+  return (a?.assinatura || '').trim() || `${nomeP(pid)} - ${(a?.setores || [])[0] === 'suporte' ? 'Suporte Técnico' : 'Vendas'}`;
+};
+const waDataHora = s => new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 async function carregarWA(forcar) {
   if (WA.carregando || (!forcar && WA.conv)) return;
   WA.carregando = true;
   try {
-    const [conv, resp, cfg] = await Promise.all([
+    const [conv, resp, cfg, equipe, hor] = await Promise.all([
       ok(sb.from('wa_conversas').select('*').order('ultima_msg_em', { ascending: false, nullsFirst: false }).limit(500)),
       ok(sb.from('wa_respostas').select('*').order('atalho')),
       ok(sb.from('config').select('valor').eq('chave', 'whatsapp').maybeSingle()),
+      ok(sb.from('wa_atendentes').select('*')),
+      ok(sb.from('wa_horarios').select('*').order('dia').order('inicio')),
     ]);
-    Object.assign(WA, { conv, resp, cfg: cfg?.valor || {} });
+    Object.assign(WA, { conv, resp, cfg: cfg?.valor || {}, equipe, hor });
     waTempoReal();
   } finally { WA.carregando = false; }
 }
@@ -51,6 +67,7 @@ function waTempoReal() {
       if (ev.eventType === 'INSERT' && m.direcao === 'entrada') waAvisar(m);
       if (WA.aberta === m.conversa_id && UI.view === 'atendimento') { waDesenharMsgs(); if (m.direcao === 'entrada' && document.hasFocus()) sb.rpc('wa_lida', { p_id: m.conversa_id }); }
     })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'wa_atendentes' }, ev => { if (ev.new?.pessoa) waEquipeSet(ev.new); })
     .subscribe();
 }
 function waAvisar(m) {
@@ -70,16 +87,99 @@ function waAtualizar() {
   if (UI.view !== 'atendimento') return;
   const l = $('#waLista'); if (l) l.innerHTML = waListaHtml();
   const cab = $('#waCab'); if (cab && WA.aberta) cab.innerHTML = waCabHtml(WA.conv.find(c => c.id === WA.aberta));
+  const exp = $('#waExp'); if (exp) exp.innerHTML = waExpHtml();
+}
+
+// ─── expediente: botões, sinal de presença (30 s) e avisos ───
+function waEquipeSet(a) {
+  if (!a?.pessoa) return;
+  WA.equipe ||= [];
+  const i = WA.equipe.findIndex(x => x.pessoa === a.pessoa); if (i >= 0) WA.equipe[i] = a; else WA.equipe.push(a);
+  if (a.pessoa === EU?.id) waMostrarAviso(a);
+  waAtualizar();
+}
+function waExpHtml() {
+  const a = waEu() || { estado: 'fora' }, desde = a.desde ? ` desde ${waHora(a.desde)}` : '';
+  const st = a.estado === 'trabalhando' ? `<span class="tag ok">🟢 Em expediente${desde}</span>` : a.estado === 'almoco' ? `<span class="tag med">🍽 Em almoço${desde}</span>` : '<span class="tag">⚪ Fora do expediente</span>';
+  const bts = a.estado === 'fora' ? '<button class="btn pri" data-wa="exp" data-v="inicio">▶ Iniciar expediente</button>'
+    : a.estado === 'trabalhando' ? '<button class="btn" data-wa="exp" data-v="almoco">🍽 Almoço</button><button class="btn" data-wa="exp" data-v="fim">⏹ Finalizar expediente</button>'
+    : '<button class="btn pri" data-wa="exp" data-v="retorno">↩ Retornar do almoço</button><button class="btn" data-wa="exp" data-v="fim">⏹ Finalizar expediente</button>';
+  const bloq = waBloq(a) ? `<div class="c-ruim mt">⛔ Bloqueado para conversas novas até <b>${waDataHora(a.bloqueado_ate)}</b>.</div>` : '';
+  const faltas = a.faltas ? ` <small class="mut">· avisos: ${a.faltas}/2</small>` : '';
+  const dica = a.estado === 'trabalhando' && !waBloq(a) ? '<small class="mut">Você recebe conversas novas enquanto esta tela estiver aberta.</small>' : a.estado === 'fora' ? '<small class="mut">Inicie o expediente para receber conversas novas.</small>' : '';
+  return `<div class="acoes" style="margin:0;align-items:center">${st}${faltas} ${bts} ${dica}</div>${bloq}
+    <small class="mut">Suas mensagens saem com <b>${esc(waAssinatura(EU?.id))}</b> em cima.</small>`;
+}
+async function waExpAcao(acao) {
+  if (acao === 'fim' && !confirm('Finalizar o expediente? Você para de receber conversas novas.')) return;
+  try { waEquipeSet(await ok(sb.rpc('wa_expediente', { p_acao: acao, p_tela: UI.view === 'atendimento' }))); } catch (e) { avisar(e.message); }
+}
+/** Sinal de presença: só para quem está em expediente. Sem ele por 5 min estando "trabalhando" conta como saída sem botão. */
+async function waPing() {
+  if (typeof EU === 'undefined' || !EU || !veAtendimento()) return;
+  try {
+    if (!WA.equipe) WA.equipe = await ok(sb.from('wa_atendentes').select('*'));
+    const a = waEu();
+    if (a?.aviso) waMostrarAviso(a);
+    if (!a || a.estado === 'fora') return;
+    waEquipeSet(await ok(sb.rpc('wa_expediente', { p_acao: 'ping', p_tela: UI.view === 'atendimento' && !document.hidden })));
+  } catch { /* sem rede: tenta no próximo */ }
+}
+function waMostrarAviso(a) {
+  if (!a?.aviso || WA.avisoVisto === a.aviso_em) return;
+  WA.avisoVisto = a.aviso_em;
+  modal(`<h2>⚠ Expediente do WhatsApp</h2><p>${esc(a.aviso)}</p><div class="acoes mt"><button class="btn pri" data-wa="avisoOk">Entendi</button></div>`);
+}
+
+// ─── dono: equipe (setores, avisos, bloqueio) e horários de atendimento ───
+async function waEquipe() {
+  let log = [];
+  try {
+    [WA.equipe, WA.hor, log] = await Promise.all([ok(sb.from('wa_atendentes').select('*')), ok(sb.from('wa_horarios').select('*').order('dia').order('inicio')),
+      ok(sb.from('wa_expediente_log').select('*').order('em', { ascending: false }).limit(30))]);
+  } catch (e) { return avisar(e.message); }
+  const quem = D.pessoas.filter(p => p.ativo && (p.permissoes?.atendimento || WA.equipe.some(a => a.pessoa === p.id)));
+  const linha = p => {
+    const a = WA.equipe.find(x => x.pessoa === p.id) || { estado: 'fora', setores: [], faltas: 0 };
+    const sit = waBloq(a) ? `<span class="tag ruim">⛔ bloqueado até ${waDataHora(a.bloqueado_ate)}</span>` : waDisp(p.id) ? '<span class="tag ok">🟢 disponível</span>'
+      : a.estado === 'almoco' ? '<span class="tag med">🍽 almoço</span>' : a.estado === 'trabalhando' ? '<span class="tag med">em expediente, fora da tela</span>' : '<span class="tag">⚪ fora</span>';
+    const hs = WA.hor.filter(h => h.pessoa === p.id).map(h => `<span class="chip">${WA_DIAS[h.dia]} ${h.inicio.slice(0, 5)}–${h.fim.slice(0, 5)} <a href="#" data-wa="horApagar" data-id="${h.id}" title="Remover">✕</a></span>`).join(' ');
+    return `<tr><td><b>${esc(p.nome)}</b>${p.permissoes?.atendimento || p.papel === 'dono' ? '' : '<br><small class="c-ruim">sem permissão Atendimento WhatsApp</small>'}
+        <br><input data-wa-assin="${p.id}" maxlength="60" value="${esc(a.assinatura || '')}" placeholder="${esc(waAssinatura(p.id))}" title="Perfil: nome que aparece em cima das mensagens" style="width:190px;margin-top:4px"></td><td>${sit}</td>
+      <td>${['vendas', 'suporte'].map(s => `<label style="white-space:nowrap"><input type="checkbox" data-wa-setor="${p.id}" value="${s}" ${(a.setores || []).includes(s) ? 'checked' : ''}> ${s === 'vendas' ? 'Vendas' : 'Suporte'}</label>`).join('<br>')}</td>
+      <td>${a.faltas || 0}/2${waBloq(a) || a.faltas ? ` <button class="btn peq" data-wa="desbloquear" data-p="${p.id}">Zerar${waBloq(a) ? ' e desbloquear' : ''}</button>` : ''}</td><td>${hs || '<small class="mut">—</small>'}</td></tr>`;
+  };
+  modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>👥 Equipe do WhatsApp</h2>
+    <p class="explica">Recebe conversa nova quem está <b>em expediente com a tela do WhatsApp aberta</b>, no setor marcado e sem bloqueio. Cliente que já comprou vai primeiro para o vendedor dele no Tiny.
+      Sair sem apertar <b>Almoço</b> ou <b>Finalizar</b>: 1º aviso, 2º aviso final, 3º bloqueio de 3 dias.</p>
+    <p class="explica">Embaixo do nome fica o <b>perfil de atendimento</b>: o que aparece em negrito em cima de cada mensagem (vazio = "Nome - Setor").</p>
+    <table class="tabela"><thead><tr><th>Pessoa / perfil</th><th>Agora</th><th>Setores</th><th>Avisos</th><th>Horário de atendimento</th></tr></thead><tbody>${quem.map(linha).join('') || '<tr><td colspan="5" class="mut">Ninguém com a permissão Atendimento WhatsApp (Configurações › colaborador).</td></tr>'}</tbody></table>
+    <h3 class="mt2">Adicionar horário</h3>
+    <div class="acoes"><select id="waHPes">${quem.map(p => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select>
+      <select id="waHDia">${WA_DIAS.map((d, i) => `<option value="${i}" ${i === 1 ? 'selected' : ''}>${d}</option>`).join('')}</select>
+      <input type="time" id="waHIni" value="08:00"> até <input type="time" id="waHFim" value="18:00">
+      <label><input type="checkbox" id="waHSemana"> Seg a Sex</label>
+      <button class="btn pri" data-wa="horAdd">Adicionar</button></div>
+    <p class="explica">O horário é informativo: o bot vai mostrá-lo ao cliente (fase 3). Quem decide a distribuição é o expediente.</p>
+    <h3 class="mt2">Últimos registros</h3>
+    <table class="tabela"><tbody>${log.map(l => `<tr><td><small>${waDataHora(l.em)}</small></td><td>${esc(nomeP(l.pessoa))}</td><td>${esc({ inicio: 'iniciou o expediente', almoco: 'saiu para almoço', retorno: 'voltou do almoço', fim: 'finalizou o expediente', falha: '⚠ saída sem botão', bloqueio: '⛔ bloqueado', desbloqueio: 'desbloqueado' }[l.evento] || l.evento)}${l.detalhe ? ` <small class="mut">${esc(l.detalhe)}</small>` : ''}</td></tr>`).join('') || '<tr><td class="mut">Nada ainda.</td></tr>'}</tbody></table>`, true);
+}
+async function waHorAdd() {
+  const pessoa = $('#waHPes')?.value, ini = $('#waHIni').value, fim = $('#waHFim').value;
+  if (!pessoa || !ini || !fim || fim <= ini) return avisar('Confira a pessoa e o horário (o fim precisa ser depois do início).');
+  const dias = $('#waHSemana').checked ? [1, 2, 3, 4, 5] : [+$('#waHDia').value];
+  try { await ok(sb.from('wa_horarios').insert(dias.map(dia => ({ pessoa, dia, inicio: ini, fim })))); waEquipe(); } catch (e) { avisar(e.message); }
 }
 
 // ─── tela ───
 function vAtendimento() {
   if (!WA.conv) { if (!WA.carregando) carregarWA().then(render).catch(e => avisar(e.message)); return topo('Atendimento WhatsApp', '') + '<div class="card vazio">Carregando…</div>'; }
   const semConfig = !WA.cfg?.phone_number_id;
-  const acoes = `<button class="btn" data-wa="respostas">⚡ Respostas prontas</button>${typeof Notification !== 'undefined' && Notification.permission === 'default' ? '<button class="btn" data-wa="notif">🔔 Ativar avisos</button>' : ''}${ehDono() ? '<button class="btn" data-wa="config">⚙ Configurar</button>' : ''}`;
-  setTimeout(() => { if (WA.aberta) waAbrir(WA.aberta, true); }, 0);
+  const acoes = `<button class="btn" data-wa="respostas">⚡ Respostas prontas</button>${typeof Notification !== 'undefined' && Notification.permission === 'default' ? '<button class="btn" data-wa="notif">🔔 Ativar avisos</button>' : ''}${ehDono() ? '<button class="btn" data-wa="equipe">👥 Equipe</button><button class="btn" data-wa="config">⚙ Configurar</button>' : ''}`;
+  setTimeout(() => { if (WA.aberta) waAbrir(WA.aberta, true); if (waEu()?.estado && waEu().estado !== 'fora') waPing(); }, 0);
   return topo('Atendimento WhatsApp', 'Mensagens do WhatsApp da loja em tempo real', acoes)
     + (semConfig ? `<div class="card aviso med">⚙ O WhatsApp ainda não está ligado à Meta. ${ehDono() ? 'Siga o passo a passo e preencha em <b>Configurar</b>.' : 'O administrador está configurando.'}</div>` : '')
+    + `<div class="card" id="waExp">${waExpHtml()}</div>`
     + `<div class="wa-caixa"><div class="wa-lado"><input type="search" id="waBusca" placeholder="Buscar nome ou número" value="${esc(WA.busca)}">
         <div class="chips">${[['minhas', 'Minhas'], ['fila', 'Sem dono'], ['equipe', 'Todas abertas'], ['encerradas', 'Encerradas']].map(([k, n]) => `<button class="chip ${WA.aba === k ? 'on' : ''}" data-wa="aba" data-v="${k}">${n}<span class="n">${waFiltro(k).length}</span></button>`).join('')}</div>
         <div id="waLista">${waListaHtml()}</div></div>
@@ -99,10 +199,13 @@ function waListaHtml() {
 }
 function waCabHtml(c) {
   if (!c) return '';
-  const meu = c.responsavel === EU.id;
+  const meu = c.responsavel === EU.id, vc = c.vendedor_carteira && c.vendedor_carteira !== c.responsavel ? c.vendedor_carteira : null;
+  const carteira = vc ? (waDisp(vc) && (meu || ehDono())
+      ? `<button class="btn peq pri" data-wa="enviarVendedor" data-id="${c.id}" title="${esc(nomeP(vc))} voltou e está disponível">📤 Enviar para o vendedor: ${esc(nomeP(vc).split(' ')[0])}</button>`
+      : `<small class="mut" title="Quando ele estiver disponível aparece o botão para enviar a conversa">Vendedor da carteira: ${esc(nomeP(vc))} (indisponível)</small>`) : '';
   return `<div><b>${esc(waNome(c))}</b> <small class="mut">${esc(waFone(c.telefone || c.wa_id))}</small><br>
       <small>${c.responsavel ? 'Com ' + esc(nomeP(c.responsavel)) : '<span class="tag med">sem dono</span>'}${c.status === 'encerrada' ? ' · <span class="tag">encerrada</span>' : ''}${waJanela(c) ? '' : ' · <span class="tag ruim" title="Mais de 24 h sem mensagem do cliente">fora da janela de 24 h</span>'}</small></div>
-    <div class="acoes" style="margin:0">${!meu ? `<button class="btn peq pri" data-wa="assumir" data-id="${c.id}">🙋 Assumir</button>` : ''}
+    <div class="acoes" style="margin:0">${carteira}${!meu ? `<button class="btn peq pri" data-wa="assumir" data-id="${c.id}">🙋 Assumir</button>` : ''}
       <button class="btn peq" data-wa="transferir" data-id="${c.id}">↪ Transferir</button>
       ${c.status === 'aberta' ? `<button class="btn peq" data-wa="encerrar" data-id="${c.id}">✔ Encerrar</button>` : ''}</div>`;
 }
@@ -209,7 +312,7 @@ function waTransferir(id) {
 function waEncerrar(id) {
   modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>Encerrar conversa</h2>
     <label class="campo">Motivo<select id="waMotivo">${['Venda feita', 'Orçamento enviado', 'Dúvida respondida', 'Suporte / garantia', 'Sem resposta do cliente', 'Não é cliente / engano', 'Outro'].map(m => `<option>${m}</option>`).join('')}</select></label>
-    <p class="explica">Se o cliente escrever de novo, a conversa reabre sozinha com o mesmo responsável.</p>
+    <p class="explica">Se o cliente escrever de novo, a conversa reabre e passa pela distribuição (vendedor da carteira primeiro).</p>
     <div class="acoes mt"><button class="btn pri" data-wa="encerrarOk" data-id="${id}">Encerrar</button></div>`);
 }
 function waLigarCliente(id) {
@@ -266,6 +369,13 @@ const WA_ACOES = {
   respApagar: async el => { if (!confirm('Apagar esta resposta pronta?')) return; try { await ok(sb.from('wa_respostas').delete().eq('id', +el.dataset.id)); WA.resp = WA.resp.filter(r => r.id !== +el.dataset.id); waRespostas(); } catch (e) { avisar(e.message); } },
   notif: async () => { try { await Notification.requestPermission(); } catch { /* ok */ } render(); },
   config: () => waConfig(),
+  exp: el => waExpAcao(el.dataset.v),
+  avisoOk: async () => { fecharModal(); try { waEquipeSet(await ok(sb.rpc('wa_expediente', { p_acao: 'aviso_ok', p_tela: UI.view === 'atendimento' }))); } catch (e) { avisar(e.message); } },
+  enviarVendedor: el => waAcao('wa_enviar_vendedor', { p_id: +el.dataset.id }, 'Conversa enviada para o vendedor.'),
+  equipe: () => waEquipe(),
+  desbloquear: async el => { await waAcao('wa_desbloquear', { p_pessoa: el.dataset.p }, 'Avisos zerados.'); waEquipe(); },
+  horAdd: () => waHorAdd(),
+  horApagar: async el => { try { await ok(sb.from('wa_horarios').delete().eq('id', +el.dataset.id)); waEquipe(); } catch (e) { avisar(e.message); } },
   configSalvar: async () => {
     const v = { ...(WA.cfg || {}), phone_number_id: $('#waCfgPhone').value.replace(/\D/g, '') || null, waba_id: $('#waCfgWaba').value.replace(/\D/g, '') || null, graph_version: $('#waCfgVer').value.trim() || 'v23.0' };
     try { await ok(sb.from('config').upsert({ chave: 'whatsapp', valor: v })); WA.cfg = v; avisar('Salvo.'); fecharModal(); render(); } catch (e) { avisar(e.message); }
@@ -279,5 +389,14 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   if (e.target.id === 'waRespSel' && e.target.value) { const r = WA.resp.find(x => x.id === +e.target.value), ta = $('#waTexto'); if (r && ta) { ta.value = (ta.value ? ta.value + '\n' : '') + r.texto; (WA.rasc ||= {})[WA.aberta] = ta.value; ta.focus(); } e.target.value = ''; }
   if (e.target.id === 'waArq') waArqRotulo();
+  if (e.target.dataset.waAssin) {
+    const p = e.target.dataset.waAssin, v = e.target.value.trim();
+    waAcao('wa_atendente_assinatura', { p_pessoa: p, p_texto: v }, 'Perfil salvo.').then(() => { const a = WA.equipe?.find(x => x.pessoa === p); if (a) a.assinatura = v || null; else (WA.equipe ||= []).push({ pessoa: p, assinatura: v || null, setores: ['vendas'], estado: 'fora' }); });
+  }
+  if (e.target.dataset.waSetor) {
+    const p = e.target.dataset.waSetor, setores = [...document.querySelectorAll(`[data-wa-setor="${p}"]:checked`)].map(x => x.value);
+    waAcao('wa_atendente_cfg', { p_pessoa: p, p_setores: setores }, 'Setores salvos.');
+  }
 });
+if (typeof setInterval === 'function') { setInterval(waPing, 30e3); setTimeout(waPing, 5e3); }   // sinal de presença do expediente
 document.addEventListener('keydown', e => { if (e.target.id === 'waTexto' && e.key === 'Enter' && !e.shiftKey && WA.aberta) { e.preventDefault(); const c = WA.conv.find(x => x.id === WA.aberta); if (c && waJanela(c)) waEnviar(WA.aberta); } });

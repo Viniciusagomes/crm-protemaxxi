@@ -22,6 +22,15 @@ export function tipoMidia(mime: string) {
 }
 /** Dentro da janela de 24 h desde a última mensagem do cliente? Exportada para o teste. */
 export const dentroJanela = (ultimaEntrada: string | null, agora = Date.now()) => !!ultimaEntrada && agora - Date.parse(ultimaEntrada) < JANELA_MS;
+const SETOR_NOME: Record<string, string> = { vendas: "Vendas", suporte: "Suporte Técnico" };
+/** Perfil de atendimento: o que foi cadastrado em 👥 Equipe, ou "Nome - Setor". Exportada para o teste. */
+export function assinaturaTexto(nome: string | null, setores: string[] | null, assinatura: string | null) {
+  const a = String(assinatura ?? "").trim();
+  if (a) return a;
+  return `${String(nome ?? "").trim() || "Atendimento"} - ${SETOR_NOME[(setores ?? [])[0] ?? "vendas"] ?? "Vendas"}`;
+}
+/** Nome em negrito na primeira linha, como o cliente vê no WhatsApp. Exportada para o teste. */
+export const comAssinatura = (assin: string, texto: string) => `*${assin.replace(/\*/g, "")}*${texto ? "\n" + texto : ""}`.slice(0, 4096);
 
 async function graph(cfg: any, caminho: string, init: RequestInit) {
   const r = await fetch(`https://graph.facebook.com/${cfg.graph_version || "v23.0"}/${caminho}`, { ...init, headers: { Authorization: `Bearer ${TOKEN}`, ...(init.headers ?? {}) } });
@@ -45,7 +54,13 @@ if (import.meta.main) Deno.serve(async (req) => {
   const cfg = cfgRow?.valor ?? {};
   if (!TOKEN || !cfg.phone_number_id) return json({ erro: "O WhatsApp ainda não está configurado (token ou ID do número)." }, 400);
 
-  let payload: any, tipo = "text", midia: any = {};
+  // perfil de atendimento: "*Felipe Moreira - Vendas*" em cima da mensagem (áudio não tem legenda, sai sem)
+  const [{ data: pe }, { data: at }] = await Promise.all([
+    sb.from("pessoas").select("nome").eq("id", quem).maybeSingle(),
+    sb.from("wa_atendentes").select("*").eq("pessoa", quem).maybeSingle(),
+  ]);
+  const assin = assinaturaTexto(pe?.nome ?? null, at?.setores ?? null, at?.assinatura ?? null);
+  let payload: any, tipo = "text", midia: any = {}, enviado = comAssinatura(assin, texto);
   if (corpo.midia_path) {
     const caminho = String(corpo.midia_path);
     if (!caminho.startsWith(`saida/${quem}/`)) return json({ erro: "Arquivo inválido." }, 400);
@@ -58,11 +73,12 @@ if (import.meta.main) Deno.serve(async (req) => {
     const up = await graph(cfg, `${cfg.phone_number_id}/media`, { method: "POST", body: fd });
     if (!up.ok || !up.j?.id) return json({ erro: `A Meta recusou o arquivo: ${up.j?.error?.message ?? up.status}` }, 400);
     midia = { midia_id: up.j.id, midia_path: caminho, midia_mime: mime, midia_nome: nome };
-    payload = { [tipo]: { id: up.j.id, ...(texto && tipo !== "audio" ? { caption: texto } : {}), ...(tipo === "document" ? { filename: nome } : {}) } };
-  } else payload = { text: { body: texto, preview_url: true } };
+    if (tipo === "audio") enviado = "";
+    payload = { [tipo]: { id: up.j.id, ...(enviado ? { caption: enviado.slice(0, 1024) } : {}), ...(tipo === "document" ? { filename: nome } : {}) } };
+  } else payload = { text: { body: enviado, preview_url: true } };
 
   // registra antes de enviar (aparece na hora para quem está olhando) e assume a conversa se estava sem dono
-  const { data: msg } = await sb.from("wa_mensagens").insert({ conversa_id: id, direcao: "saida", tipo, texto: texto || null, status: "enviando", por: quem, ...midia }).select("id").single();
+  const { data: msg } = await sb.from("wa_mensagens").insert({ conversa_id: id, direcao: "saida", tipo, texto: enviado || null, status: "enviando", por: quem, ...midia }).select("id").single();
   if (!c.responsavel) await sb.from("wa_conversas").update({ responsavel: quem }).eq("id", id).is("responsavel", null);
   const r = await graph(cfg, `${cfg.phone_number_id}/messages`, {
     method: "POST", headers: { "Content-Type": "application/json" },
