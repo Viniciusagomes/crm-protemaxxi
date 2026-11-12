@@ -8,6 +8,7 @@
 --    Senão, rodízio entre os disponíveis do setor; ninguém disponível = fila "sem dono", distribuída quando alguém ficar disponível.
 --  • Cliente de vendedor que estava fora: quem atende tem o botão "Enviar para o vendedor" quando ele volta (wa_enviar_vendedor).
 --  • Horário de atendimento por colaborador (wa_horarios): só informativo; vai para a mensagem do bot na fase 3.
+--  • Perfil de atendimento (wa_atendentes.assinatura): "Nome - Setor" em negrito em cima de cada mensagem (whatsapp-enviar).
 
 -- ─── tabelas ───
 create table if not exists public.wa_atendentes (
@@ -21,7 +22,8 @@ create table if not exists public.wa_atendentes (
   faltas int not null default 0,     -- saídas sem apertar o botão desde o último bloqueio
   bloqueado_ate timestamptz,
   aviso text,                        -- aviso pendente para a pessoa (some quando ela clica "Entendi")
-  aviso_em timestamptz
+  aviso_em timestamptz,
+  assinatura text                    -- perfil de atendimento: nome que sai em cima das mensagens (vazio = "Nome - Setor")
 );
 
 create table if not exists public.wa_expediente_log (
@@ -198,6 +200,16 @@ as $$ begin
   return jsonb_build_object('ok', true);
 end $$;
 
+-- Perfil de atendimento: o nome que aparece em negrito em cima de cada mensagem enviada ("Felipe Moreira - Vendas").
+create or replace function public.wa_atendente_assinatura(p_pessoa text, p_texto text)
+ returns jsonb language plpgsql security definer set search_path to 'public'
+as $$ begin
+  if not public.eh_dono() then raise exception 'só o administrador'; end if;
+  insert into public.wa_atendentes (pessoa, assinatura) values (p_pessoa, nullif(left(trim(p_texto), 60), ''))
+    on conflict (pessoa) do update set assinatura = excluded.assinatura;
+  return jsonb_build_object('ok', true);
+end $$;
+
 create or replace function public.wa_desbloquear(p_pessoa text)
  returns jsonb language plpgsql security definer set search_path to 'public'
 as $$ begin
@@ -223,8 +235,8 @@ as $$ declare c public.wa_conversas := seg.wa_conv_minha(p_id); eu text := seg.m
   return jsonb_build_object('ok', true);
 end $$;
 
-revoke execute on function public.wa_expediente(text, boolean), public.wa_atendente_cfg(text, text[]), public.wa_desbloquear(text), public.wa_enviar_vendedor(bigint) from public, anon;
-grant execute on function public.wa_expediente(text, boolean), public.wa_atendente_cfg(text, text[]), public.wa_desbloquear(text), public.wa_enviar_vendedor(bigint) to authenticated;
+revoke execute on function public.wa_expediente(text, boolean), public.wa_atendente_cfg(text, text[]), public.wa_atendente_assinatura(text, text), public.wa_desbloquear(text), public.wa_enviar_vendedor(bigint) from public, anon;
+grant execute on function public.wa_expediente(text, boolean), public.wa_atendente_cfg(text, text[]), public.wa_atendente_assinatura(text, text), public.wa_desbloquear(text), public.wa_enviar_vendedor(bigint) to authenticated;
 
 -- ─── entrada: conversa nova (ou que reabre depois de encerrada) passa pela distribuição ───
 create or replace function public.wa_entrada(p jsonb)

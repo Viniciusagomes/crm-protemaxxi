@@ -21,6 +21,11 @@ const waDisp = (pid, agora = Date.now()) => {
   const a = WA.equipe?.find(x => x.pessoa === pid), lim = agora - 3 * 60e3;
   return !!a && a.estado === 'trabalhando' && new Date(a.visto_em || 0) > lim && new Date(a.tela_em || 0) > lim && !(a.bloqueado_ate && new Date(a.bloqueado_ate) > agora);
 };
+/** Perfil de atendimento (mesma regra da função whatsapp-enviar): o cadastrado, ou "Nome - Setor". */
+const waAssinatura = pid => {
+  const a = WA.equipe?.find(x => x.pessoa === pid);
+  return (a?.assinatura || '').trim() || `${nomeP(pid)} - ${(a?.setores || [])[0] === 'suporte' ? 'Suporte Técnico' : 'Vendas'}`;
+};
 const waDataHora = s => new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 async function carregarWA(forcar) {
@@ -102,7 +107,8 @@ function waExpHtml() {
   const bloq = waBloq(a) ? `<div class="c-ruim mt">⛔ Bloqueado para conversas novas até <b>${waDataHora(a.bloqueado_ate)}</b>.</div>` : '';
   const faltas = a.faltas ? ` <small class="mut">· avisos: ${a.faltas}/2</small>` : '';
   const dica = a.estado === 'trabalhando' && !waBloq(a) ? '<small class="mut">Você recebe conversas novas enquanto esta tela estiver aberta.</small>' : a.estado === 'fora' ? '<small class="mut">Inicie o expediente para receber conversas novas.</small>' : '';
-  return `<div class="acoes" style="margin:0;align-items:center">${st}${faltas} ${bts} ${dica}</div>${bloq}`;
+  return `<div class="acoes" style="margin:0;align-items:center">${st}${faltas} ${bts} ${dica}</div>${bloq}
+    <small class="mut">Suas mensagens saem com <b>${esc(waAssinatura(EU?.id))}</b> em cima.</small>`;
 }
 async function waExpAcao(acao) {
   if (acao === 'fim' && !confirm('Finalizar o expediente? Você para de receber conversas novas.')) return;
@@ -138,14 +144,16 @@ async function waEquipe() {
     const sit = waBloq(a) ? `<span class="tag ruim">⛔ bloqueado até ${waDataHora(a.bloqueado_ate)}</span>` : waDisp(p.id) ? '<span class="tag ok">🟢 disponível</span>'
       : a.estado === 'almoco' ? '<span class="tag med">🍽 almoço</span>' : a.estado === 'trabalhando' ? '<span class="tag med">em expediente, fora da tela</span>' : '<span class="tag">⚪ fora</span>';
     const hs = WA.hor.filter(h => h.pessoa === p.id).map(h => `<span class="chip">${WA_DIAS[h.dia]} ${h.inicio.slice(0, 5)}–${h.fim.slice(0, 5)} <a href="#" data-wa="horApagar" data-id="${h.id}" title="Remover">✕</a></span>`).join(' ');
-    return `<tr><td><b>${esc(p.nome)}</b>${p.permissoes?.atendimento || p.papel === 'dono' ? '' : '<br><small class="c-ruim">sem permissão Atendimento WhatsApp</small>'}</td><td>${sit}</td>
+    return `<tr><td><b>${esc(p.nome)}</b>${p.permissoes?.atendimento || p.papel === 'dono' ? '' : '<br><small class="c-ruim">sem permissão Atendimento WhatsApp</small>'}
+        <br><input data-wa-assin="${p.id}" maxlength="60" value="${esc(a.assinatura || '')}" placeholder="${esc(waAssinatura(p.id))}" title="Perfil: nome que aparece em cima das mensagens" style="width:190px;margin-top:4px"></td><td>${sit}</td>
       <td>${['vendas', 'suporte'].map(s => `<label style="white-space:nowrap"><input type="checkbox" data-wa-setor="${p.id}" value="${s}" ${(a.setores || []).includes(s) ? 'checked' : ''}> ${s === 'vendas' ? 'Vendas' : 'Suporte'}</label>`).join('<br>')}</td>
       <td>${a.faltas || 0}/2${waBloq(a) || a.faltas ? ` <button class="btn peq" data-wa="desbloquear" data-p="${p.id}">Zerar${waBloq(a) ? ' e desbloquear' : ''}</button>` : ''}</td><td>${hs || '<small class="mut">—</small>'}</td></tr>`;
   };
   modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>👥 Equipe do WhatsApp</h2>
     <p class="explica">Recebe conversa nova quem está <b>em expediente com a tela do WhatsApp aberta</b>, no setor marcado e sem bloqueio. Cliente que já comprou vai primeiro para o vendedor dele no Tiny.
       Sair sem apertar <b>Almoço</b> ou <b>Finalizar</b>: 1º aviso, 2º aviso final, 3º bloqueio de 3 dias.</p>
-    <table class="tabela"><thead><tr><th>Pessoa</th><th>Agora</th><th>Setores</th><th>Avisos</th><th>Horário de atendimento</th></tr></thead><tbody>${quem.map(linha).join('') || '<tr><td colspan="5" class="mut">Ninguém com a permissão Atendimento WhatsApp (Configurações › colaborador).</td></tr>'}</tbody></table>
+    <p class="explica">Embaixo do nome fica o <b>perfil de atendimento</b>: o que aparece em negrito em cima de cada mensagem (vazio = "Nome - Setor").</p>
+    <table class="tabela"><thead><tr><th>Pessoa / perfil</th><th>Agora</th><th>Setores</th><th>Avisos</th><th>Horário de atendimento</th></tr></thead><tbody>${quem.map(linha).join('') || '<tr><td colspan="5" class="mut">Ninguém com a permissão Atendimento WhatsApp (Configurações › colaborador).</td></tr>'}</tbody></table>
     <h3 class="mt2">Adicionar horário</h3>
     <div class="acoes"><select id="waHPes">${quem.map(p => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select>
       <select id="waHDia">${WA_DIAS.map((d, i) => `<option value="${i}" ${i === 1 ? 'selected' : ''}>${d}</option>`).join('')}</select>
@@ -381,6 +389,10 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   if (e.target.id === 'waRespSel' && e.target.value) { const r = WA.resp.find(x => x.id === +e.target.value), ta = $('#waTexto'); if (r && ta) { ta.value = (ta.value ? ta.value + '\n' : '') + r.texto; (WA.rasc ||= {})[WA.aberta] = ta.value; ta.focus(); } e.target.value = ''; }
   if (e.target.id === 'waArq') waArqRotulo();
+  if (e.target.dataset.waAssin) {
+    const p = e.target.dataset.waAssin, v = e.target.value.trim();
+    waAcao('wa_atendente_assinatura', { p_pessoa: p, p_texto: v }, 'Perfil salvo.').then(() => { const a = WA.equipe?.find(x => x.pessoa === p); if (a) a.assinatura = v || null; else (WA.equipe ||= []).push({ pessoa: p, assinatura: v || null, setores: ['vendas'], estado: 'fora' }); });
+  }
   if (e.target.dataset.waSetor) {
     const p = e.target.dataset.waSetor, setores = [...document.querySelectorAll(`[data-wa-setor="${p}"]:checked`)].map(x => x.value);
     waAcao('wa_atendente_cfg', { p_pessoa: p, p_setores: setores }, 'Setores salvos.');

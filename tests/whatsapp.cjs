@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const assert = require('assert/strict');
 const root = path.join(__dirname, '..');
 const semTipos = s => s.replace(/export (async )?function/g, '$1function').replace(/export const/g, 'const')
-  .replace(/: (string \| null|string|any\[\]|any|number|Record<string, string>)(?=\s*[,)=;])/g, '');
+  .replace(/: (string\[\] \| null|string \| null|string|any\[\]|any|number|Record<string, string>)(?=\s*[,)=;])/g, '');
 
 // ─── webhook ───
 const wh = fs.readFileSync(path.join(root, 'supabase/functions/whatsapp-webhook/index.ts'), 'utf8');
@@ -40,7 +40,14 @@ assert.equal(m.tipo, 'outro'); assert.match(m.texto, /celular/);
 
   // ─── envio ───
   const en = fs.readFileSync(path.join(root, 'supabase/functions/whatsapp-enviar/index.ts'), 'utf8');
-  const E = vm.runInNewContext('const JANELA_MS = 24 * 3600e3;' + semTipos(en.slice(en.indexOf('/** Tipo de mensagem'), en.indexOf('async function graph'))) + '; ({ tipoMidia, dentroJanela })', { Date, String });
+  const E = vm.runInNewContext('const JANELA_MS = 24 * 3600e3;' + semTipos(en.slice(en.indexOf('/** Tipo de mensagem'), en.indexOf('async function graph'))) + '; ({ tipoMidia, dentroJanela, assinaturaTexto, comAssinatura })', { Date, String });
+  // perfil de atendimento em cima da mensagem
+  assert.equal(E.assinaturaTexto('Felipe Moreira', ['vendas'], null), 'Felipe Moreira - Vendas');
+  assert.equal(E.assinaturaTexto('Ana', ['suporte', 'vendas'], ''), 'Ana - Suporte Técnico');
+  assert.equal(E.assinaturaTexto('Pedro Silva', null, '  Pedro - Vendas '), 'Pedro - Vendas', 'o perfil cadastrado vale');
+  assert.equal(E.comAssinatura('Pedro - Vendas', 'Bom dia!'), '*Pedro - Vendas*\nBom dia!');
+  assert.equal(E.comAssinatura('*Pedro*', ''), '*Pedro*', 'sem texto (só arquivo) e sem asterisco duplicado');
+  assert.ok(en.includes('if (tipo === "audio") enviado = "";'), 'áudio não tem legenda');
   assert.equal(E.tipoMidia('image/jpeg'), 'image'); assert.equal(E.tipoMidia('image/webp'), 'document', 'webp a Meta só aceita como figurinha');
   assert.equal(E.tipoMidia('audio/ogg; codecs=opus'), 'audio'); assert.equal(E.tipoMidia('application/pdf'), 'document'); assert.equal(E.tipoMidia(''), 'document');
   const agora = Date.parse('2026-11-10T15:00:00Z');

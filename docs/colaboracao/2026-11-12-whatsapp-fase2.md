@@ -43,3 +43,14 @@ fim de expediente com aviso/bloqueio; distribuição por setor + carteira; botã
 
 ## Para o Codex
 - Novos globais em `atendimento.js` com prefixo `wa`/`WA_` (`waEu`, `waDisp`, `waBloq`, `WA_DIAS`, `waPing`…).
+
+## Perfil de atendimento (pedido no mesmo dia)
+- `wa_atendentes.assinatura` + RPC `wa_atendente_assinatura` (dono). A função `whatsapp-enviar` põe `*Nome - Setor*` (ou o
+  perfil cadastrado) em negrito na primeira linha de cada texto/legenda; áudio sai sem (não tem legenda). A mensagem fica gravada
+  como o cliente viu. Tela: campo do perfil em 👥 Equipe e "Suas mensagens saem com …" na barra de expediente.
+- Testes em `tests/whatsapp.cjs` (assinaturaTexto/comAssinatura).
+
+## Publicação (12/11/2026)
+- Migration aplicada como `20261112191237_whatsapp_fase2` (arquivo renomeado); job `wa-presenca` agendado (a cada minuto).
+- `whatsapp-enviar` publicada (v5, verify_jwt true) igual à cópia do repositório. `whatsapp-webhook` sem mudança.
+- `config.whatsapp` conferido: número comercial 614851323213387, WABA 1147208634055203, v26.0.
