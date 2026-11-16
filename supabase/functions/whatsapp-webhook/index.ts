@@ -3,6 +3,7 @@
 //  POST (assinado com X-Hub-Signature-256 = HMAC-SHA256 do corpo com a chave secreta do app, secret META_APP_SECRET)
 //       mensagens → wa_entrada (não duplica: wa_msg_id único) + baixa a mídia para o bucket privado 'whatsapp'
 //       statuses  → wa_status (enviada/entregue/lida/falhou)
+//       smb_message_echoes (enviadas pelo app no celular) → wa_eco, como saída (+ mídia)
 // Sem a assinatura certa nada é gravado. Responde 200 rápido para a Meta não reenviar.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -40,14 +41,21 @@ export function lerMensagem(m: any, contatos: any[]) {
   return base;
 }
 
+/** Mensagem enviada pelo app WhatsApp Business no celular (campo smb_message_echoes) → formato da wa_eco. Exportada para o teste. */
+export function lerEco(m: any) {
+  const { de, nome, ...resto } = lerMensagem({ ...m, from: m.to }, []);
+  return { ...resto, para: m.to };
+}
+
 const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "audio/ogg": "ogg", "audio/mpeg": "mp3", "audio/mp4": "m4a", "video/mp4": "mp4", "application/pdf": "pdf" };
 async function baixarMidia(cfg: any, conversa: number, msgId: number, midiaId: string, mime: string | null) {
   if (!TOKEN) return;
   const v = cfg.graph_version || "v23.0";
   const info = await fetch(`https://graph.facebook.com/${v}/${midiaId}`, { headers: { Authorization: `Bearer ${TOKEN}` } }).then((r) => r.json());
-  if (!info?.url || Number(info.file_size) > MAX_MIDIA) return;
+  if (!info?.url) { console.error("midia", msgId, info?.error?.code ?? "", info?.error?.message ?? "sem url"); return; }
+  if (Number(info.file_size) > MAX_MIDIA) return;
   const r = await fetch(info.url, { headers: { Authorization: `Bearer ${TOKEN}` } });
-  if (!r.ok) return;
+  if (!r.ok) { console.error("midia", msgId, "download", r.status); return; }
   const tipo = info.mime_type || mime || "application/octet-stream", ext = EXT[tipo.split(";")[0]] ?? "bin";
   const caminho = `entrada/${conversa}/${msgId}.${ext}`;
   const { error } = await sb.storage.from("whatsapp").upload(caminho, new Uint8Array(await r.arrayBuffer()), { contentType: tipo, upsert: true });
@@ -58,9 +66,16 @@ async function processar(corpo: any) {
   const { data: cfgRow } = await sb.from("config").select("valor").eq("chave", "whatsapp").maybeSingle();
   const cfg = cfgRow?.valor ?? {};
   for (const e of corpo?.entry ?? []) for (const ch of e.changes ?? []) {
-    if (ch.field !== "messages") continue;
+    if (ch.field !== "messages" && ch.field !== "smb_message_echoes") continue;
     const v = ch.value ?? {};
     if (cfg.phone_number_id && v.metadata?.phone_number_id && String(v.metadata.phone_number_id) !== String(cfg.phone_number_id)) continue;   // outro número
+    // enviadas pelo celular (app WhatsApp Business em coexistência): entram como saída, sem mandar nada ao cliente
+    for (const m of v.message_echoes ?? []) {
+      const p = lerEco(m);
+      const { data: r, error } = await sb.rpc("wa_eco", { p });
+      if (error) { console.error("wa_eco", error.message); continue; }
+      if (r?.mensagem && p.midia_id) await baixarMidia(cfg, r.conversa, r.mensagem, p.midia_id, p.midia_mime).catch((x) => console.error("midia", String(x)));
+    }
     for (const m of v.messages ?? []) {
       const p = lerMensagem(m, v.contacts ?? []);
       const { data: r, error } = await sb.rpc("wa_entrada", { p });
