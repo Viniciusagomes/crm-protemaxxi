@@ -42,6 +42,10 @@ uma vez, na conexão do número (campo `history`), e a função ainda não lia e
   conferido que não ficou registro.
 - Sem revisão do Codex (não instalado neste PC).
 
-## Pendente
+## Token novo e mídias antigas (16/11, fim da tarde)
 
-Depois do token novo: rebaixar as 34 mídias antigas (os IDs da Meta valem cerca de 30 dias).
+- O Vinícius trocou o `META_WA_TOKEN` por um token permanente de Usuário do Sistema.
+- A função ganhou `POST` com `x-sync-secret` e `{acao:"rebaixar_midias"}` (só o servidor; segredo `sync` do banco,
+  chamado por `net.http_post`). Baixou as mídias pendentes: 37 de 39 com arquivo; as 2 restantes chegaram durante o
+  processo e são baixadas pelo fluxo normal.
+- Os ecos do celular já estão chegando (texto e documento enviados pelo Pedro aparecem como saída).

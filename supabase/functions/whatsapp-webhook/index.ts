@@ -4,6 +4,7 @@
 //       mensagens → wa_entrada (não duplica: wa_msg_id único) + baixa a mídia para o bucket privado 'whatsapp'
 //       statuses  → wa_status (enviada/entregue/lida/falhou)
 //       smb_message_echoes (enviadas pelo app no celular) → wa_eco, como saída (+ mídia)
+//  POST com x-sync-secret e {acao:"rebaixar_midias"} (servidor) → baixa de novo as mídias que ficaram sem arquivo
 // Sem a assinatura certa nada é gravado. Responde 200 rápido para a Meta não reenviar.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -48,18 +49,34 @@ export function lerEco(m: any) {
 }
 
 const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "audio/ogg": "ogg", "audio/mpeg": "mp3", "audio/mp4": "m4a", "video/mp4": "mp4", "application/pdf": "pdf" };
-async function baixarMidia(cfg: any, conversa: number, msgId: number, midiaId: string, mime: string | null) {
-  if (!TOKEN) return;
+/** Baixa a mídia da Meta para o bucket. Devolve "ok" ou o motivo da falha (também vai para o log). */
+async function baixarMidia(cfg: any, conversa: number, msgId: number, midiaId: string, mime: string | null): Promise<string> {
+  const falha = (motivo: string) => { console.error("midia", msgId, motivo); return motivo; };
+  if (!TOKEN) return falha("sem token");
   const v = cfg.graph_version || "v23.0";
   const info = await fetch(`https://graph.facebook.com/${v}/${midiaId}`, { headers: { Authorization: `Bearer ${TOKEN}` } }).then((r) => r.json());
-  if (!info?.url) { console.error("midia", msgId, info?.error?.code ?? "", info?.error?.message ?? "sem url"); return; }
-  if (Number(info.file_size) > MAX_MIDIA) return;
+  if (!info?.url) return falha(`${info?.error?.code ?? ""} ${info?.error?.message ?? "sem url"}`.trim());
+  if (Number(info.file_size) > MAX_MIDIA) return falha("maior que 20 MB");
   const r = await fetch(info.url, { headers: { Authorization: `Bearer ${TOKEN}` } });
-  if (!r.ok) { console.error("midia", msgId, "download", r.status); return; }
+  if (!r.ok) return falha(`download ${r.status}`);
   const tipo = info.mime_type || mime || "application/octet-stream", ext = EXT[tipo.split(";")[0]] ?? "bin";
   const caminho = `entrada/${conversa}/${msgId}.${ext}`;
   const { error } = await sb.storage.from("whatsapp").upload(caminho, new Uint8Array(await r.arrayBuffer()), { contentType: tipo, upsert: true });
-  if (!error) await sb.from("wa_mensagens").update({ midia_path: caminho, midia_mime: tipo }).eq("id", msgId);
+  if (error) return falha(`bucket ${error.message}`);
+  await sb.from("wa_mensagens").update({ midia_path: caminho, midia_mime: tipo }).eq("id", msgId);
+  return "ok";
+}
+
+/** Servidor (x-sync-secret): baixa de novo as mídias que ficaram sem arquivo (ex.: depois de trocar o token). */
+async function rebaixarMidias() {
+  const { data: cfgRow } = await sb.from("config").select("valor").eq("chave", "whatsapp").maybeSingle();
+  const { data: pend } = await sb.from("wa_mensagens").select("id,conversa_id,midia_id,midia_mime").not("midia_id", "is", null).is("midia_path", null).order("id").limit(60);
+  const res: Record<string, number> = {};
+  for (const m of pend ?? []) {
+    const r = await baixarMidia(cfgRow?.valor ?? {}, m.conversa_id, m.id, m.midia_id, m.midia_mime).catch((x) => String(x));
+    res[r] = (res[r] ?? 0) + 1;
+  }
+  return { pendentes: pend?.length ?? 0, resultado: res };
 }
 
 async function processar(corpo: any) {
@@ -97,6 +114,13 @@ if (import.meta.main) Deno.serve(async (req) => {
     return ok ? new Response(url.searchParams.get("hub.challenge") ?? "", { status: 200 }) : new Response("proibido", { status: 403 });
   }
   if (req.method !== "POST") return new Response("método", { status: 405 });
+  const sync = req.headers.get("x-sync-secret");
+  if (sync) {   // chamada interna do servidor, não da Meta
+    if ((await sb.rpc("sync_segredo_ok", { s: sync })).data !== true) return new Response("proibido", { status: 403 });
+    const pedido = await req.json().catch(() => ({}));
+    if (pedido?.acao !== "rebaixar_midias") return new Response("ação inválida", { status: 400 });
+    return new Response(JSON.stringify(await rebaixarMidias()), { status: 200, headers: { "Content-Type": "application/json" } });
+  }
   const bruto = await req.text();
   if (!(await assinaturaOk(SEGREDO, bruto, req.headers.get("x-hub-signature-256")))) return new Response("assinatura inválida", { status: 401 });
   let corpo: any; try { corpo = JSON.parse(bruto); } catch { return new Response("ok", { status: 200 }); }
