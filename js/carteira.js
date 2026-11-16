@@ -92,7 +92,7 @@ function melCsv() {
 // ─── campanha diária de prospecção ───
 const LISTAS_PRO = {
   complemento: ['🧩 Complemento', 'azul'], recompra: ['🔁 Recompra', 'ok'], reativacao: ['⚠️ Reativação', 'med'],
-  indicacao: ['🤝 Indicação', ''], instalador: ['🛠 Instalador', ''], novo: ['🏢 Cliente novo', ''],
+  indicacao: ['🤝 Indicação', ''], instalador: ['🛠 Instalador', ''], novo: ['🏢 Cliente novo', ''], site: ['🌐 Lead do site', 'azul'],
 };
 const RES_PRO = { respondeu: '💬 Respondeu', orcamento: '📝 Pediu orçamento', comprou: '✅ Comprou', sem_resposta: '⏳ Sem resposta', sem_interesse: '🚫 Sem interesse', numero_errado: '☎️ Número errado', pular: '↷ Pular' };
 const PRO = { dados: null, chave: '', carregando: false, hist: null, resumo: null, resumoDia: '', resumoEm: 0, resumoErro: false, resumoPromise: null, gravando: new Set(), rascunhos: {} };
@@ -181,6 +181,7 @@ function mensagemPro(x, vendedor) {
     indicacao: `${inicio} Como tem sido sua experiência com o material? Se precisar de algo, estou por aqui. E, se conhecer alguém que precise de segurança eletrônica, pode passar meu contato.`,
     instalador: `${inicio} Tem algum projeto em andamento ou previsto? Posso ajudar a conferir os equipamentos e acessórios para montar a lista de materiais.`,
     novo: `${ola} ${eu} Somos revenda autorizada de segurança eletrônica em Campinas. Posso te apresentar as soluções para o seu negócio?`,
+    site: `${ola} ${eu} Vi que você deixou seu contato no nosso site${d.interesse ? ' com interesse em ' + limpar(d.interesse).toLowerCase() : ''}. Posso te ajudar com um orçamento? Me conta um pouco do que você precisa.`,
   }[x.lista] || `${ola} ${eu}`;
 }
 
@@ -201,10 +202,10 @@ function abaProspeccao() {
   const ind = vends.map(v => { const h = PRO.hist.filter(x => x.pessoa_id === v.id && x.resultado && x.resultado !== 'pular');
     const vend = h.filter(comprou); const fat = soma(vend.map(x => somaV(D.pedidos.filter(p => p.cliente_chave === x.cliente_chave && valido(p) && p.data >= x.data && p.data <= addDias(x.data, 15)))));
     return { v, n: h.length, resp: h.filter(x => ['respondeu', 'orcamento', 'comprou'].includes(x.resultado)).length, orc: h.filter(x => x.resultado === 'orcamento').length, vendas: vend.length, fat }; });
-  const card = x => { const c = cli[x.cliente_chave] || {}, l = LISTAS_PRO[x.lista] || [x.lista, ''], fone = c.fone || '', msg = mensagemPro(x, quem?.nome?.split(' ')[0] || ''), wa = linkWa(fone);
+  const card = x => { const c = cli[x.cliente_chave] || {}, l = LISTAS_PRO[x.lista] || [x.lista, ''], fone = c.fone || (x.lista === 'site' ? foneFmt(x.dados?.fone || '') : ''), msg = mensagemPro(x, quem?.nome?.split(' ')[0] || ''), wa = linkWa(fone);
     return `<div class="pro-card ${x.resultado === 'pular' ? 'pulado' : x.resultado ? 'feito' : ''}" id="pro_${x.id}">
       <div class="pro-topo"><span class="tag ${l[1]}">${l[0]}</span>${seloSeg(mapa[x.cliente_chave]?.seg)}${seloCredito(x.cliente_chave)}${seloContato(c)}${x.resultado ? `<span class="tag ok">${RES_PRO[x.resultado]}</span>` : ''}</div>
-      <div class="pro-nome"><a href="#" data-a="verCliente" data-chave="${esc(x.cliente_chave)}">${esc(x.cliente_nome || c.nome || '')}</a> <small class="mut">${esc(c.cidade || '')}</small></div>
+      <div class="pro-nome">${x.lista === 'site' && !cli[x.cliente_chave] ? `<b>${esc(x.cliente_nome || 'Lead sem nome')}</b>` : `<a href="#" data-a="verCliente" data-chave="${esc(x.cliente_chave)}">${esc(x.cliente_nome || c.nome || '')}</a>`} <small class="mut">${esc(c.cidade || '')}</small></div>
       <div class="pro-motivo">${esc(x.motivo || '')}${x.dados?.repor_chave && !x.resultado ? ` <button class="btn peq" data-a="proDispensar" data-id="${x.id}" title="Não sugerir mais este produto para este cliente">Compra eventual</button>` : ''}</div>
       <small class="${x.resultado && x.resultado !== 'pular' ? 'c-ok' : 'mut'}">${x.resultado === 'pular' ? '↷ Pulado · não conta como contato' : x.resultado ? `✓ Contato registrado${x.resultado_em ? ' · ' + fmtCurta(x.resultado_em.slice(0, 10)) : ''}` : '○ Ainda não contatado'}</small>
       ${fone ? `<div class="pro-fone">📱 ${esc(fone)}</div>` : `${x.dados?.fone_errado ? `<small class="c-ruim">📵 ${esc(foneFmt(x.dados.fone_errado))} marcado como errado</small>` : ''}<div class="pro-fone sem"><input type="tel" placeholder="Sem telefone: digite com DDD" id="proFone_${x.id}"><button class="btn peq" data-a="proFone" data-id="${x.id}" data-chave="${esc(x.cliente_chave)}">Salvar</button></div>`}
