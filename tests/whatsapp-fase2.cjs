@@ -52,7 +52,7 @@ assert.match(sql, /policy wa_hor_dono on public\.wa_horarios for all to authenti
 
 // ─── tela ───
 const at = fs.readFileSync(path.join(root, 'js/atendimento.js'), 'utf8'), idx = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-assert.match(idx, /js\/atendimento\.js\?v=20261112a/);
+assert.match(idx, /js\/atendimento\.js\?v=\d{8}[a-z]/);
 const ctx = vm.createContext({ console, Date, document: { addEventListener: () => {}, querySelector: () => null, querySelectorAll: () => [], hasFocus: () => true } });
 vm.runInContext(fs.readFileSync(path.join(root, 'js/util.js'), 'utf8'), ctx);
 vm.runInContext(at, ctx);

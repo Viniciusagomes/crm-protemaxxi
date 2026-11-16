@@ -99,6 +99,10 @@ function waEquipeSet(a) {
   waAtualizar();
 }
 function waExpHtml() {
+  const fixo = WA.cfg?.responsavel_fixo;
+  if (fixo) return `<div class="acoes" style="margin:0;align-items:center"><span class="tag">⏸ Expediente desligado</span>
+    <small class="mut">Por enquanto, toda conversa nova vai direto para <b>${esc(nomeP(fixo))}</b>.</small></div>
+    <small class="mut">Suas mensagens saem com <b>${esc(waAssinatura(EU?.id))}</b> em cima.</small>`;
   const a = waEu() || { estado: 'fora' }, desde = a.desde ? ` desde ${waHora(a.desde)}` : '';
   const st = a.estado === 'trabalhando' ? `<span class="tag ok">🟢 Em expediente${desde}</span>` : a.estado === 'almoco' ? `<span class="tag med">🍽 Em almoço${desde}</span>` : '<span class="tag">⚪ Fora do expediente</span>';
   const bts = a.estado === 'fora' ? '<button class="btn pri" data-wa="exp" data-v="inicio">▶ Iniciar expediente</button>'
