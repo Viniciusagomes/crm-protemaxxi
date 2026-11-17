@@ -101,6 +101,7 @@ function waAtualizar() {
   if (UI.view !== 'atendimento') return;
   const l = $('#waLista'); if (l) l.innerHTML = waListaHtml();
   const ab = $('#waAbas'); if (ab) ab.innerHTML = waAbasHtml();
+  const ef = $('#waEtqF'); if (ef) ef.innerHTML = waEtqFiltroHtml();
   const cab = $('#waCab'); if (cab && WA.aberta) cab.innerHTML = waCabHtml(WA.conv.find(c => c.id === WA.aberta));
   const exp = $('#waExp'); if (exp) exp.innerHTML = waExpHtml();
 }
@@ -201,6 +202,7 @@ const WA_IC = {
   lupa: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="m16 16 4 4"/></svg>',
   check: '<svg viewBox="0 0 16 11" width="16" height="11" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M1 6l3.5 3.5L11 2"/></svg>',
   check2: '<svg viewBox="0 0 18 11" width="18" height="11" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M1 6l3.5 3.5L11 2M7.5 9.5 15 2"/></svg>',
+  sino: '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2.2 2.2 0 0 0 4 0"/></svg>',
   relogio: '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="8" cy="8" r="6.3" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M8 4.5V8l2.3 1.5"/></svg>',
 };
 const waTick = s => s === 'lida' ? `<span class="wa-tk lida" title="Lida">${WA_IC.check2}</span>` : s === 'entregue' ? `<span class="wa-tk" title="Entregue">${WA_IC.check2}</span>`
@@ -247,22 +249,38 @@ function vAtendimento() {
         <div class="wa-exp" id="waExp">${waExpHtml()}</div>
         <label class="wa-busca">${WA_IC.lupa}<input type="search" id="waBusca" placeholder="Pesquisar nome ou número" value="${esc(WA.busca)}"></label>
         <div class="wa-abas" id="waAbas">${waAbasHtml()}</div>
+        <div class="wa-etq-filtro" id="waEtqF">${waEtqFiltroHtml()}</div>
         <div class="wa-lista" id="waLista">${waListaHtml()}</div>
       </section>
       <section class="wa-chat">${WA.aberta ? waChatHtml() : waVazioHtml()}</section></div>`;
 }
 const waVazioHtml = () => `<div class="wa-vazio"><div class="wa-vazio-ic">${WA_IC.enviar}</div><h3>WhatsApp da loja</h3><p>Escolha uma conversa à esquerda.<br>As mensagens chegam aqui em tempo real.</p></div>`;
-const WA_ABAS = [['minhas', 'Minhas'], ['esperando', 'Esperando'], ['fila', 'Sem dono'], ['equipe', 'Todas'], ['encerradas', 'Encerradas']];
+const WA_ABAS = [['minhas', 'Minhas'], ['esperando', 'Esperando'], ['fila', 'Sem dono'], ['lembretes', 'Lembretes'], ['equipe', 'Todas'], ['encerradas', 'Encerradas']];
+// Etiquetas fixas (a mesma lista do banco, em wa_etiquetas) e lembretes por conversa
+const WA_ETIQ = { orcamento: ['Orçamento', '#2B7BB9'], instalador: ['Instalador', '#7C5CD6'], tecnico: ['Técnico', '#C2410C'], pos_venda: ['Pós-venda', '#0F766E'],
+  aguardando: ['Aguardando cliente', '#A16207'], fechou: ['Fechou', '#15803D'], perdido: ['Perdido', '#6B7280'] };
+const waEtiqHtml = c => (c.etiquetas || []).filter(e => WA_ETIQ[e]).map(e => `<span class="wa-etq" style="--etq:${WA_ETIQ[e][1]}">${WA_ETIQ[e][0]}</span>`).join('');
+const waLembVenceu = (c, agora = Date.now()) => !!c.lembrete_em && new Date(c.lembrete_em) <= agora;
+const waLembMeu = c => !!c.lembrete_em && (c.lembrete_por === EU.id || c.responsavel === EU.id || ehDono());
+const waLembTag = c => c.lembrete_em ? `<span class="wa-tag ${waLembVenceu(c) ? 'ruim' : ''}" title="${esc(c.lembrete_txt || 'Lembrete')}">${WA_IC.sino} ${waLembVenceu(c) ? 'lembrete' : waDataHora(c.lembrete_em)}</span>` : '';
+const waEmLocal = s => { if (!s) return ''; const d = new Date(s); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
+function waEtqFiltroHtml() {
+  const usadas = Object.keys(WA_ETIQ).filter(e => (WA.conv || []).some(c => (c.etiquetas || []).includes(e)));
+  if (WA.etq && !usadas.includes(WA.etq)) WA.etq = null;
+  return usadas.map(e => `<button class="wa-etq ${WA.etq === e ? 'on' : ''}" style="--etq:${WA_ETIQ[e][1]}" data-wa="etqFiltro" data-e="${e}">${WA_ETIQ[e][0]}</button>`).join('');
+}
 function waAbasHtml() {
-  return WA_ABAS.map(([k, n]) => { const q = waFiltro(k).length; return `<button class="wa-aba ${WA.aba === k ? 'on' : ''} ${k === 'esperando' && q ? 'alerta' : ''}" data-wa="aba" data-v="${k}">${n}${q ? `<span>${q}</span>` : ''}</button>`; }).join('');
+  return WA_ABAS.map(([k, n]) => { const q = waFiltro(k).length; return `<button class="wa-aba ${WA.aba === k ? 'on' : ''} ${(k === 'esperando' && q) || (k === 'lembretes' && waFiltro(k).some(c => waLembVenceu(c))) ? 'alerta' : ''}" data-wa="aba" data-v="${k}">${n}${q ? `<span>${q}</span>` : ''}</button>`; }).join('');
 }
 function waFiltro(aba) {
   const q = WA.busca.trim().toLowerCase(), d = q.replace(/\D/g, '');
   const meuOuLivre = c => !c.responsavel || c.responsavel === EU.id || ehDono();
   const l = WA.conv.filter(c => (aba === 'minhas' ? c.status === 'aberta' && c.responsavel === EU.id : aba === 'fila' ? c.status === 'aberta' && !c.responsavel
-      : aba === 'esperando' ? waEsperaMin(c) != null && meuOuLivre(c) : aba === 'equipe' ? c.status === 'aberta' : c.status === 'encerrada')
+      : aba === 'esperando' ? waEsperaMin(c) != null && meuOuLivre(c) : aba === 'lembretes' ? waLembMeu(c) : aba === 'equipe' ? c.status === 'aberta' : c.status === 'encerrada')
+    && (!WA.etq || (c.etiquetas || []).includes(WA.etq))
     && (!q || (c.nome_perfil || '').toLowerCase().includes(q) || (d.length >= 3 && String(c.wa_id).includes(d))));
-  return l.sort((a, b) => new Date(b.ultima_msg_em || 0) - new Date(a.ultima_msg_em || 0));   // mais recente primeiro em todas as abas
+  if (aba === 'lembretes') return l.sort((a, b) => new Date(a.lembrete_em) - new Date(b.lembrete_em));   // o que vence primeiro no topo
+  return l.sort((a, b) => new Date(b.ultima_msg_em || 0) - new Date(a.ultima_msg_em || 0));   // mais recente primeiro nas outras abas
 }
 function waListaHtml() {
   const l = waFiltro(WA.aba);
@@ -271,8 +289,8 @@ function waListaHtml() {
     return `<div class="wa-item ${WA.aberta === c.id ? 'on' : ''}" data-wa="abrir" data-id="${c.id}">${waAvatar(c)}
       <div class="wa-item-c"><div class="l1"><b>${esc(waNome(c))}</b><time class="${c.nao_lidas ? 'nova' : ''}">${waHora(c.ultima_msg_em)}</time></div>
         <div class="l2"><span class="prev">${esc((c.ultima_msg_texto || '').slice(0, 80))}</span>${c.nao_lidas ? `<span class="wa-bolinha">${c.nao_lidas}</span>` : ''}</div>
-        <div class="l3">${c.responsavel ? `<span class="wa-dono">${esc(nomeP(c.responsavel).split(' ')[0])}</span>` : '<span class="wa-tag med">sem dono</span>'}${esp != null ? `<span class="wa-tag ${waEsperaCls(esp)}" title="Cliente esperando resposta">${WA_IC.relogio} ${waEsperaTxt(esp)}</span>` : ''}${fora ? '<span class="wa-tag" title="Mais de 24 h sem mensagem do cliente: só modelo aprovado">fora das 24 h</span>' : ''}</div></div></div>`;
-  }).join('') : `<p class="wa-nada">${WA.aba === 'esperando' ? 'Ninguém esperando resposta. 👏' : 'Nenhuma conversa aqui.'}</p>`;
+        <div class="l3">${c.responsavel ? `<span class="wa-dono">${esc(nomeP(c.responsavel).split(' ')[0])}</span>` : '<span class="wa-tag med">sem dono</span>'}${esp != null ? `<span class="wa-tag ${waEsperaCls(esp)}" title="Cliente esperando resposta">${WA_IC.relogio} ${waEsperaTxt(esp)}</span>` : ''}${fora ? '<span class="wa-tag" title="Mais de 24 h sem mensagem do cliente: só modelo aprovado">fora das 24 h</span>' : ''}${waLembMeu(c) ? waLembTag(c) : ''}${waEtiqHtml(c)}</div></div></div>`;
+  }).join('') : `<p class="wa-nada">${WA.aba === 'esperando' ? 'Ninguém esperando resposta.' : WA.aba === 'lembretes' ? 'Nenhum lembrete marcado. Marque pela ficha do cliente (botão de informações).' : 'Nenhuma conversa aqui.'}</p>`;
 }
 function waCabHtml(c) {
   if (!c) return '';
@@ -392,7 +410,37 @@ async function waFicha(id) {
       <dl class="wa-dl"><dt>Vendedor</dt><dd>${esc(f.vendedor || '—')}</dd><dt>Comprou em 12 meses</dt><dd>${R(f.total_12m)}</dd></dl>
       <h4>Últimos pedidos</h4>${f.pedidos.length ? f.pedidos.map(p => `<div class="wa-ped"><b>${esc(p.numero)}</b> <span>${fmtCurta(p.data)}</span> <span class="v">${R(p.valor)}</span><small>${esc(p.situacao || '')}${p.canal ? ' · ' + esc(p.canal) : ''}</small></div>`).join('') : '<p class="mut">Nenhum.</p>'}
       <div class="acoes"><button class="btn peq" data-wa="fichaCompleta" data-chave="${esc(f.chave)}">Abrir ficha</button><button class="btn peq" data-wa="ligarCliente" data-id="${id}">Trocar</button></div>`
-    : `<p class="mut">Este número não está em nenhum cliente do Tiny.</p><button class="btn peq" data-wa="ligarCliente" data-id="${id}">Ligar a um cliente</button>`);
+    : `<p class="mut">Este número não está em nenhum cliente do Tiny.</p><button class="btn peq" data-wa="ligarCliente" data-id="${id}">Ligar a um cliente</button>`)
+    + `<div id="waFichaExtra">${waFichaExtraHtml(c)}</div>`;
+}
+/** Etiquetas e lembrete da conversa, na ficha lateral. */
+function waFichaExtraHtml(c) {
+  if (!c) return '';
+  const tem = new Set(c.etiquetas || []);
+  return `<h4>Etiquetas</h4><div class="wa-etq-lista">${Object.entries(WA_ETIQ).map(([k, [n, cor]]) => `<button class="wa-etq ${tem.has(k) ? 'on' : ''}" style="--etq:${cor}" data-wa="etq" data-id="${c.id}" data-e="${k}">${n}</button>`).join('')}</div>
+    <h4>Lembrete</h4>${c.lembrete_em ? `<p class="wa-lemb ${waLembVenceu(c) ? 'venceu' : ''}">${WA_IC.sino} <b>${waDataHora(c.lembrete_em)}</b>${c.lembrete_txt ? ' · ' + esc(c.lembrete_txt) : ''}${c.lembrete_por ? `<small> (${esc(nomeP(c.lembrete_por).split(' ')[0])})</small>` : ''}</p>` : ''}
+    <div class="wa-lemb-form"><input type="datetime-local" id="waLembEm" value="${waEmLocal(c.lembrete_em)}"><input type="text" id="waLembTxt" maxlength="200" placeholder="Ex.: ligar para fechar o orçamento" value="${esc(c.lembrete_txt || '')}">
+      <div class="acoes"><button class="btn peq pri" data-wa="lembSalvar" data-id="${c.id}">${c.lembrete_em ? 'Mudar' : 'Marcar'}</button>${c.lembrete_em ? `<button class="btn peq" data-wa="lembApagar" data-id="${c.id}">Concluído</button>` : ''}
+        <button class="btn peq" data-wa="lembRapido" data-id="${c.id}" data-h="2">+2 h</button><button class="btn peq" data-wa="lembRapido" data-id="${c.id}" data-h="amanha">Amanhã 9h</button></div></div>`;
+}
+const waFichaExtraRedesenhar = id => { const el = $('#waFichaExtra'); if (el && WA.aberta === id) el.innerHTML = waFichaExtraHtml(WA.conv.find(x => x.id === id)); };
+async function waLembrete(id, em) {
+  const c = WA.conv.find(x => x.id === id); if (!c) return;
+  const txt = $('#waLembTxt')?.value || '';
+  try { await ok(sb.rpc('wa_lembrete', { p_id: id, p_em: em ? em.toISOString() : null, p_txt: txt }));
+    Object.assign(c, em ? { lembrete_em: em.toISOString(), lembrete_txt: txt.trim().slice(0, 200) || null, lembrete_por: EU.id } : { lembrete_em: null, lembrete_txt: null, lembrete_por: null });
+    WA.lembAvisados?.delete(id); waFichaExtraRedesenhar(id); waAtualizar(); avisar(em ? 'Lembrete marcado.' : 'Lembrete concluído.');
+  } catch (e) { avisar(e.message); }
+}
+/** Avisa (uma vez) quando um lembrete meu vence. */
+function waLembretesVencidos(agora = Date.now()) {
+  const avisados = WA.lembAvisados ||= new Set(), novos = [];
+  for (const c of WA.conv || []) if (waLembVenceu(c, agora) && (c.lembrete_por === EU.id || (!c.lembrete_por && c.responsavel === EU.id)) && !avisados.has(c.id)) { avisados.add(c.id); novos.push(c); }
+  for (const c of novos) {
+    avisar(`Lembrete: ${waNome(c)}${c.lembrete_txt ? ' · ' + c.lembrete_txt : ''}`);
+    try { if (typeof Notification !== 'undefined' && Notification.permission === 'granted') new Notification(`Lembrete — ${waNome(c)}`, { body: c.lembrete_txt || 'Retomar a conversa no WhatsApp', tag: 'wal' + c.id }); } catch { /* ok */ }
+  }
+  return novos;
 }
 
 // ─── respostas prontas com "/" ───
@@ -562,6 +610,16 @@ const WA_ACOES = {
   saude: () => waSaude(),
   abrirDaSaude: el => { fecharModal(); const c = WA.conv.find(x => x.id === +el.dataset.id); WA.aba = c?.status === 'encerrada' ? 'encerradas' : 'equipe'; WA.aberta = +el.dataset.id; render(); },
   antigas: () => waMaisAntigas(WA.aberta),
+  etqFiltro: el => { WA.etq = WA.etq === el.dataset.e ? null : el.dataset.e; waAtualizar(); },
+  etq: async el => {
+    const id = +el.dataset.id, c = WA.conv.find(x => x.id === id); if (!c) return;
+    const atual = new Set(c.etiquetas || []); atual.has(el.dataset.e) ? atual.delete(el.dataset.e) : atual.add(el.dataset.e);
+    const nova = [...atual].sort(); el.disabled = true;
+    try { await ok(sb.rpc('wa_etiquetas', { p_id: id, p_etiquetas: nova })); c.etiquetas = nova; waFichaExtraRedesenhar(id); waAtualizar(); } catch (e) { avisar(e.message); el.disabled = false; }
+  },
+  lembSalvar: el => { const v = $('#waLembEm')?.value; if (!v) return avisar('Escolha o dia e a hora.'); waLembrete(+el.dataset.id, new Date(v)); },
+  lembRapido: el => { const d = new Date(); if (el.dataset.h === 'amanha') { d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0); } else d.setHours(d.getHours() + 2); waLembrete(+el.dataset.id, d); },
+  lembApagar: el => waLembrete(+el.dataset.id, null),
   reenviar: el => { el.disabled = true; waReenviar(el.dataset.id).finally(() => { el.disabled = false; }); },
   exp: el => waExpAcao(el.dataset.v),
   avisoOk: async () => { fecharModal(); try { waEquipeSet(await ok(sb.rpc('wa_expediente', { p_acao: 'aviso_ok', p_tela: UI.view === 'atendimento' }))); } catch (e) { avisar(e.message); } },
@@ -593,7 +651,7 @@ document.addEventListener('change', e => {
 });
 if (typeof setInterval === 'function') {
   setInterval(waPing, 30e3); setTimeout(waPing, 5e3);   // sinal de presença do expediente
-  setInterval(() => { if (typeof UI !== 'undefined' && UI.view === 'atendimento' && WA.conv) waAtualizar(); }, 60e3);   // tempo de espera anda sozinho
+  setInterval(() => { if (typeof UI !== 'undefined' && UI.view === 'atendimento' && WA.conv) waAtualizar(); if (WA.conv) waLembretesVencidos(); }, 60e3);   // tempo de espera anda sozinho; lembretes vencidos avisam
 }
 document.addEventListener('keydown', e => {
   if (e.target.id !== 'waTexto' || !WA.aberta) return;
