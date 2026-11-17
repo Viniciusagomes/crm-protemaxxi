@@ -89,3 +89,15 @@ Feito na retomada automática combinada com o Vinícius. Só WhatsApp teve funç
 ## Calendário de marketing, Agenda e telefones (17/11, lote 3)
 
 - Calendário com dias mais limpos (hoje em círculo verde), itens com cantos suaves; chips de telefone e botões de ícone no padrão novo.
+
+## Emoji restantes viram ícone (17/11, depois do lote 3)
+
+- O Vinícius ainda via emoji. Fiz uma varredura em todas as abas, só lendo e fora as do Fefão.
+  Apareceram 🏭 📥 📤 🗃 🗂 🔬 🏁 🏪 📌 📵 🔵 📲 ✎ 📮 🎨 📘 e outros.
+  Todos ganharam ícone no `EMOJI_ICONE`, com 17 ícones novos no `ICONES`.
+- O emoji que não está no mapa agora some (`EMOJI_RESTO`, com `\p{Extended_Pictographic}`), e o texto fica.
+  Os símbolos de texto ✓ ✕ ★ ficam.
+- Dicas (`title`), textos de campo vazio (`placeholder`), `aria-label` e `<option>` não aceitam ícone: ali o emoji só sai.
+  Quando uma `<option>` não tem `value`, o texto antigo vira o `value` antes da troca, para o valor enviado não mudar.
+- Continua de fora o que pessoas escreveram (WhatsApp, e-mail, comentários) e as abas do Fefão.
+- Depende do #48, porque os dois mudam a versão do `app.css`.
