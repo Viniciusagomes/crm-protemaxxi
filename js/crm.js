@@ -217,7 +217,7 @@ function vCRM() {
   const ciclo = ganhos.length ? soma(ganhos.map(n => (new Date(n.fechado_em) - new Date(n.criado_em)) / 864e5)) / ganhos.length : null;
   const cab = topo('Funil de vendas', 'Negócios do orçamento ao fechamento. Os orçamentos do Tiny entram sozinhos; todo negócio aberto precisa de uma próxima atividade.',
       `<button class="btn" data-a="crmAtualizar">↻ Atualizar</button><button class="btn pri" data-a="crmNovo">+ Novo negócio</button>`)
-    + `<div class="filtros"><div class="chips">${[['funil', '🎯 Funil'], ['lista', '📋 Lista'], ['recuperar', '🔁 Recuperar orçamentos'], ['ligar', '🧾 Pedidos para ligar'], ['indicadores', '📊 Indicadores']].map(([k, n]) => `<button class="chip ${UI.crmAba === k ? 'on' : ''}" data-a="crmAba" data-v="${k}">${n}</button>`).join('')}</div>
+    + `<div class="filtros"><div class="chips">${[['funil', 'Funil'], ['lista', 'Lista'], ['recuperar', 'Recuperar orçamentos'], ['ligar', 'Pedidos para ligar'], ['indicadores', 'Indicadores']].map(([k, n]) => `<button class="chip ${UI.crmAba === k ? 'on' : ''}" data-a="crmAba" data-v="${k}">${n}</button>`).join('')}</div>
       ${vends.length > 1 ? `<select data-c="ui" data-k="crmVend"><option value="">Todos os vendedores</option>${vends.map(v => `<option value="${v.id}" ${fV === v.id ? 'selected' : ''}>${esc(v.nome)}</option>`).join('')}</select>` : ''}</div>
     <div class="grid g4">
       <div class="card kpi-card destaque"><div class="rot">No funil</div><div class="val verde">${R0(soma(abertos.map(n => +n.valor)))}</div><div class="sub">${abertos.length} negócio(s) aberto(s)</div></div>
@@ -234,7 +234,7 @@ function vCRM() {
   // kanban: arraste o card para mudar de etapa (no celular, use o seletor dentro do negócio)
   const col = ([k, nome]) => { const l = neg.filter(n => n.etapa === k).sort((a, b) => b.valor - a.valor);
     const mostrar = ['ganho', 'perdido'].includes(k) ? l.filter(n => n.fechado_em && n.fechado_em.slice(0, 10) >= addDias(hoje(), -30)) : l;
-    return `<div class="kcol etp-${k}" data-etapa="${k}"><div class="kcol-cab"><b>${nome}</b><span>${mostrar.length} · ${R0(soma(mostrar.map(n => +n.valor)))}</span></div>
+    return `<div class="kcol etp-${k}" data-etapa="${k}"><div class="kcol-cab"><div class="kcol-tit"><i class="kcol-ponto"></i><b>${nome}</b><span class="kcol-n">${mostrar.length}</span></div><span class="kcol-soma">${R0(soma(mostrar.map(n => +n.valor)))}</span></div>
       <div class="kcol-lista">${mostrar.slice(0, 80).map(cardNegocio).join('') || '<div class="kvazio">—</div>'}</div></div>`; };
   return cab + `<div class="kanban-crm mt">${ETAPAS_CRM.map(col).join('')}</div><p class="mut" style="font-size:12.5px">Arraste os cards entre as colunas. Ganho e Perdido mostram os últimos 30 dias.</p>`;
 }
@@ -243,8 +243,8 @@ function cardNegocio(n) {
   const alerta = !fechado && (!a ? 'sem' : a.quando < hoje() ? 'atrasada' : '');
   return `<div class="kcard ${alerta}" draggable="true" data-negocio="${n.id}" data-a="crmAbrir" data-id="${n.id}">
     <div class="kcard-nome">${esc(n.cliente_nome || '')}</div><div class="kcard-tit">${esc(n.titulo)}</div>${alertasNegocio(n)}
-    <div class="kcard-pe"><b>${R0(n.valor)}</b><span>${esc((nomeP(n.pessoa_id) || '').split(' ')[0])}</span></div>
-    ${fechado ? '' : `<div class="kcard-atv">${a ?`${TIPOS_ATV[a.tipo]?.split(' ')[0] || '•'} ${fmtCurta(a.quando)} · ${esc(a.titulo.slice(0, 40))}` : '⚠ sem próxima atividade'}</div>`}</div>`;
+    <div class="kcard-pe"><b>${R0(n.valor)}</b><span class="kcard-vend" title="${esc(nomeP(n.pessoa_id) || '')}">${esc((nomeP(n.pessoa_id) || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(x => x[0]).join('').toUpperCase())}</span></div>
+    ${fechado ? '' : `<div class="kcard-atv">${a ? `${icone('calendario', 13)}<span>${fmtCurta(a.quando)} · ${esc(a.titulo.slice(0, 40))}</span>` : `${icone('boletos', 13)}<span>Sem próxima atividade</span>`}</div>`}</div>`;
 }
 function abaIndicadoresCRM(neg, fech) {
   const vends = vendCRM();

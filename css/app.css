@@ -945,3 +945,26 @@ input:focus, select:focus, textarea:focus { outline: 0; border-color: var(--verd
 .cli-contato { gap: 8px 22px; margin: 0 0 12px; }
 .cli-contato > span { display: inline-flex; align-items: center; gap: 6px; } .cli-contato .ico { color: var(--txt3); } .cli-contato b { font-weight: 600; color: var(--txt2); margin-right: 2px; }
 @media (max-width: 640px) { .cli-perfil { flex-wrap: wrap; padding-right: 0; } .cli-wa-btn { width: 100%; justify-content: center; } }
+/* ─── Funil (17/11): colunas com ponto de cor, contagem em pílula, cartões mais limpos ─── */
+.kanban-crm { gap: 12px; }
+.kanban-crm .kcol { --etp: var(--txt3); background: color-mix(in srgb, var(--card2) 70%, transparent); border-color: transparent; }
+.kanban-crm .kcol.etp-qualificado { --etp: #2B7BB9; } .kanban-crm .kcol.etp-orcamento { --etp: var(--med); } .kanban-crm .kcol.etp-negociacao { --etp: #6C4AB6; }
+.kanban-crm .kcol.etp-ganho { --etp: var(--verde); } .kanban-crm .kcol.etp-perdido { --etp: var(--ruim); }
+.kanban-crm .kcol.sobre { background: var(--verde-claro); border-color: var(--verde); border-style: dashed; }
+.kanban-crm .kcol-cab { border-bottom: 0; padding: 12px 12px 6px; gap: 4px; }
+.kcol-tit { display: flex; align-items: center; gap: 8px; }
+.kcol-tit b { font-size: 12px; letter-spacing: .06em; flex: 1; }
+.kcol-ponto { width: 8px; height: 8px; border-radius: 50%; background: var(--etp); flex-shrink: 0; }
+.kanban-crm .kcol-cab .kcol-n { font-size: 11.5px; font-weight: 700; color: var(--txt2); background: var(--card); border: 1px solid var(--borda); border-radius: 99px; padding: 0 8px; }
+.kanban-crm .kcol-cab .kcol-soma { font-family: Archivo, system-ui, sans-serif; font-weight: 800; font-size: 17px; color: var(--txt) !important; font-variant-numeric: tabular-nums; letter-spacing: -.01em; padding-left: 16px; }
+.kanban-crm .kcard { border-radius: 10px; padding: 12px; box-shadow: 0 1px 2px rgba(17,32,47,.06); transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease; }
+.kanban-crm .kcard:hover { border-color: color-mix(in srgb, var(--etp, var(--verde)) 60%, var(--borda)); box-shadow: 0 4px 14px rgba(17,32,47,.08); transform: translateY(-1px); }
+.kanban-crm .kcard.sem, .kanban-crm .kcard.atrasada { border-left-width: 1px; position: relative; }
+.kanban-crm .kcard.sem::before, .kanban-crm .kcard.atrasada::before { content: ""; position: absolute; left: -1px; top: 10px; bottom: 10px; width: 3px; border-radius: 0 3px 3px 0; background: var(--ruim); }
+.kanban-crm .kcard.atrasada::before { background: var(--med); }
+.kanban-crm .kcard-nome { font-size: 13.5px; font-weight: 700; }
+.kanban-crm .kcard-pe { align-items: center; } .kanban-crm .kcard-pe b { font-variant-numeric: tabular-nums; font-size: 14px; }
+.kcard-vend { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 10px !important; font-weight: 700; color: var(--txt2) !important; background: var(--nulo); }
+.kanban-crm .kcard-atv { display: flex; gap: 6px; align-items: center; border-top-style: solid; }
+.kanban-crm .kcard-atv .ico { color: var(--txt3); } .kanban-crm .kcard.sem .kcard-atv .ico { color: var(--ruim); }
+.kanban-crm .kvazio { font-size: 12.5px; border: 1px dashed var(--borda); border-radius: 10px; }
