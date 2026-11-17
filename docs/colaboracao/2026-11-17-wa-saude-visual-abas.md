@@ -45,3 +45,11 @@ Feito na retomada automática combinada com o Vinícius. Só WhatsApp teve funç
 - Sub-abas sem emoji. Colunas do kanban com ponto de cor da etapa, contagem em pílula e soma em destaque.
 - Cartões mais limpos: iniciais do vendedor, faixa fina vermelha (sem atividade) / âmbar (atrasada), próxima atividade com ícone.
 - Só no .kanban-crm (o kanban da Assistência não muda).
+
+## Emoji → ícones em toda a Intranet (17/11, tarde)
+
+- `util.js`: `EMOJI_ICONE` + `trocarEmojis()` + MutationObserver: depois de cada desenho, os emoji conhecidos da interface viram
+  ícones de traço (`icone()`); os decorativos (🎉 👏 🚀…) somem. Uma peça central em vez de editar ~950 emoji em 38 arquivos.
+- Fica de fora: o que pessoas escreveram (.wa-msgs, prévia do WhatsApp, .coment p, leitura de e-mail), campos/opções de
+  formulário e as abas do estoque/expedição/ML/compras/cadastro (pedido do Vinícius: área do Fefão).
+- Para excluir um trecho específico: classe `sem-icone`.

@@ -87,3 +87,75 @@ const ICONES = {
 const icone = (nome, tam = 18) => ICONES[nome] ? `<svg class="ico" viewBox="0 0 24 24" width="${tam}" height="${tam}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONES[nome]}</svg>` : '';
 /** Esqueleto de carregamento (blocos cinza pulsando) no lugar de "Carregando…". */
 const esqueleto = (linhas = 4, kpis = 0) => `<div class="esq" role="status" aria-label="Carregando">${kpis ? `<div class="esq-kpis">${'<div class="esq-b esq-kpi"></div>'.repeat(kpis)}</div>` : ''}${Array.from({ length: linhas }, (_, i) => `<div class="esq-b esq-l" style="width:${[92, 78, 85, 64, 88, 70][i % 6]}%"></div>`).join('')}</div>`;
+
+// ─── Emoji da interface → ícones de traço (17/11) ───
+// Depois de cada desenho, troca os emoji conhecidos dos textos da interface por ícones; os decorativos (🎉 👏…) somem.
+// Não mexe no que cliente/equipe escreveram (mensagens, e-mails, comentários), em campos de formulário nem nas abas do estoque.
+Object.assign(ICONES, {
+  check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+  alerta: '<path d="M12 3.5 2.5 20h19zM12 10v4.5M12 17.5h.01"/>',
+  lixo: '<path d="M4 7h16M9.5 7V4.5h5V7M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
+  clipe: '<path d="M20 11.5 12.2 19.3a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8"/>',
+  nota: '<path d="M5 4h10l4 4v12H5zM14 4v5h5M8 13h8M8 17h5"/>',
+  relogio: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  repetir: '<path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v4.5h-4.5"/>',
+  link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+  local: '<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+  cadeado: '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>',
+  chave: '<circle cx="8" cy="15" r="4"/><path d="m11 12 8.5-8.5M16 7l2.5 2.5M14 9l2 2"/>',
+  editar: '<path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/>',
+  camera: '<path d="M4 8h3.5L9 5.5h6L16.5 8H20v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  impressora: '<path d="M7 9V4h10v5M7 17H4v-7h16v7h-3M7 14h10v6H7z"/>',
+  ponto: '<circle cx="12" cy="12" r="5" fill="currentColor"/>',
+  play: '<path d="M8 5v14l11-7z"/>',
+  pausa: '<path d="M9 5v14M15 5v14"/>',
+  parar: '<rect x="6" y="6" width="12" height="12" rx="1.5"/>',
+  trofeu: '<path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M9 20h6"/>',
+  mao: '<path d="M8 13V6.5a1.5 1.5 0 0 1 3 0V12M11 11V4.5a1.5 1.5 0 0 1 3 0V11M14 11V5.5a1.5 1.5 0 0 1 3 0V14a6 6 0 0 1-6 6h-.5a6 6 0 0 1-5-2.7L3.5 14a1.5 1.5 0 0 1 2.5-1.6L8 15"/>',
+  ideia: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>',
+  raio: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+});
+const EMOJI_ICONE = {
+  '📞': 'telefone', '📱': 'telefone', '☎': 'telefone', '✉': 'emails', '📧': 'emails', '📩': 'emails', '📨': 'solicitacoes', '💬': 'atendimento', '🗨': 'atendimento',
+  '🎯': 'metas', '📈': 'vendas', '📉': 'vendas', '📊': 'geral', '🧾': 'pedidos', '🚦': 'situacao', '👤': 'clientes', '👥': 'clientes', '🧑': 'clientes', '🏷': 'monitoria',
+  '⭐': 'avaliacoes', '🌟': 'avaliacoes', '💳': 'creditos', '🎁': 'brindes', '🛍': 'ml', '🛒': 'compras', '📣': 'trafego', '📢': 'trafego', '📋': 'visaoestoque', '📦': 'estoque',
+  '🚚': 'expedicao', '📺': 'abrirTV', '🤝': 'compras', '🧩': 'cadastroprod', '🔧': 'suporte', '🛠': 'suporte', '🔨': 'suporte', '☑': 'checklist', '✅': 'check', '✔': 'check',
+  '📅': 'calendario', '🗓': 'calendario', '📆': 'calendario', '💰': 'remuneracao', '💵': 'remuneracao', '💲': 'remuneracao', '⚙': 'config', '📜': 'logs', '🔎': 'busca', '🔍': 'busca',
+  '🔔': 'sino', '⚠': 'alerta', '❗': 'alerta', '‼': 'alerta', '⛔': 'alerta', '🚫': 'alerta', '❌': 'alerta', '🗑': 'lixo', '📎': 'clipe', '📝': 'nota', '🗒': 'nota', '📄': 'nota', '📃': 'nota',
+  '📁': 'nota', '📂': 'nota', '⏰': 'relogio', '⏱': 'relogio', '🕓': 'relogio', '⏳': 'relogio', '⌛': 'relogio', '🔁': 'repetir', '🔄': 'repetir', '🔗': 'link', '📍': 'local',
+  '🔒': 'cadeado', '🔐': 'cadeado', '🔑': 'chave', '✏': 'editar', '✍': 'editar', '🖊': 'editar', '📷': 'camera', '📸': 'camera', '🖨': 'impressora', '▶': 'play', '⏸': 'pausa',
+  '⏹': 'parar', '🍽': 'pausa', '🏆': 'trofeu', '🥇': 'trofeu', '🙋': 'mao', '💡': 'ideia', '⚡': 'raio', '🟢': 'ponto', '🔴': 'ponto', '🟡': 'ponto', '🟠': 'ponto', '⚪': 'ponto',
+  '❓': 'ajuda', '❔': 'ajuda', '☀': 'meudia', '🏠': 'inicio', '🌐': 'link', '🤖': 'raio', '👀': 'busca', '👉': null, '🎉': null, '👏': null, '🚀': null, '✨': null, '🙂': null,
+  '😊': null, '😉': null, '🔥': null, '💪': null, '🙌': null, '👍': null, '👋': null, '🥳': null, '🎊': null, '❤': null, '💚': null,
+};
+const PONTO_COR = { '🟢': 'ok', '🔴': 'ruim', '🟡': 'med', '🟠': 'med', '⚪': '' };
+const EMOJI_RE = new RegExp('(' + Object.keys(EMOJI_ICONE).sort((a, b) => b.length - a.length).map(e => e.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\uFE0F?\\s?', 'gu');
+// Onde NÃO trocar: texto escrito por pessoas (WhatsApp, e-mail, comentários), campos e as abas do estoque/expedição/ML.
+const EMOJI_FORA = 'option,select,textarea,input,script,style,code,pre,[contenteditable],.sem-icone,.wa-msgs,.wa-item .prev,.wa-cab-c,.coment p,.email-corpo,.email-ler,.leitura';
+const EMOJI_ABAS_FORA = new Set(['ml', 'expedicao', 'estoque', 'visaoestoque', 'tvestoque', 'abrirTV', 'compras', 'cadastroprod', 'envioml']);
+/** Troca os emoji de uma árvore do DOM (exportada para o teste). */
+function trocarEmojis(raiz) {
+  if (!raiz || typeof document === 'undefined' || !document.createTreeWalker) return 0;
+  if (typeof UI !== 'undefined' && UI && EMOJI_ABAS_FORA.has(UI.view) && !raiz.closest?.('#nav, .barra-inf, .sino-painel')) return 0;
+  const alvos = [], w = document.createTreeWalker(raiz, 4 /* texto */);
+  for (let n = w.nextNode(); n; n = w.nextNode()) { EMOJI_RE.lastIndex = 0; if (EMOJI_RE.test(n.nodeValue) && !n.parentElement?.closest(EMOJI_FORA)) alvos.push(n); }
+  for (const n of alvos) {
+    const partes = n.nodeValue.split(EMOJI_RE), frag = document.createDocumentFragment();
+    // split com grupo: [texto, emoji, texto, emoji, …]
+    partes.forEach((p, i) => {
+      if (i % 2 === 0) { if (p) frag.appendChild(document.createTextNode(p)); return; }
+      const nome = EMOJI_ICONE[p]; if (!nome) return;
+      const s = document.createElement('span'); s.className = 'ico-em' + (nome === 'ponto' ? ' ' + (PONTO_COR[p] || '') : ''); s.innerHTML = icone(nome, 15);
+      frag.appendChild(s); if (partes[i + 1] && !/^\s/.test(partes[i + 1])) frag.appendChild(document.createTextNode(' '));
+    });
+    n.parentNode.replaceChild(frag, n);
+  }
+  return alvos.length;
+}
+if (typeof MutationObserver !== 'undefined' && typeof document !== 'undefined' && document.body) {
+  let pend = new Set(), agendado = false;
+  new MutationObserver(ms => {
+    for (const m of ms) for (const n of m.addedNodes) { if (n.nodeType === 1) pend.add(n); else if (n.nodeType === 3 && n.parentElement) pend.add(n.parentElement); }
+    if (pend.size && !agendado) { agendado = true; requestAnimationFrame(() => { agendado = false; const l = [...pend]; pend = new Set(); l.forEach(el => el.isConnected && trocarEmojis(el)); }); }
+  }).observe(document.body, { childList: true, subtree: true });
+}

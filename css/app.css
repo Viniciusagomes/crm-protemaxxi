@@ -968,3 +968,9 @@ input:focus, select:focus, textarea:focus { outline: 0; border-color: var(--verd
 .kanban-crm .kcard-atv { display: flex; gap: 6px; align-items: center; border-top-style: solid; }
 .kanban-crm .kcard-atv .ico { color: var(--txt3); } .kanban-crm .kcard.sem .kcard-atv .ico { color: var(--ruim); }
 .kanban-crm .kvazio { font-size: 12.5px; border: 1px dashed var(--borda); border-radius: 10px; }
+
+/* ─── Emoji da interface viram ícones de traço (17/11) ─── */
+.ico-em { display: inline-flex; vertical-align: -.2em; color: inherit; opacity: .85; }
+.ico-em .ico { display: block; width: .95em; height: .95em; min-width: 13px; min-height: 13px; }
+.ico-em.ok { color: var(--ok); opacity: 1; } .ico-em.med { color: var(--med); opacity: 1; } .ico-em.ruim { color: var(--ruim); opacity: 1; }
+.btn .ico-em, .chip .ico-em, .tag .ico-em { opacity: 1; }

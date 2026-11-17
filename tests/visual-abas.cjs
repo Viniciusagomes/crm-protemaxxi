@@ -15,4 +15,9 @@ assert.doesNotMatch(ler('js/crm.js'), /card vazio">Carregando/, 'Funil e Meu dia
 assert.match(ler('js/vendas.js'), /function pedResumo\(lista\)/); assert.match(ler('js/vendas.js'), /class="ped-totais"/);
 // Clientes: iniciais e cabeçalho de perfil
 assert.match(ler('js/clientes.js'), /const cliAvatar = /); assert.match(ler('js/clientes.js'), /class="cli-perfil"/); assert.doesNotMatch(ler('js/clientes.js'), /'👤 Carteira'/);
+// Emoji → ícones: todo emoji mapeado aponta para um ícone que existe (ou some), e a busca acha os emoji com/sem FE0F
+assert.deepEqual(vm.runInContext("Object.entries(EMOJI_ICONE).filter(([e, n]) => n && !ICONES[n]).map(([e]) => e)", ctx), [], 'ícone inexistente');
+assert.equal(vm.runInContext("'⚠️ Problema 📞 Ligar 🎉'.replace(EMOJI_RE, '[x]')", ctx), '[x]Problema [x]Ligar [x]');
+assert.ok(vm.runInContext("EMOJI_ABAS_FORA.has('expedicao') && EMOJI_ABAS_FORA.has('ml') && EMOJI_ABAS_FORA.has('estoque')", ctx), 'abas do estoque ficam de fora');
+assert.match(vm.runInContext('EMOJI_FORA', ctx), /\.wa-msgs/);
 console.log('ok visual das abas');
