@@ -756,7 +756,7 @@ body.tvestoque .barra-inf { display: none !important; }
 .wa-aba { border: 0; border-radius: 999px; padding: 5px 12px; background: var(--wa-barra); color: var(--wa-txt2); font-size: 13.5px; font-weight: 600; cursor: pointer; white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; }
 .wa-aba span { font-size: 11.5px; opacity: .85; }
 .wa-aba.on { background: color-mix(in srgb, var(--wa-verde) 18%, transparent); color: var(--wa-verde); }
-.wa-aba.alerta:not(.on) span { background: var(--ruim); color: #fff; border-radius: 999px; padding: 0 6px; opacity: 1; }
+.wa-aba.urgente:not(.on) span { background: var(--ruim); color: #fff; border-radius: 999px; padding: 0 6px; opacity: 1; }
 .wa-lista { overflow-y: auto; overflow-x: hidden; flex: 1; min-height: 0; }
 .wa-item .l2 .prev, .wa-item .l1 b { flex: 1; min-width: 0; }
 .wa-item { display: flex; gap: 12px; align-items: center; padding: 0 0 0 12px; cursor: pointer; }
@@ -1164,3 +1164,7 @@ nav .badge { flex: none; }
   html.side-mini #btnLetra, html.side-mini #btnInstalar { display: none; }   /* recolhido: só senha, tema e sair */
   html.side-mini .sino-fundo { padding-left: 90px; }
 }
+/* Abas do WhatsApp (17/11): grade de 3 por linha, todas do mesmo tamanho ("alerta" virou "urgente" para não herdar o estilo dos avisos) */
+.wa-abas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; overflow: visible; }
+.wa-aba { justify-content: center; padding: 6px 8px; min-width: 0; }
+.wa-aba span { min-width: 18px; text-align: center; }

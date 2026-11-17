@@ -50,5 +50,8 @@ assert.match(fx, /data-wa="lembApagar"/);
 assert.doesNotMatch(run('waFichaExtraHtml(WA.conv[3])'), /lembApagar/);
 
 const idx = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-assert.match(idx, /js\/atendimento\.js\?v=20261117p/);
+assert.match(idx, /js\/atendimento\.js\?v=20261117[p-z]/);
+// a aba que chama atenção não pode usar a classe .alerta (é o estilo dos avisos, com faixa lateral)
+assert.doesNotMatch(run('waAbasHtml()'), /class="wa-aba[^"]*alerta/);
+assert.match(run('waAbasHtml()'), /wa-aba +urgente|wa-aba  urgente|urgente/);
 console.log('✔ whatsapp-etiquetas.cjs');

@@ -270,7 +270,7 @@ function waEtqFiltroHtml() {
   return usadas.map(e => `<button class="wa-etq ${WA.etq === e ? 'on' : ''}" style="--etq:${WA_ETIQ[e][1]}" data-wa="etqFiltro" data-e="${e}">${WA_ETIQ[e][0]}</button>`).join('');
 }
 function waAbasHtml() {
-  return WA_ABAS.map(([k, n]) => { const q = waFiltro(k).length; return `<button class="wa-aba ${WA.aba === k ? 'on' : ''} ${(k === 'esperando' && q) || (k === 'lembretes' && waFiltro(k).some(c => waLembVenceu(c))) ? 'alerta' : ''}" data-wa="aba" data-v="${k}">${n}${q ? `<span>${q}</span>` : ''}</button>`; }).join('');
+  return WA_ABAS.map(([k, n]) => { const q = waFiltro(k).length; return `<button class="wa-aba ${WA.aba === k ? 'on' : ''} ${(k === 'esperando' && q) || (k === 'lembretes' && waFiltro(k).some(c => waLembVenceu(c))) ? 'urgente' : ''}" data-wa="aba" data-v="${k}">${n}${q ? `<span>${q}</span>` : ''}</button>`; }).join('');
 }
 function waFiltro(aba) {
   const q = WA.busca.trim().toLowerCase(), d = q.replace(/\D/g, '');
