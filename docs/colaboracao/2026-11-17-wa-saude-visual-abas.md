@@ -81,3 +81,7 @@ Feito na retomada automática combinada com o Vinícius. Só WhatsApp teve funç
 ## Equipe (Supervisão, Metas, Remuneração, Configurações) (17/11, lote 3)
 
 - Cabeçalho de pessoa, linhas de configuração e barras empilhadas com acabamento mais limpo; seletor segmentado no padrão novo.
+
+## Avaliações, Créditos, Brindes e Boletos (17/11, lote 3)
+
+- Estrelas em dourado sóbrio, catálogo de brindes com foto e números alinhados, boletos com faixa fina de status e valor em destaque.
