@@ -11,4 +11,6 @@ vm.runInContext(v.slice(ini, fim).replace('const pedSitCls', 'this.pedSitCls'), 
 assert.deepEqual(['Cancelado', 'Entregue', 'Faturado', 'Em aberto', 'Aprovado', 'Outra'].map(s => ctx.pedSitCls(s)), ['ruim', 'ok', 'ok', 'med', 'med', '']);
 for (const f of ['js/crm.js', 'js/main.js', 'js/vendas.js']) assert.doesNotMatch(ler(f), /class="(card )?vazio">[^<]*(👏|🎉)/, `${f}: estado vazio sem emoji`);
 assert.doesNotMatch(ler('js/crm.js'), /card vazio">Carregando/, 'Funil e Meu dia com esqueleto');
+// Pedidos: faixa de números e detalhe redesenhado
+assert.match(ler('js/vendas.js'), /function pedResumo\(lista\)/); assert.match(ler('js/vendas.js'), /class="ped-totais"/);
 console.log('ok visual das abas');
