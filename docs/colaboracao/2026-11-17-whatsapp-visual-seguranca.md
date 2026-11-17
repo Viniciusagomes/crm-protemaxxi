@@ -31,3 +31,8 @@ Tela refeita no estilo do WhatsApp (claro e escuro), sem mudar banco nem Edge Fu
 - `node tests/rodar-todos.cjs`: 27/27 (novo `tests/whatsapp-visual.cjs`).
 - Prévia local com dados fictícios (claro/escuro, "/" com variáveis) conferida no navegador.
 - Sem revisão do Codex (não instalado neste PC).
+
+## Ordem da lista (17/11, pedido do Vinícius)
+
+Todas as abas do WhatsApp (inclusive "Esperando") listam a conversa **mais recente primeiro**. O tempo de espera continua
+na etiqueta colorida de cada conversa. Dentro da conversa as mensagens seguem o padrão do WhatsApp (antigas em cima).
