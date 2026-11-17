@@ -101,3 +101,14 @@ Feito na retomada automática combinada com o Vinícius. Só WhatsApp teve funç
   Quando uma `<option>` não tem `value`, o texto antigo vira o `value` antes da troca, para o valor enviado não mudar.
 - Continua de fora o que pessoas escreveram (WhatsApp, e-mail, comentários) e as abas do Fefão.
 - Depende do #48, porque os dois mudam a versão do `app.css`.
+
+## Barra lateral: recolher/expandir e botões iguais (17/11)
+
+- Topo: logo e "Intranet" à esquerda; busca e sino do mesmo tamanho à direita, num grid (antes ficavam por cima do logo).
+  O número do sino ficou menor e com borda, para não sair da barra.
+- Itens do menu: o nome agora fica em `<span class="rot">`, com reticências quando não cabe ("Compras e fornecedores"),
+  e com `title` para a dica no modo recolhido.
+- Rodapé: Senha, Tema, A+ e Sair (e App, quando aparece) viraram botões de ícone do mesmo tamanho, num grid que nunca sai da barra.
+- Botão novo "Recolher menu": a barra fica com 76px e só ícones. Os números viram um ponto verde e os títulos de grupo, uma linha.
+  O estado fica lembrado no navegador (`localStorage`, chave `menuRecolhido`), e o celular não muda.
+- Depende do #49 (mexe no `util.js`/`app.css` também).

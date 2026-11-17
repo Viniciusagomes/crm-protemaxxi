@@ -145,15 +145,31 @@ function conteudoBarraInf() {
   return atalhosBarra().map(([v, ic, nome]) => `<button class="${UI.view === v ? 'on' : ''}" data-a="nav" data-v="${v}"><span>${icone(v, 20) || ic}</span>${nome}</button>`).join('')
     + `<button data-a="abrirBusca"><span>${icone('busca', 20)}</span>Buscar</button><button data-a="sinoAbrir" class="${n ? 'tem' : ''}"><span>${icone('sino', 20)}${n ? `<i>${n}</i>` : ''}</span>Avisos</button><button data-a="menuCel"><span>${icone('menu', 20)}</span>Menu</button>`;
 }
+// ─── barra lateral: recolher/expandir (fica lembrado neste navegador) ───
+const MENU_MINI = 'menuRecolhido';
+try { if (typeof document !== 'undefined' && localStorage.getItem(MENU_MINI) === '1') document.documentElement.classList.add('side-mini'); } catch { /* sem localStorage */ }
+function recolherMenu() {
+  const mini = document.documentElement.classList.toggle('side-mini');
+  try { localStorage.setItem(MENU_MINI, mini ? '1' : '0'); } catch { /* ok */ }
+  const b = document.getElementById('btnRecolher'); if (b) { b.title = mini ? 'Expandir menu' : 'Recolher menu'; b.querySelector('.rot').textContent = mini ? 'Expandir' : 'Recolher menu'; }
+}
+/** Botões do rodapé da barra: todos do mesmo tamanho, só ícone (o nome aparece ao passar o mouse). */
+function rodapeBotoes() {
+  const b = (a, ic, t, id = '') => `<button class="tema" ${id ? `id="${id}"` : ''} data-a="${a}" title="${t}" aria-label="${t}">${ic}</button>`;
+  return b('minhaSenha', icone('chave', 18), 'Trocar minha senha') + b('tema', icone('tema', 18), 'Tema claro/escuro')
+    + b('alternarLetra', '<b class="letra">A+</b>', 'Letra maior', 'btnLetra') + b('sair', icone('sair', 18), 'Sair');
+}
 /** Chamado no fim de cada render: sino, barra inferior e botão de instalar. */
 function atualizarShell() {
   const marca = document.querySelector('.side .marca');
-  if (marca && !document.getElementById('sinoLugar')) marca.insertAdjacentHTML('beforeend', '<span id="sinoLugar" class="sino-lugar"></span><button class="busca-btn" data-a="abrirBusca" title="Buscar (Ctrl+K)">🔎</button>');
+  if (marca && !document.getElementById('sinoLugar')) marca.insertAdjacentHTML('beforeend', `<button class="busca-btn" data-a="abrirBusca" title="Buscar (Ctrl+K)">${icone('busca', 18)}</button><span id="sinoLugar" class="sino-lugar"></span>`);
   const s = document.getElementById('sinoLugar'); if (s) s.innerHTML = botaoSino();
   if (!document.getElementById('barraInf')) document.body.insertAdjacentHTML('beforeend', '<nav class="barra-inf" id="barraInf"></nav>');
   $('#barraInf').innerHTML = conteudoBarraInf();
   const rod = document.querySelector('.side-rodape .linha-botoes');
-  if (rod && !document.getElementById('btnLetra')) rod.insertAdjacentHTML('beforeend', '<button class="tema" id="btnLetra" data-a="alternarLetra" title="Letra maior">A+</button>');
+  if (rod && !document.getElementById('btnLetra')) rod.innerHTML = rodapeBotoes();
+  if (rod && !document.getElementById('btnRecolher')) { const mini = document.documentElement.classList.contains('side-mini');
+    rod.insertAdjacentHTML('beforebegin', `<button class="side-recolher" id="btnRecolher" data-a="recolherMenu" title="${mini ? 'Expandir menu' : 'Recolher menu'}">${icone('recolher', 16)}<span class="rot">${mini ? 'Expandir' : 'Recolher menu'}</span></button>`); }
   botaoInstalar();
   document.body.classList.remove('menu-aberto');
   if (SINO.primeira) checarSino();
@@ -166,7 +182,7 @@ const jaInstalado = () => matchMedia('(display-mode: standalone)').matches || na
 function botaoInstalar() {
   const b = document.getElementById('btnInstalar'), mostrar = !!INSTALAR.evento && !jaInstalado();
   if (!mostrar) { b?.remove(); return; }
-  if (!b) document.getElementById('btnLetra')?.insertAdjacentHTML('afterend', '<button class="tema" id="btnInstalar" data-a="instalarApp" title="Instalar no celular/PC">📲 App</button>');
+  if (!b) document.getElementById('btnLetra')?.insertAdjacentHTML('afterend', `<button class="tema" id="btnInstalar" data-a="instalarApp" title="Instalar o app no celular/PC" aria-label="Instalar o app">${icone('entrada', 18)}</button>`);
 }
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); INSTALAR.evento = e; botaoInstalar(); });
 window.addEventListener('appinstalled', () => { INSTALAR.evento = null; botaoInstalar(); });

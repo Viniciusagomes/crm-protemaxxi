@@ -25,7 +25,7 @@ function menu() {
   // só as abas do perfil; tira títulos de grupo que ficaram vazios
   const vis = itens.filter(([g, k]) => (g !== '' && !k) || podeAba(k)).filter((it, i, arr) => !(it[0] !== '' && !it[1]) || (arr[i + 1] && arr[i + 1][0] === ''));
   return vis.map(([g, k, ic, nome, badge]) => g !== '' && !k ? `<div class="grupo">${g}</div>`
-    : `<button class="${UI.view === k ? 'on' : ''}" data-a="nav" data-v="${k}"><span class="ic">${icone(k) || ic}</span>${nome}${badge ? `<span class="badge">${badge}</span>` : ''}</button>`).join('');
+    : `<button class="${UI.view === k ? 'on' : ''}" data-a="nav" data-v="${k}" title="${nome}"><span class="ic">${icone(k) || ic}</span><span class="rot">${nome}</span>${badge ? `<span class="badge">${badge}</span>` : ''}</button>`).join('');
 }
 const VIEWS_FN = {
   inicio: () => vInicio(), vendas: () => vVendas(), ml: () => vML(), trafego: () => vTrafego(), pedidos: () => vPedidos(), clientes: () => vClientes(),
@@ -383,6 +383,7 @@ const A = {
   sinoFechar: () => $('.sino-fundo')?.remove(),
   sinoPermitir: async () => { try { await Notification.requestPermission(); } catch { /* ok */ } $('.sino-fundo')?.remove(); checarSino(); },
   menuCel: () => document.body.classList.toggle('menu-aberto'),
+  recolherMenu: () => recolherMenu(),
   alternarLetra: () => alternarLetra(),
   instalarApp: () => instalarApp(),
   crmAtualizar: () => Promise.all([carregarCRM(true), carregarResumoPro(true)]).then(render).catch(e => avisar(e.message)),
