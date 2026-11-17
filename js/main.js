@@ -5,12 +5,14 @@
 // Abas que moram dentro de outra: no menu aparece só a principal; dentro dela, uma barra de sub-abas (o endereço antigo continua valendo).
 const MENU_GRUPOS = {
   meudia: [['meudia', 'Meu dia'], ['checklist', 'Checklist do dia']],
-  vendas: [['vendas', 'Painel de vendas'], ['pedidos', 'Pedidos'], ['monitoria', 'Monitoria de preços']],
+  vendas: [['vendas', 'Painel de vendas'], ['pedidos', 'Pedidos'], ['situacao', 'Situação dos pedidos'], ['monitoria', 'Monitoria de preços']],
+  visaoestoque: [['visaoestoque', 'Visão geral'], ['estoque', 'Estoque'], ['abrirTV', 'TV do estoque']],
+  compras: [['compras', 'Compras e fornecedores'], ['cadastroprod', 'Cadastro de produtos']],
   creditos: [['creditos', 'Créditos e vales'], ['brindes', 'Brindes']],
   supervisao: [['supervisao', 'Supervisão'], ['geral', 'Visão da equipe'], ['metas', 'Metas e números'], ['feedbacks', 'Feedbacks']],
   config: [['config', 'Configurações'], ['logs', 'Logs']],
 };
-const MENU_NOME = { meudia: 'Meu dia', vendas: 'Vendas', creditos: 'Créditos e brindes', supervisao: 'Supervisão', config: 'Configurações' };
+const MENU_NOME = { visaoestoque: 'Estoque', compras: 'Compras e produtos', meudia: 'Meu dia', vendas: 'Vendas', creditos: 'Créditos e brindes', supervisao: 'Supervisão', config: 'Configurações' };
 /** A aba aparece para este perfil? (mesmas regras de antes, só reunidas num lugar) */
 function abaVisivel(k) {
   if (!podeAba(k) || (SO_DONO.includes(k) && !ehDono())) return false;
@@ -49,11 +51,11 @@ function badgeAba(k) {
 function menu() {
   const itens = [
     ['', 'inicio', '⌂', 'Início'], ['', 'meudia', '☀', 'Meu dia'],
-    ['Vendas'], ['', 'crm', '🎯', 'Funil (CRM)'], ['', 'clientes', '👤', 'Clientes'], ['', 'vendas', '📈', 'Vendas'], ['', 'situacao', '🚦', 'Situação dos pedidos'],
+    ['Vendas'], ['', 'crm', '🎯', 'Funil (CRM)'], ['', 'clientes', '👤', 'Clientes'], ['', 'vendas', '📈', 'Vendas'],
     ['Financeiro'], ['', 'boletos', '🧾', 'Boletos em atraso'], ['', 'creditos', '💳', 'Créditos e brindes'], ['', 'remuneracao', '💰', ehDono() ? 'Remuneração' : 'Meu ganho'],
     ['Atendimento'], ['', 'atendimento', '💬', 'WhatsApp'], ['', 'emails', '✉', 'Caixa de e-mails'], ['', 'suporte', '🔧', 'Assistência (OS)'],
     ['Marketing'], ['', 'trafego', '📣', 'Tráfego (Google Ads)'], ['', 'calendario', '📅', 'Calendário de marketing'], ['', 'avaliacoes', '⭐', 'Avaliações'],
-    ['Operação'], ['', 'ml', '🛍', 'Mercado Livre'], ['', 'visaoestoque', '📋', 'Visão geral do estoque'], ['', 'expedicao', '📦', 'Expedição'], ['', 'estoque', '🏷', 'Estoque'], ['', 'abrirTV', '📺', 'TV do estoque'], ['', 'compras', '🤝', 'Compras e fornecedores'], ['', 'cadastroprod', '🧩', 'Cadastro de produtos'],
+    ['Operação'], ['', 'ml', '🛍', 'Mercado Livre'], ['', 'expedicao', '📦', 'Expedição'], ['', 'visaoestoque', '📋', 'Estoque'], ['', 'compras', '🤝', 'Compras e produtos'],
     ['Equipe'], ['', 'solicitacoes', '📨', 'Solicitações'], ['', 'supervisao', '👥', 'Supervisão'],
     ['Sistema'], ['', 'config', '⚙', 'Configurações'],   // "Como usar" virou o botão ? no rodapé da barra
   ];

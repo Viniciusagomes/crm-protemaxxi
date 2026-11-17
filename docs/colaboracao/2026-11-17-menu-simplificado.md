@@ -43,3 +43,9 @@ Pedido do Vinícius: reorganizar as categorias, reduzir a quantidade de abas e c
   Como usar → botão "?" no rodapé da barra. A categoria Sistema fica só para o dono (Configurações).
 - Barra recolhida: todas as categorias abertas, só com os ícones e sem sub-itens.
 - Testes: `menu.cjs` cobre categorias (a atual aberta, as outras fechadas, categoria vazia some) e os sub-itens; 32/32.
+
+## Terceira rodada: Operação do Fefão organizada (com o ok do Vinícius)
+- Situação dos pedidos → dentro de **Vendas** (Painel, Pedidos, Situação, Monitoria).
+- **Estoque** = Visão geral + Estoque + TV do estoque. A sub-aba TV continua abrindo a TV em outra janela.
+- **Compras e produtos** = Compras e fornecedores + Cadastro de produtos.
+- Operação passou de 7 para 4 itens: Mercado Livre, Expedição, Estoque, Compras e produtos. Nada mudou dentro das telas do Fefão.
