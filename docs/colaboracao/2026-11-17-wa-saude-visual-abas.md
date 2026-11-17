@@ -77,3 +77,7 @@ Feito na retomada automática combinada com o Vinícius. Só WhatsApp teve funç
 ## Assistência (OS) (17/11, lote 3)
 
 - Quadro de OS no mesmo padrão do Funil (colunas leves, cartões limpos), anexos e cabeçalhos mais calmos.
+
+## Equipe (Supervisão, Metas, Remuneração, Configurações) (17/11, lote 3)
+
+- Cabeçalho de pessoa, linhas de configuração e barras empilhadas com acabamento mais limpo; seletor segmentado no padrão novo.
