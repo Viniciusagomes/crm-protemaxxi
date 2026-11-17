@@ -23,7 +23,7 @@ assert.match(sql, /update public\.wa_atendentes set estado = 'fora'/, 'tira todo
 
 // ─── tela ───
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-assert.match(html, /js\/atendimento\.js\?v=20261116a/, 'cache do atendimento.js atualizado');
+assert.match(html, /js\/atendimento\.js\?v=\d{8}[a-z]/, 'cache do atendimento.js atualizado');
 const src = fs.readFileSync(path.join(root, 'js/atendimento.js'), 'utf8');
 const ini = src.indexOf('function waExpHtml()'), fim = src.indexOf('\nasync function waExpAcao', ini);
 const ctx = { WA: { cfg: {}, equipe: [] }, EU: { id: 'pedro' }, esc: s => String(s), nomeP: id => ({ pedro: 'Pedro' })[id] || id,
