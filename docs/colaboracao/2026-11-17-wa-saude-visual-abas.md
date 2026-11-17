@@ -85,3 +85,7 @@ Feito na retomada automática combinada com o Vinícius. Só WhatsApp teve funç
 ## Avaliações, Créditos, Brindes e Boletos (17/11, lote 3)
 
 - Estrelas em dourado sóbrio, catálogo de brindes com foto e números alinhados, boletos com faixa fina de status e valor em destaque.
+
+## Calendário de marketing, Agenda e telefones (17/11, lote 3)
+
+- Calendário com dias mais limpos (hoje em círculo verde), itens com cantos suaves; chips de telefone e botões de ícone no padrão novo.

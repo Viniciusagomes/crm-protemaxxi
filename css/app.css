@@ -1089,3 +1089,14 @@ details[open] > summary::before { transform: rotate(45deg); }
 .bol-valor { font-size: 24px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 .bol-info > div > small:first-child, .bol-info > div > span:first-child { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--txt3); }
 .bol-comp { border-style: solid; }
+
+/* ─── Calendário de marketing, Agenda e telefones (17/11) ─── */
+.cal-grade { gap: 6px; }
+.cal-dia { border-radius: 10px; border-color: color-mix(in srgb, var(--borda) 80%, transparent); transition: border-color .12s ease; }
+.cal-dia:hover { border-color: var(--borda-forte); }
+.cal-dia.hoje { border: 1px solid var(--verde); box-shadow: 0 0 0 1px var(--verde); }
+.cal-dia.hoje .cal-num a { background: var(--verde); border-radius: 99px; padding: 1px 7px; }
+.cal-item { border-radius: 6px; border-left-width: 3px; }
+.cal-item.st-fazendo { background: color-mix(in srgb, #2B7BB9 12%, var(--card)); color: inherit; }
+.tel-chip { border-radius: 8px; font-variant-numeric: tabular-nums; }
+.tel-chip.cel { border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
