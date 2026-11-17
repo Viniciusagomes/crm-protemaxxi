@@ -65,3 +65,7 @@ Feito na retomada automática combinada com o Vinícius. Só WhatsApp teve funç
 - Janelas: fundo desfocado, entrada suave, botão fechar redondo. Filtros em pílulas mais leves. Campos com cantos iguais.
 - Avisos (alerta ruim/med/ok): cartão branco com faixa colorida à esquerda (antes fundo inteiro colorido).
 - Seções recolhíveis (details) com seta própria.
+
+## Meu dia e Prospecção (17/11, lote 3)
+
+- Atividades com marcador redondo e linha mais limpa, prospecção em cartões com hierarquia clara, contadores de segmento sóbrios.
