@@ -1100,3 +1100,18 @@ details[open] > summary::before { transform: rotate(45deg); }
 .cal-item.st-fazendo { background: color-mix(in srgb, #2B7BB9 12%, var(--card)); color: inherit; }
 .tel-chip { border-radius: 8px; font-variant-numeric: tabular-nums; }
 .tel-chip.cel { border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+
+/* ─── WhatsApp: etiquetas e lembretes (17/11) ─── */
+.wa-etq { display: inline-flex; align-items: center; gap: 5px; font: 600 11.5px/1.6 Figtree, system-ui, sans-serif; padding: 0 8px; border-radius: 99px; color: var(--etq); background: color-mix(in srgb, var(--etq) 13%, transparent); border: 1px solid transparent; white-space: nowrap; }
+.wa-etq::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--etq); }
+button.wa-etq { cursor: pointer; padding: 3px 10px; font-size: 12.5px; background: transparent; border-color: color-mix(in srgb, var(--etq) 35%, transparent); }
+button.wa-etq:hover { background: color-mix(in srgb, var(--etq) 10%, transparent); }
+button.wa-etq.on { background: var(--etq); color: #fff; border-color: var(--etq); } button.wa-etq.on::before { background: #fff; }
+.wa-etq-filtro { display: flex; gap: 6px; overflow-x: auto; padding: 0 12px 8px; scrollbar-width: none; } .wa-etq-filtro:empty { display: none; }
+.wa-etq-lista { display: flex; flex-wrap: wrap; gap: 6px; }
+.wa-item .l3 { flex-wrap: wrap; row-gap: 4px; }
+.wa-lemb { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0 0 8px; padding: 8px 10px; border-radius: 8px; background: var(--wa-barra); }
+.wa-lemb.venceu { background: var(--ruim-bg); color: var(--ruim); }
+.wa-lemb-form { display: grid; gap: 6px; } .wa-lemb-form input { width: 100%; } .wa-lemb-form .acoes { margin: 2px 0 0; flex-wrap: wrap; gap: 6px; }
+.wa-abas { flex-wrap: wrap; row-gap: 6px; }
+.wa-etq-filtro { padding-top: 8px; border-bottom: 1px solid var(--wa-linha); }
