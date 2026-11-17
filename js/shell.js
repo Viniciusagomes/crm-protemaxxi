@@ -157,7 +157,7 @@ function recolherMenu() {
 function rodapeBotoes() {
   const b = (a, ic, t, id = '') => `<button class="tema" ${id ? `id="${id}"` : ''} data-a="${a}" title="${t}" aria-label="${t}">${ic}</button>`;
   return b('minhaSenha', icone('chave', 18), 'Trocar minha senha') + b('tema', icone('tema', 18), 'Tema claro/escuro')
-    + b('alternarLetra', '<b class="letra">A+</b>', 'Letra maior', 'btnLetra') + b('sair', icone('sair', 18), 'Sair');
+    + b('alternarLetra', '<b class="letra">A+</b>', 'Letra maior', 'btnLetra') + b('nav" data-v="ajuda', icone('ajuda', 18), 'Como usar') + b('sair', icone('sair', 18), 'Sair');
 }
 /** Chamado no fim de cada render: sino, barra inferior e botão de instalar. */
 function atualizarShell() {

@@ -2,30 +2,93 @@
 /* CRM Protemaxxi — login, menu, Início, administração e ações. */
 
 // ═══════════════════════════ menu ═══════════════════════════
+// Abas que moram dentro de outra: no menu aparece só a principal; dentro dela, uma barra de sub-abas (o endereço antigo continua valendo).
+const MENU_GRUPOS = {
+  meudia: [['meudia', 'Meu dia'], ['checklist', 'Checklist do dia']],
+  vendas: [['vendas', 'Painel de vendas'], ['pedidos', 'Pedidos'], ['situacao', 'Situação dos pedidos'], ['monitoria', 'Monitoria de preços']],
+  visaoestoque: [['visaoestoque', 'Visão geral'], ['estoque', 'Estoque'], ['abrirTV', 'TV do estoque']],
+  compras: [['compras', 'Compras e fornecedores'], ['cadastroprod', 'Cadastro de produtos']],
+  creditos: [['creditos', 'Créditos e vales'], ['brindes', 'Brindes']],
+  supervisao: [['supervisao', 'Supervisão'], ['geral', 'Visão da equipe'], ['metas', 'Metas e números'], ['feedbacks', 'Feedbacks']],
+  config: [['config', 'Configurações'], ['logs', 'Logs']],
+};
+const MENU_NOME = { visaoestoque: 'Estoque', compras: 'Compras e produtos', meudia: 'Meu dia', vendas: 'Vendas', creditos: 'Créditos e brindes', supervisao: 'Supervisão', config: 'Configurações' };
+/** A aba aparece para este perfil? (mesmas regras de antes, só reunidas num lugar) */
+function abaVisivel(k) {
+  if (!podeAba(k) || (SO_DONO.includes(k) && !ehDono())) return false;
+  const regra = { monitoria: veMonitoria, avaliacoes: () => veTudoVendas() || !!EU.tiny, ml: veML, trafego: veTrafego, compras: veCompras, atendimento: veAtendimento, emails: veEmails,
+    calendario: () => calPessoas().length > 0, supervisao: temEquipe, visaoestoque: veExp, expedicao: veExp, estoque: veExp, abrirTV: veExp }[k];
+  return regra ? !!regra() : true;
+}
+/** Grupo a que a aba pertence (ou ela mesma). */
+const grupoDe = k => Object.keys(MENU_GRUPOS).find(g => MENU_GRUPOS[g].some(([x]) => x === k)) || k;
+/** Sub-abas visíveis do grupo da aba atual (só quando há mais de uma). */
+function subAbas(k) {
+  const g = MENU_GRUPOS[grupoDe(k)]; if (!g) return [];
+  const vis = g.filter(([x]) => abaVisivel(x)); return vis.length > 1 ? vis : [];
+}
+function badgeAba(k) {
+  const b = {
+    meudia: () => CRM.atv ? CRM.atv.filter(a => a.pessoa_id === EU.id && atvPendente(a) && a.quando <= hoje()).length : 0,
+    situacao: () => SIT.lista ? SIT.lista.filter(p => !p.removido && passosPedido(p).estado === 'problema').length : 0,
+    boletos: () => BOL.lista ? (ehDono() ? bolAbertos() : meusBoletos()).length : 0,
+    avaliacoes: () => ehDono() && AVA.lista ? AVA.lista.filter(a => a.nota && a.nota <= 3 && !a.tratado).length : 0,
+    creditos: () => ehDono() && CRE.pend ? CRE.pend.length : 0,
+    brindes: () => ehDono() && CRE.bped ? CRE.bped.filter(b => b.status === 'pendente').length : 0,
+    ml: () => D.ml ? D.ml.perguntas.filter(perguntaPendente).length : 0,
+    trafego: () => trPendentes(),
+    expedicao: () => EXP ? EXP.ecom.map(infoPedido).filter(x => !x.despachado && x.atrasado).length : 0,
+    estoque: () => EXP ? EXP.alertas.length : 0,
+    compras: () => COMP.ops ? COMP.ops.filter(o => situacaoOp(o) === 'encerrada').length : 0,
+    cadastroprod: () => cpPendentes(),
+    atendimento: () => WA.conv ? waNaoLidas() : 0,
+    solicitacoes: () => minhasPendentes().length,
+    emails: () => EM.naoLidos,
+    suporte: () => AT.os ? AT.os.filter(o => o.status === 'pronto' || (o.previsao && o.previsao < hoje() && !['entregue', 'cancelado'].includes(o.status))).length : 0,
+  }[k];
+  try { return b ? b() || 0 : 0; } catch { return 0; }
+}
 function menu() {
   const itens = [
-    ['', 'inicio', '⌂', 'Início'],
-    ['', 'meudia', '☀', 'Meu dia', CRM.atv ? CRM.atv.filter(a => a.pessoa_id === EU.id && atvPendente(a) && a.quando <= hoje()).length : 0],
-    ['Comercial'], ['', 'crm', '🎯', 'Funil (CRM)'], ['', 'vendas', '📈', 'Vendas'], ['', 'pedidos', '🧾', 'Pedidos'], ['', 'situacao', '🚦', 'Situação dos pedidos', SIT.lista ? SIT.lista.filter(p => !p.removido && passosPedido(p).estado === 'problema').length : 0], ['', 'boletos', '🧾', 'Boletos em atraso', BOL.lista ? (ehDono() ? bolAbertos() : meusBoletos()).length : 0], ['', 'clientes', '👤', 'Clientes'],
-    ...(veMonitoria() ? [['', 'monitoria', '🏷', 'Monitoria de preços']] : []),
-    ...(veTudoVendas() || EU.tiny ? [['', 'avaliacoes', '⭐', 'Avaliações', ehDono() && AVA.lista ? AVA.lista.filter(a => a.nota && a.nota <= 3 && !a.tratado).length : 0]] : []), ['', 'creditos', '💳', 'Créditos e vales', ehDono() && CRE.pend ? CRE.pend.length : 0], ['', 'brindes', '🎁', 'Brindes', ehDono() && CRE.bped ? CRE.bped.filter(b => b.status === 'pendente').length : 0],
-    ...(veML() ? [['', 'ml', '🛍', 'Mercado Livre', D.ml ? D.ml.perguntas.filter(perguntaPendente).length : 0]] : []),
-    ...(veTrafego() ? [['Marketing'], ['', 'trafego', '📣', 'Tráfego (Google Ads)', trPendentes()]] : []),
-    ...(veExp() ? [['Operação'], ['', 'visaoestoque', '📋', 'Visão geral do estoque'], ['', 'expedicao', '📦', 'Expedição', EXP ? EXP.ecom.map(infoPedido).filter(x => !x.despachado && x.atrasado).length : 0], ['', 'estoque', '🏷', 'Estoque', EXP ? EXP.alertas.length : 0], ['', 'abrirTV', '📺', 'TV do estoque']] : []),
-    ...(veCompras() ? [...(veExp() ? [] : [['Operação']]), ['', 'compras', '🤝', 'Compras e fornecedores', COMP.ops ? COMP.ops.filter(o => situacaoOp(o) === 'encerrada').length : 0]] : []),
-    ...(ehDono() ? [['', 'cadastroprod', '🧩', 'Cadastro de produtos', cpPendentes()]] : []),
-    ['Comunicação'], ...(veAtendimento() ? [['', 'atendimento', '💬', 'WhatsApp', WA.conv ? waNaoLidas() : 0]] : []), ['', 'solicitacoes', '📨', 'Solicitações', minhasPendentes().length], ...(veEmails() ? [['', 'emails', '✉', 'Caixa de e-mails', EM.naoLidos]] : []), ['', 'suporte', '🔧', 'Assistência (OS)', AT.os ? AT.os.filter(o => o.status === 'pronto' || (o.previsao && o.previsao < hoje() && !['entregue', 'cancelado'].includes(o.status))).length : 0],
-    ['Equipe'], ['', 'checklist', '☑', 'Checklist do dia'], ...(calPessoas().length ? [['', 'calendario', '📅', 'Calendário de marketing']] : []),
-    ...(temEquipe() ? [['', 'supervisao', '👥', 'Supervisão']] : []),
-    ...(ehDono() ? [['', 'geral', '◉', 'Visão da equipe']] : []),
-    ['', 'metas', '🎯', 'Metas e números'], ['', 'remuneracao', '💰', ehDono() ? 'Remuneração' : 'Meu ganho'],
-    ['', 'feedbacks', '💬', 'Feedbacks'],
-    ['Sistema'], ...(ehDono() ? [['', 'config', '⚙', 'Configurações'], ['', 'logs', '📜', 'Logs']] : []), ['', 'ajuda', '?', 'Como usar'],
+    ['', 'inicio', '⌂', 'Início'], ['', 'meudia', '☀', 'Meu dia'],
+    ['Vendas'], ['', 'crm', '🎯', 'Funil (CRM)'], ['', 'clientes', '👤', 'Clientes'], ['', 'vendas', '📈', 'Vendas'],
+    ['Financeiro'], ['', 'boletos', '🧾', 'Boletos em atraso'], ['', 'creditos', '💳', 'Créditos e brindes'], ['', 'remuneracao', '💰', ehDono() ? 'Remuneração' : 'Meu ganho'],
+    ['Atendimento'], ['', 'atendimento', '💬', 'WhatsApp'], ['', 'emails', '✉', 'Caixa de e-mails'], ['', 'suporte', '🔧', 'Assistência (OS)'],
+    ['Marketing'], ['', 'trafego', '📣', 'Tráfego (Google Ads)'], ['', 'calendario', '📅', 'Calendário de marketing'], ['', 'avaliacoes', '⭐', 'Avaliações'],
+    ['Operação'], ['', 'ml', '🛍', 'Mercado Livre'], ['', 'expedicao', '📦', 'Expedição'], ['', 'visaoestoque', '📋', 'Estoque'], ['', 'compras', '🤝', 'Compras e produtos'],
+    ['Equipe'], ['', 'solicitacoes', '📨', 'Solicitações'], ['', 'supervisao', '👥', 'Supervisão'],
+    ['Sistema'], ['', 'config', '⚙', 'Configurações'],   // "Como usar" virou o botão ? no rodapé da barra
   ];
-  // só as abas do perfil; tira títulos de grupo que ficaram vazios
-  const vis = itens.filter(([g, k]) => (g !== '' && !k) || podeAba(k)).filter((it, i, arr) => !(it[0] !== '' && !it[1]) || (arr[i + 1] && arr[i + 1][0] === ''));
-  return vis.map(([g, k, ic, nome, badge]) => g !== '' && !k ? `<div class="grupo">${g}</div>`
-    : `<button class="${UI.view === k ? 'on' : ''}" data-a="nav" data-v="${k}" title="${nome}"><span class="ic">${icone(k) || ic}</span><span class="rot">${nome}</span>${badge ? `<span class="badge">${badge}</span>` : ''}</button>`).join('');
+  // aba principal de um grupo aparece se qualquer sub-aba for visível; o clique leva à primeira visível
+  const itemDe = ([g, k, ic, nome]) => {
+    const filhos = MENU_GRUPOS[k] ? MENU_GRUPOS[k].filter(([x]) => abaVisivel(x)) : null;
+    if (filhos ? !filhos.length : !abaVisivel(k)) return null;
+    const alvo = filhos ? filhos[0][0] : k, rot = filhos && filhos.length === 1 ? filhos[0][1] : filhos ? MENU_NOME[k] || nome : nome;
+    const badge = filhos ? soma(filhos.map(([x]) => badgeAba(x))) : badgeAba(k);
+    return { k, alvo, ic, rot, badge, on: filhos ? filhos.some(([x]) => x === UI.view) : UI.view === k };
+  };
+  // categorias: cada título abre e fecha; a da aba atual fica sempre aberta
+  const cats = []; let atual = { nome: '', itens: [] }; cats.push(atual);
+  for (const it of itens) { if (!it[1]) { atual = { nome: it[0], itens: [] }; cats.push(atual); continue; } const x = itemDe(it); if (x) atual.itens.push(x); }
+  const abertas = menuAbertas();
+  const botao = it => {
+    const subs = it.on ? subAbas(UI.view) : [];
+    return `<button class="${it.on ? 'on' : ''}" data-a="nav" data-v="${it.alvo}" title="${it.rot}"><span class="ic">${icone(it.k) || it.ic}</span><span class="rot">${it.rot}</span>${it.badge ? `<span class="badge">${it.badge}</span>` : ''}</button>`
+      + (subs.length ? `<div class="menu-sub">${subs.map(([k, n]) => `<button class="${UI.view === k ? 'on' : ''}" data-a="nav" data-v="${k}" title="${n}"><span class="rot">${n}</span>${badgeAba(k) ? `<span class="badge">${badgeAba(k)}</span>` : ''}</button>`).join('')}</div>` : '');
+  };
+  return cats.filter(c => c.itens.length).map(c => {
+    if (!c.nome) return c.itens.map(botao).join('');
+    const temAtual = c.itens.some(it => it.on), aberta = temAtual || abertas.has(c.nome), soma_ = soma(c.itens.map(it => it.badge || 0));
+    return `<div class="menu-cat ${aberta ? 'aberta' : ''}"><button class="grupo" data-a="menuCat" data-c="${c.nome}" aria-expanded="${aberta}" ${temAtual ? 'disabled title="Aba aberta aqui dentro"' : ''}><span class="rot">${c.nome}</span>${!aberta && soma_ ? `<span class="badge">${soma_}</span>` : ''}<span class="cat-seta">${icone('seta', 13)}</span></button>
+      <div class="menu-cat-itens">${c.itens.map(botao).join('')}</div></div>`;
+  }).join('');
+}
+/** Categorias que a pessoa deixou abertas (lembradas neste navegador). */
+function menuAbertas() { try { return new Set(JSON.parse(localStorage.getItem('menuAbertas') || '[]')); } catch { return new Set(); } }
+function menuCat(nome) {
+  const s = menuAbertas(); s.has(nome) ? s.delete(nome) : s.add(nome);
+  try { localStorage.setItem('menuAbertas', JSON.stringify([...s])); } catch { /* ok */ }
+  const nav = document.getElementById('nav'); if (nav) nav.innerHTML = menu();
 }
 const VIEWS_FN = {
   inicio: () => vInicio(), vendas: () => vVendas(), ml: () => vML(), trafego: () => vTrafego(), pedidos: () => vPedidos(), clientes: () => vClientes(),
@@ -355,6 +418,7 @@ const A = {
   sinoPermitir: async () => { try { await Notification.requestPermission(); } catch { /* ok */ } $('.sino-fundo')?.remove(); checarSino(); },
   menuCel: () => document.body.classList.toggle('menu-aberto'),
   recolherMenu: () => recolherMenu(),
+  menuCat: el => menuCat(el.dataset.c),
   alternarLetra: () => alternarLetra(),
   instalarApp: () => instalarApp(),
   crmAtualizar: () => Promise.all([carregarCRM(true), carregarResumoPro(true)]).then(render).catch(e => avisar(e.message)),

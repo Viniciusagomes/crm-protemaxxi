@@ -1277,3 +1277,31 @@ nav .badge { flex: none; }
 @media (max-width: 640px) { .pain-kpis { grid-template-columns: minmax(0, 1fr); } .pain-sts { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 14px; } .pain-st:nth-child(3) { border-left: 0; padding-left: 0; } .pain-dia { grid-template-columns: minmax(0, 1fr); justify-items: start; } .pain-eq-l { grid-template-columns: 1fr; gap: 6px; } .pain-eq-v { text-align: left; } .pain-grade.so { grid-template-columns: minmax(0, 1fr); } }
 .pain-avisos .alerta { margin-bottom: 10px !important; } .pain-avisos .alerta small, .pain-avisos .alerta br { display: none; }   /* no Início os avisos ficam numa linha; o detalhe está na aba */
 .pain-eq-l { grid-template-columns: 150px minmax(0, 1fr) 150px; }
+
+/* ─── Sub-abas (17/11): abas que moram dentro de outra ─── */
+.subabas { display: flex; gap: 4px; margin: -6px 0 18px; border-bottom: 1px solid var(--borda); overflow-x: auto; scrollbar-width: none; }
+.subabas button { background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 9px 14px; font: 600 14px Figtree, system-ui, sans-serif; color: var(--txt2); cursor: pointer; white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; }
+.subabas button:hover { color: var(--txt); }
+.subabas button.on { color: var(--txt); border-bottom-color: var(--verde); }
+.subabas .badge { background: var(--verde); color: #fff; border-radius: 99px; font-size: 11px; font-weight: 800; padding: 1px 7px; }
+
+/* ─── Menu com categorias que abrem e fecham (17/11) ─── */
+nav .menu-cat { display: flex; flex-direction: column; gap: 2px; }
+nav button.grupo { width: 100%; display: flex; align-items: center; gap: 8px; padding: 12px 12px 6px; margin: 0; background: none; border-radius: 8px; box-shadow: none;
+  font: 700 10.5px/1.2 Archivo, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .08em; color: #5F7488; cursor: pointer; }
+nav button.grupo:hover { color: #C5D2DE; background: none; }
+nav button.grupo:disabled { cursor: default; opacity: 1; } nav button.grupo:disabled:hover { color: #5F7488; }
+nav button.grupo .rot { flex: 1; text-align: left; }
+nav button.grupo .cat-seta { display: inline-grid; transition: transform .15s ease; opacity: .7; }
+nav .menu-cat.aberta > button.grupo .cat-seta { transform: rotate(90deg); }
+nav button.grupo .badge { font-size: 10px; padding: 0 6px; }
+nav .menu-cat:not(.aberta) .menu-cat-itens { display: none; }
+nav .menu-cat-itens { display: flex; flex-direction: column; gap: 2px; }
+nav .menu-sub { display: flex; flex-direction: column; gap: 1px; margin: 2px 0 6px 22px; padding-left: 12px; border-left: 1px solid rgba(255,255,255,.08); }
+nav .menu-sub button { padding: 6px 10px; font-size: 13px; color: #8FA3B6; box-shadow: none; }
+nav .menu-sub button.on { background: none; color: #fff; box-shadow: none; font-weight: 600; }
+nav .menu-sub button.on::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--verde); margin-left: -16px; margin-right: 4px; flex: none; }
+/* recolhida: tudo aberto (só ícones), sem sub-itens */
+html.side-mini nav .menu-cat .menu-cat-itens { display: flex; } html.side-mini nav .menu-sub { display: none; }
+html.side-mini nav button.grupo { font-size: 0; padding: 0; height: 1px; margin: 8px 10px; background: rgba(255,255,255,.08); pointer-events: none; }
+html.side-mini nav button.grupo > * { display: none; }

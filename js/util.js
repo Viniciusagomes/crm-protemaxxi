@@ -38,7 +38,13 @@ const corSegura = c => /^#[0-9a-fA-F]{3,8}$/.test(c || '') ? c : '#8AA0B4';
 const av = (p, cls = '') => `<div class="avatar ${cls}" style="background:${corSegura(p.cor)}">${esc(iniciais(p.nome))}</div>`;
 const barra = (a, cls) => `<div class="barra ${cls ?? classe(a)}"><i style="width:${Math.max(0, Math.min(1, a ?? 0)) * 100}%"></i></div>`;
 const tagPct = a => `<span class="tag ${classe(a)}">${P(a)}</span>`;
-const topo = (titulo, sub, acoes = '') => `<div class="topo"><div><h1>${titulo}</h1>${sub ? `<p>${sub}</p>` : ''}</div><div class="acoes">${acoes}</div></div>`;
+const topo = (titulo, sub, acoes = '') => `<div class="topo"><div><h1>${titulo}</h1>${sub ? `<p>${sub}</p>` : ''}</div><div class="acoes">${acoes}</div></div>${topoSubAbas()}`;
+/** Barra de sub-abas quando a aba atual mora dentro de outra (ex.: Checklist dentro do Meu dia). */
+function topoSubAbas() {
+  if (typeof subAbas !== 'function' || typeof UI === 'undefined' || !UI?.view) return '';
+  const l = subAbas(UI.view); if (!l.length) return '';
+  return `<div class="subabas" role="tablist" aria-label="Sub-abas">${l.map(([k, n]) => `<button class="${UI.view === k ? 'on' : ''}" data-a="nav" data-v="${k}">${n}${typeof badgeAba === 'function' && badgeAba(k) ? `<span class="badge">${badgeAba(k)}</span>` : ''}</button>`).join('')}</div>`;   // div, não nav: o estilo de nav é o do menu lateral
+}
 const navMes = () => `<div class="navdia"><button class="btn peq" data-a="mes" data-v="-1">◀</button><span class="data">${fmtMes(UI.mes)}</span><button class="btn peq" data-a="mes" data-v="1">▶</button>${UI.mes !== mesDe(hoje()) ? '<button class="btn peq" data-a="mes" data-v="0">Mês atual</button>' : ''}</div>`;
 const optPessoas = (sel, lista = D.pessoas, vazio) => (vazio ? `<option value="">${vazio}</option>` : '') + lista.map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(p.nome)}</option>`).join('');
 const VINCULO = { clt: 'CLT', estagio: 'Estágio', socio: 'Sócio', pj: 'PJ' };
