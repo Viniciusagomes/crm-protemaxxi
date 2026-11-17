@@ -20,3 +20,11 @@
 ## Fora
 - As mensagens prontas aprovadas pela Meta ainda não existem; os textos esperam o Vinícius aprovar.
 - Revisão do Codex: o `codex` não está instalado neste PC (exit 127), então a entrega saiu sem revisão cruzada.
+
+## Correção: abas do WhatsApp (17/11, tarde)
+
+- A aba "Esperando", quando tinha gente esperando, recebia a classe `alerta`. É o mesmo nome do quadro de aviso global,
+  que no acabamento geral (#41) ganhou borda e faixa lateral, e a aba herdou esse visual.
+  A classe da aba virou `urgente`. Não há outro uso de `alerta` fora dos quadros de aviso de verdade (conferido no js/).
+- As 6 abas agora ficam numa grade de 3 por linha, todas do mesmo tamanho.
+- Teste: `whatsapp-etiquetas.cjs` barra o uso de `alerta` na aba.
