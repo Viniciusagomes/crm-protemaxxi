@@ -1115,3 +1115,4 @@ button.wa-etq.on { background: var(--etq); color: #fff; border-color: var(--etq)
 .wa-lemb-form { display: grid; gap: 6px; } .wa-lemb-form input { width: 100%; } .wa-lemb-form .acoes { margin: 2px 0 0; flex-wrap: wrap; gap: 6px; }
 .wa-abas { flex-wrap: wrap; row-gap: 6px; }
 .wa-etq-filtro { padding-top: 8px; border-bottom: 1px solid var(--wa-linha); }
+.ico-em.azul { color: #2B7BB9; opacity: 1; } .ico-em.roxo { color: #7C5CD6; opacity: 1; }

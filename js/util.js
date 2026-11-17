@@ -114,6 +114,23 @@ Object.assign(ICONES, {
   mao: '<path d="M8 13V6.5a1.5 1.5 0 0 1 3 0V12M11 11V4.5a1.5 1.5 0 0 1 3 0V11M14 11V5.5a1.5 1.5 0 0 1 3 0V14a6 6 0 0 1-6 6h-.5a6 6 0 0 1-5-2.7L3.5 14a1.5 1.5 0 0 1 2.5-1.6L8 15"/>',
   ideia: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>',
   raio: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  fabrica: '<path d="M3 20V10l5 3V10l5 3V10l5 3V4h3v16zM7 17h2M12 17h2M17 17h1"/>',
+  loja: '<path d="M4 9.5 5.5 4h13L20 9.5M4 9.5h16M4 9.5a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0M5.5 12v8h13v-8M10 20v-5h4v5"/>',
+  entrada: '<path d="M4 14v5h16v-5M12 4v10M8 10l4 4 4-4"/>',
+  saida: '<path d="M4 14v5h16v-5M12 14V4M8 8l4-4 4 4"/>',
+  arquivo: '<path d="M3.5 5h17v4h-17zM5 9v10h14V9M10 13h4"/>',
+  pasta: '<path d="M3.5 6.5a1.5 1.5 0 0 1 1.5-1.5h4.5l2 2.5H19a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 19 19.5H5A1.5 1.5 0 0 1 3.5 18z"/>',
+  bandeira: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
+  pin: '<path d="M9 3h6l-1 6 3 3v2H7v-2l3-3zM12 14v7"/>',
+  semfone: '<path d="M8 3h8a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM11 18h2M3 3l18 18"/>',
+  pincel: '<path d="M14.5 4.5 19.5 9.5 11 18l-5-5zM6 13l-2.5 6.5L10 17"/>',
+  escudo: '<path d="M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6z"/>',
+  negativo: '<path d="M7 4h9.5l2.5 8h-6l1 5a2 2 0 0 1-3.6 1.4L7 12zM7 4H4v8h3"/>',
+  lupa2: '<circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5M8 10.5h5"/>',
+  envelope: '<rect x="3.5" y="5.5" width="17" height="13" rx="1.5"/><path d="m4 7 8 6 8-6"/>',
+  numero: '<path d="M9 4 7 20M17 4l-2 16M4.5 9h16M3.5 15h16"/>',
+  predio: '<path d="M5 21V4h10v17M15 9h4v12M3 21h18M8 8h4M8 12h4M8 16h4"/>',
+  broto: '<path d="M12 21v-8M12 13c0-4 3-7 7-7 0 4-3 7-7 7zM12 15c0-3-2.5-5.5-6-5.5 0 3 2.5 5.5 6 5.5z"/>',
 });
 const EMOJI_ICONE = {
   '📞': 'telefone', '📱': 'telefone', '☎': 'telefone', '✉': 'emails', '📧': 'emails', '📩': 'emails', '📨': 'solicitacoes', '💬': 'atendimento', '🗨': 'atendimento',
@@ -127,8 +144,17 @@ const EMOJI_ICONE = {
   '⏹': 'parar', '🍽': 'pausa', '🏆': 'trofeu', '🥇': 'trofeu', '🙋': 'mao', '💡': 'ideia', '⚡': 'raio', '🟢': 'ponto', '🔴': 'ponto', '🟡': 'ponto', '🟠': 'ponto', '⚪': 'ponto',
   '❓': 'ajuda', '❔': 'ajuda', '☀': 'meudia', '🏠': 'inicio', '🌐': 'link', '🤖': 'raio', '👀': 'busca', '👉': null, '🎉': null, '👏': null, '🚀': null, '✨': null, '🙂': null,
   '😊': null, '😉': null, '🔥': null, '💪': null, '🙌': null, '👍': null, '👋': null, '🥳': null, '🎊': null, '❤': null, '💚': null,
+  // 17/11: os que ainda apareciam na Intranet
+  '🏭': 'fabrica', '🏪': 'loja', '🏬': 'loja', '🏢': 'predio', '🏛': 'predio', '✎': 'editar', '📲': 'telefone', '📵': 'semfone', '🔵': 'ponto', '🟣': 'ponto',
+  '📮': 'envelope', '📬': 'envelope', '📭': 'envelope', '📥': 'entrada', '⬇': 'entrada', '📤': 'saida', '⬆': 'saida', '🗃': 'arquivo', '🗄': 'arquivo', '🗂': 'pasta',
+  '🔬': 'lupa2', '🧪': 'lupa2', '🏁': 'bandeira', '🚩': 'bandeira', '📌': 'pin', '🎨': 'pincel', '🛡': 'escudo', '👎': 'negativo', '🎟': 'creditos', '🎫': 'creditos',
+  '📘': 'trafego', '🔢': 'numero', '💤': 'relogio', '🚨': 'alerta', '💥': 'alerta', '🧭': 'local', '🗣': 'atendimento', '⚖': 'geral', '🌱': 'broto',
+  '🟰': null, '😀': null, '😃': null, '😄': null, '😁': null, '🙏': null, '💯': null,
 };
-const PONTO_COR = { '🟢': 'ok', '🔴': 'ruim', '🟡': 'med', '🟠': 'med', '⚪': '' };
+const PONTO_COR = { '🟢': 'ok', '🔴': 'ruim', '🟡': 'med', '🟠': 'med', '⚪': '', '🔵': 'azul', '🟣': 'roxo' };
+// Qualquer outro emoji que sobrar na interface some (o texto fica, sem o desenho)
+const EMOJI_RESTO = /\p{Extended_Pictographic}\uFE0F?\s?/gu;
+const semEmoji = t => String(t).replace(EMOJI_RE, '').replace(EMOJI_RESTO, '').trim();
 const EMOJI_RE = new RegExp('(' + Object.keys(EMOJI_ICONE).sort((a, b) => b.length - a.length).map(e => e.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\uFE0F?\\s?', 'gu');
 // Onde NÃO trocar: texto escrito por pessoas (WhatsApp, e-mail, comentários), campos e as abas do estoque/expedição/ML.
 const EMOJI_FORA = 'option,select,textarea,input,script,style,code,pre,[contenteditable],.sem-icone,.wa-msgs,.wa-item .prev,.wa-cab-c,.coment p,.em-html,.em-texto,.em-leitor .em-corpo,.email-corpo,.email-ler,.leitura';
@@ -138,17 +164,26 @@ function trocarEmojis(raiz) {
   if (!raiz || typeof document === 'undefined' || !document.createTreeWalker) return 0;
   if (typeof UI !== 'undefined' && UI && EMOJI_ABAS_FORA.has(UI.view) && !raiz.closest?.('#nav, .barra-inf, .sino-painel')) return 0;
   const alvos = [], w = document.createTreeWalker(raiz, 4 /* texto */);
-  for (let n = w.nextNode(); n; n = w.nextNode()) { EMOJI_RE.lastIndex = 0; if (EMOJI_RE.test(n.nodeValue) && !n.parentElement?.closest(EMOJI_FORA)) alvos.push(n); }
+  for (let n = w.nextNode(); n; n = w.nextNode()) { EMOJI_RE.lastIndex = 0; EMOJI_RESTO.lastIndex = 0; if ((EMOJI_RE.test(n.nodeValue) || EMOJI_RESTO.test(n.nodeValue)) && !n.parentElement?.closest(EMOJI_FORA)) alvos.push(n); }
   for (const n of alvos) {
     const partes = n.nodeValue.split(EMOJI_RE), frag = document.createDocumentFragment();
     // split com grupo: [texto, emoji, texto, emoji, …]
     partes.forEach((p, i) => {
-      if (i % 2 === 0) { if (p) frag.appendChild(document.createTextNode(p)); return; }
+      if (i % 2 === 0) { p = p.replace(EMOJI_RESTO, ''); if (p) frag.appendChild(document.createTextNode(p)); return; }
       const nome = EMOJI_ICONE[p]; if (!nome) return;
       const s = document.createElement('span'); s.className = 'ico-em' + (nome === 'ponto' ? ' ' + (PONTO_COR[p] || '') : ''); s.innerHTML = icone(nome, 15);
       frag.appendChild(s); if (partes[i + 1] && !/^\s/.test(partes[i + 1])) frag.appendChild(document.createTextNode(' '));
     });
     n.parentNode.replaceChild(frag, n);
+  }
+  // Dicas (title), textos de campo vazio e opções de lista não aceitam ícone: o emoji só sai
+  const tem = t => { EMOJI_RE.lastIndex = 0; EMOJI_RESTO.lastIndex = 0; return !!t && (EMOJI_RE.test(t) || EMOJI_RESTO.test(t)); };
+  const fora = '.wa-msgs,.coment p,.em-html,.em-texto,.em-leitor .em-corpo,.email-corpo,.sem-icone,[contenteditable]';
+  const els = raiz.querySelectorAll ? [raiz, ...raiz.querySelectorAll('[title],[placeholder],[aria-label],option')] : [];
+  for (const el of els) {
+    if (!el.getAttribute || el.closest?.(fora)) continue;
+    for (const a of ['title', 'placeholder', 'aria-label']) { const v = el.getAttribute(a); if (tem(v)) el.setAttribute(a, semEmoji(v)); }
+    if (el.tagName === 'OPTION' && tem(el.textContent)) { if (!el.hasAttribute('value')) el.setAttribute('value', el.textContent); el.textContent = semEmoji(el.textContent); }
   }
   return alvos.length;
 }
