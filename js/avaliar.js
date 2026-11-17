@@ -47,7 +47,7 @@
     const resto = document.getElementById('resto');
     if (!nota || !confirmada) return;
     resto.innerHTML = nota >= 4
-      ? `${conviteGoogle()}<p style="margin-top:14px"><b>Obrigado! 💚</b> Sua avaliação foi registrada.</p><textarea id="txt" placeholder="Quer deixar um recado para a nossa equipe? (opcional)"></textarea><button class="btn pri" id="btnEnviar">Enviar recado</button>`
+      ? `${conviteGoogle()}<p style="margin-top:14px"><b>Obrigado!</b> Sua avaliação foi registrada.</p><textarea id="txt" placeholder="Quer deixar um recado para a nossa equipe? (opcional)"></textarea><button class="btn pri" id="btnEnviar">Enviar recado</button>`
       : `${conviteGoogle()}<p style="margin-top:14px"><b>Sentimos muito.</b> Conte o que aconteceu para nossa equipe analisar e acompanhar seu atendimento.</p>
         <textarea id="txt" placeholder="O que podemos melhorar?" autofocus></textarea><button class="btn pri" id="btnEnviar">Enviar para a loja</button>`;
     ligarGoogle();
