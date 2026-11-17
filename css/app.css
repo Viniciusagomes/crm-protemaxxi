@@ -880,3 +880,11 @@ input:focus, select:focus, textarea:focus { outline: 0; border-color: var(--verd
 ::-webkit-scrollbar { width: 10px; height: 10px; } ::-webkit-scrollbar-thumb { background: var(--borda-forte); border-radius: 99px; border: 3px solid transparent; background-clip: content-box; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
 .wa-app input:focus, .wa-app textarea:focus { box-shadow: none; border-color: transparent; }
+.wa-mais { border: 0; cursor: pointer; background: var(--wa-in); color: var(--wa-verde); font-weight: 600; font-size: 12.5px; padding: 6px 14px; border-radius: 8px; box-shadow: 0 1px .5px rgba(11,20,26,.13); }
+.wa-retry { border: 1px solid currentColor; background: transparent; color: var(--ruim); border-radius: 999px; font-size: 11.5px; font-weight: 700; padding: 1px 9px; margin-left: 6px; cursor: pointer; }
+.wa-retry:disabled { opacity: .5; cursor: wait; }
+.wa-saude { display: grid; gap: 10px; margin: 6px 0 4px; }
+.wa-saude-l { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--borda); border-radius: 10px; background: var(--card2); }
+.wa-saude-l b { display: block; font-size: 14px; } .wa-saude-l small { display: block; color: var(--txt2); }
+.wa-saude-p { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; background: var(--ok); box-shadow: 0 0 0 4px var(--ok-bg); }
+.wa-saude-p.ruim { background: var(--ruim); box-shadow: 0 0 0 4px var(--ruim-bg); }

@@ -43,10 +43,24 @@ async function carregarWA(forcar) {
     waTempoReal();
   } finally { WA.carregando = false; }
 }
+const WA_PAGINA = 50;
+/** Mensagens da conversa: só as 50 últimas; as anteriores vêm com "Carregar anteriores" (waMaisAntigas). */
 async function waMensagens(id, forcar) {
   if (WA.msgs[id] && !forcar) return WA.msgs[id];
-  WA.msgs[id] = await ok(sb.from('wa_mensagens').select('*').eq('conversa_id', id).order('em').order('id').limit(1000));
+  const l = await ok(sb.from('wa_mensagens').select('*').eq('conversa_id', id).order('em', { ascending: false }).order('id', { ascending: false }).limit(WA_PAGINA));
+  WA.msgs[id] = l.reverse(); (WA.temMais ||= {})[id] = l.length === WA_PAGINA;
   return WA.msgs[id];
+}
+async function waMaisAntigas(id) {
+  const lista = WA.msgs[id]; if (!lista?.length || WA.buscandoAntigas) return;
+  WA.buscandoAntigas = true;
+  try {
+    const l = await ok(sb.from('wa_mensagens').select('*').eq('conversa_id', id).lt('em', lista[0].em).order('em', { ascending: false }).order('id', { ascending: false }).limit(WA_PAGINA));
+    WA.temMais[id] = l.length === WA_PAGINA;
+    const ids = new Set(lista.map(m => m.id));
+    WA.msgs[id] = [...l.reverse().filter(m => !ids.has(m.id)), ...lista];
+    if (WA.aberta === id) { const el = $('#waMsgs'), antes = el ? el.scrollHeight - el.scrollTop : 0; waDesenharMsgs(); if (el) el.scrollTop = el.scrollHeight - antes; }
+  } catch (e) { avisar(e.message); } finally { WA.buscandoAntigas = false; }
 }
 
 // ─── tempo real: conversas e mensagens novas chegam sem recarregar ───
@@ -83,7 +97,7 @@ function waAvisar(m) {
 }
 /** Redesenha só as partes da tela (não perde o texto que a pessoa está digitando). */
 function waAtualizar() {
-  const nav = $('#nav'); if (nav && typeof menu === 'function') nav.innerHTML = menu();
+  const nav = $('#nav'); if (nav && typeof menu === 'function') { const h = menu(); if (h !== WA.menuHtml || !nav.innerHTML) { nav.innerHTML = h; WA.menuHtml = h; } }   // menu só quando muda
   if (UI.view !== 'atendimento') return;
   const l = $('#waLista'); if (l) l.innerHTML = waListaHtml();
   const ab = $('#waAbas'); if (ab) ab.innerHTML = waAbasHtml();
@@ -224,7 +238,7 @@ const WA_PACOTE = [
 function vAtendimento() {
   if (!WA.conv) { if (!WA.carregando) carregarWA().then(render).catch(e => avisar(e.message)); return topo('WhatsApp', '') + '<div class="card vazio">Carregando…</div>'; }
   const semConfig = !WA.cfg?.phone_number_id;
-  const acoes = `<button class="btn" data-wa="respostas">${WA_IC.raio} Respostas prontas</button>${typeof Notification !== 'undefined' && Notification.permission === 'default' ? '<button class="btn" data-wa="notif">Ativar avisos</button>' : ''}${ehDono() ? '<button class="btn" data-wa="equipe">Equipe</button><button class="btn" data-wa="config">Configurar</button>' : ''}`;
+  const acoes = `<button class="btn" data-wa="respostas">${WA_IC.raio} Respostas prontas</button>${typeof Notification !== 'undefined' && Notification.permission === 'default' ? '<button class="btn" data-wa="notif">Ativar avisos</button>' : ''}${ehDono() ? '<button class="btn" data-wa="saude">Saúde</button><button class="btn" data-wa="equipe">Equipe</button><button class="btn" data-wa="config">Configurar</button>' : ''}`;
   setTimeout(() => { if (WA.aberta) waAbrir(WA.aberta, true); if (waEu()?.estado && waEu().estado !== 'fora') waPing(); }, 0);
   return topo('WhatsApp', '', acoes)
     + (semConfig ? `<div class="card aviso med">O WhatsApp ainda não está ligado à Meta. ${ehDono() ? 'Siga o passo a passo e preencha em <b>Configurar</b>.' : 'O administrador está configurando.'}</div>` : '')
@@ -304,6 +318,27 @@ async function waAbrir(id, redesenho) {
   const c = WA.conv.find(x => x.id === id);
   if (c?.nao_lidas) sb.rpc('wa_lida', { p_id: id }).then(() => { c.nao_lidas = 0; waAtualizar(); });
 }
+/** Motivo da falha em português (códigos mais comuns da Meta); o texto original fica no title. */
+function waErroPt(erro) {
+  const e = String(erro || ''), cod = (e.match(/\b(\d{3,6})\b/) || [])[1];
+  const M = { 131047: 'passaram mais de 24 h desde a última mensagem do cliente — só modelo aprovado', 131026: 'este número não tem WhatsApp ou não pode receber', 131051: 'tipo de mensagem não aceito', 131053: 'a Meta não aceitou o arquivo',
+    190: 'o token da Meta expirou ou é inválido — avise o administrador', 131056: 'muitas mensagens seguidas para este número — espere um pouco', 131048: 'limite de envio atingido (qualidade do número) — espere', 131000: 'erro na Meta — tente de novo' };
+  return M[cod] || e || 'motivo não informado';
+}
+/** Reenvia uma mensagem que falhou (só quando a pessoa clica). A original continua marcada como não entregue. */
+async function waReenviar(msgId) {
+  const id = WA.aberta, m = (WA.msgs[id] || []).find(x => x.id === +msgId); if (!m) return;
+  const c = WA.conv.find(x => x.id === id); if (!c || !waJanela(c)) return avisar('Fora da janela de 24 h: só modelo aprovado. Espere o cliente escrever.');
+  const corpo = { conversa: id, texto: m.texto || '' };
+  if (m.midia_path && String(m.midia_path).startsWith(`saida/${EU.id}/`)) Object.assign(corpo, { midia_path: m.midia_path, midia_nome: m.midia_nome, midia_mime: m.midia_mime });
+  if (!corpo.texto && !corpo.midia_path) return avisar('Não dá para reenviar este arquivo daqui: envie de novo pelo clipe.');
+  try {
+    const { data, error } = await sb.functions.invoke('whatsapp-enviar', { body: corpo });
+    let e = data?.erro; if (error && !e) { try { e = (await error.context?.json())?.erro; } catch { /* sem detalhe */ } }
+    if (error || !data?.ok) throw new Error(e || error?.message || 'Não foi possível enviar.');
+    avisar('Reenviada.');
+  } catch (e) { avisar(e.message); }
+}
 /** Uma mensagem no estilo WhatsApp (exportada para o teste). */
 function waMsgHtml(m, lista) {
   if (m.direcao === 'nota') return m.tipo === 'evento' ? `<div class="wa-evento">${esc(nomeP(m.por))} ${esc(m.texto)} · ${waSoHora(m.em)}</div>`
@@ -314,14 +349,16 @@ function waMsgHtml(m, lista) {
   const quem = m.direcao === 'saida' && m.por ? `<div class="wa-quem">${esc(waAssinatura(m.por))}</div>` : '';
   return `<div class="wa-msg ${m.direcao}"><div class="bolha ${m.midia_path && !m.texto && /^image|^video/.test(m.midia_mime || '') ? 'so-midia' : ''}">${quem}${citHtml}${midia}${m.texto ? `<span class="txt">${waTexto(m.texto)}</span>` : ''}
     <span class="wa-meta"><time>${waSoHora(m.em)}</time>${m.direcao === 'saida' ? waTick(m.status) : ''}</span>
-    ${m.status === 'falhou' ? `<div class="wa-erro">Não entregue${m.erro ? ': ' + esc(m.erro) : ''}</div>` : ''}</div></div>`;
+    ${m.status === 'falhou' ? `<div class="wa-erro" title="${esc(m.erro || '')}">Não entregue: ${esc(waErroPt(m.erro))}${m.direcao === 'saida' && (m.texto || m.midia_path) ? ` <button class="wa-retry" data-wa="reenviar" data-id="${m.id}">Tentar de novo</button>` : ''}</div>` : ''}</div></div>`;
 }
 function waDesenharMsgs() {
   const el = $('#waMsgs'), lista = WA.msgs[WA.aberta]; if (!el || !lista) return;
   const embaixo = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   let dia = '';
-  el.innerHTML = lista.map(m => { const d = new Date(m.em).toDateString(), sep = d !== dia ? `<div class="wa-dia"><span>${waDiaRot(m.em)}</span></div>` : ''; dia = d; return sep + waMsgHtml(m, lista); }).join('')
+  const mais = WA.temMais?.[WA.aberta] ? '<div class="wa-dia"><button class="wa-mais" data-wa="antigas">Carregar mensagens anteriores</button></div>' : '';
+  el.innerHTML = mais + lista.map(m => { const d = new Date(m.em).toDateString(), sep = d !== dia ? `<div class="wa-dia"><span>${waDiaRot(m.em)}</span></div>` : ''; dia = d; return sep + waMsgHtml(m, lista); }).join('')
     || '<p class="wa-nada">Sem mensagens.</p>';
+  if (!el.dataset.rolagem) { el.dataset.rolagem = '1'; el.addEventListener('scroll', () => { if (el.scrollTop < 40 && WA.temMais?.[WA.aberta]) waMaisAntigas(WA.aberta); }, { passive: true }); }
   if (embaixo || !el.dataset.rolou) { el.scrollTop = el.scrollHeight; el.dataset.rolou = '1'; }
   waCarregarMidias();
 }
@@ -444,6 +481,36 @@ function waRespostas() {
     <label class="campo">Texto<textarea id="waRTexto" rows="4" maxlength="2000" placeholder="{saudacao}, {nome}! …"></textarea></label>
     <div class="acoes"><button class="btn pri" data-wa="respSalvar">Salvar</button></div>`, true);
 }
+/** Texto do painel de saúde (exportado para o teste). */
+function waSaudeLinhas(ultEntrada, ultEnvio, nFalhas, nMidias, agora = Date.now()) {
+  const horas = ultEntrada ? (agora - new Date(ultEntrada)) / 36e5 : null;
+  return [
+    { ok: horas != null && horas < 12, tit: 'Recebimento', txt: ultEntrada ? `Última mensagem recebida ${waHora(ultEntrada)}${horas >= 12 ? ' — mais de 12 h sem nada: confira o webhook' : ''}` : 'Nenhuma mensagem recebida ainda' },
+    { ok: !!ultEnvio, tit: 'Envio', txt: ultEnvio ? `Último envio com sucesso ${waHora(ultEnvio)}` : 'Nenhum envio com sucesso ainda' },
+    { ok: !nFalhas, tit: 'Falhas de envio (24 h)', txt: nFalhas ? `${nFalhas} mensagem(ns) não entregue(s)` : 'Nenhuma' },
+    { ok: !nMidias, tit: 'Mídias sem arquivo (24 h)', txt: nMidias ? `${nMidias} foto/áudio/arquivo não baixado(s) — se continuar, o token pode ter vencido` : 'Todas baixadas' },
+  ];
+}
+/** Dono: saúde do WhatsApp nas últimas 24 h (recebimento, falhas de envio, mídias sem arquivo). */
+async function waSaude() {
+  const desde = new Date(Date.now() - 864e5).toISOString(), q = () => sb.from('wa_mensagens');
+  let r;
+  try {
+    r = await Promise.all([
+      ok(q().select('em').eq('direcao', 'entrada').order('em', { ascending: false }).limit(1)),
+      ok(q().select('em').eq('direcao', 'saida').neq('status', 'falhou').order('em', { ascending: false }).limit(1)),
+      ok(q().select('id,conversa_id,erro,em').eq('status', 'falhou').gte('em', desde).order('em', { ascending: false }).limit(20)),
+      ok(q().select('id,conversa_id,tipo,em').not('midia_id', 'is', null).is('midia_path', null).gte('em', desde).limit(20)),
+    ]);
+  } catch (e) { return avisar(e.message); }
+  const [ent, sai, falhas, midias] = r;
+  const nomeC = id => esc(waNome(WA.conv?.find(c => c.id === id) || { wa_id: '#' + id }));
+  const tab = (l, col) => `<table class="tabela"><tbody>${l.map(f => `<tr class="clic" data-wa="abrirDaSaude" data-id="${f.conversa_id}"><td>${nomeC(f.conversa_id)}</td><td><small>${esc(col(f))}</small></td><td class="dir"><small>${waHora(f.em)}</small></td></tr>`).join('')}</tbody></table>`;
+  modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>Saúde do WhatsApp</h2>
+    <div class="wa-saude">${waSaudeLinhas(ent[0]?.em, sai[0]?.em, falhas.length, midias.length).map(x => `<div class="wa-saude-l"><span class="wa-saude-p ${x.ok ? 'ok' : 'ruim'}"></span><div><b>${x.tit}</b><small>${x.txt}</small></div></div>`).join('')}</div>
+    ${falhas.length ? `<h3 class="mt2">Falhas recentes</h3>${tab(falhas, f => waErroPt(f.erro))}` : ''}
+    ${midias.length ? `<h3 class="mt2">Mídias pendentes</h3>${tab(midias, f => f.tipo)}` : ''}`, true);
+}
 async function waConfig() {
   let info = null; try { info = await ok(sb.rpc('wa_webhook_info')); } catch (e) { avisar(e.message); }
   const c = WA.cfg || {}, url = `${window.CRM_CONFIG.url}/functions/v1/whatsapp-webhook`;
@@ -492,6 +559,10 @@ const WA_ACOES = {
   respApagar: async el => { if (!confirm('Apagar esta resposta pronta?')) return; try { await ok(sb.from('wa_respostas').delete().eq('id', +el.dataset.id)); WA.resp = WA.resp.filter(r => r.id !== +el.dataset.id); waRespostas(); } catch (e) { avisar(e.message); } },
   notif: async () => { try { await Notification.requestPermission(); } catch { /* ok */ } render(); },
   config: () => waConfig(),
+  saude: () => waSaude(),
+  abrirDaSaude: el => { fecharModal(); const c = WA.conv.find(x => x.id === +el.dataset.id); WA.aba = c?.status === 'encerrada' ? 'encerradas' : 'equipe'; WA.aberta = +el.dataset.id; render(); },
+  antigas: () => waMaisAntigas(WA.aberta),
+  reenviar: el => { el.disabled = true; waReenviar(el.dataset.id).finally(() => { el.disabled = false; }); },
   exp: el => waExpAcao(el.dataset.v),
   avisoOk: async () => { fecharModal(); try { waEquipeSet(await ok(sb.rpc('wa_expediente', { p_acao: 'aviso_ok', p_tela: UI.view === 'atendimento' }))); } catch (e) { avisar(e.message); } },
   enviarVendedor: el => waAcao('wa_enviar_vendedor', { p_id: +el.dataset.id }, 'Conversa enviada para o vendedor.'),
