@@ -130,7 +130,7 @@ function blocoAvancar(n) {
   if (['ganho', 'perdido'].includes(n.etapa)) return '';
   const itens = [['próximo passo', 'Próximo passo agendado'], ['orçamento no Tiny', 'Orçamento ligado (Tiny)'], ['previsão de fechamento', 'Previsão de fechamento'], ['valor', 'Valor estimado']]
     .filter(([k]) => k !== 'orçamento no Tiny' || ['orcamento', 'negociacao'].includes(n.etapa));
-  return `<div class="card mt" style="padding:10px 14px"><b>Para avançar com segurança</b> <small class="mut">${falta.length ? `faltam ${falta.length}` : 'tudo preenchido 👏'}</small>
+  return `<div class="card mt" style="padding:10px 14px"><b>Para avançar com segurança</b> <small class="mut">${falta.length ? `faltam ${falta.length}` : 'tudo preenchido'}</small>
     <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px">${itens.map(([k, rot]) => `<small class="${falta.includes(k) ? 'c-med' : 'c-ok'}">${falta.includes(k) ? '○' : '✓'} ${rot}</small>`).join('')}</div>
     ${falta.includes('previsão de fechamento') ? `<div class="nova-atv" style="margin-top:8px"><input type="date" id="ngPrevRapida" min="${hoje()}" value="${diaUtil(addDias(hoje(), 15))}"><button class="btn peq" data-a="crmPrevisao" data-id="${n.id}">Salvar previsão</button></div>` : ''}</div>`;
 }
@@ -201,12 +201,12 @@ function abaRecuperarCRM(neg) {
         <td class="dir num">${R0(x.n.valor)}</td><td class="dir">${x.dias}</td><td class="dir">${x.t.n}</td>
         <td><small>${x.t.ultima ? `${fmtCurta(x.t.ultima.feito_em.slice(0, 10))} · ${esc((x.t.ultima.resultado || x.t.ultima.titulo || '').slice(0, 80))}` : '<span class="mut">nenhuma</span>'}</small></td>
         <td><small class="${!x.prox ? 'c-ruim' : x.prox.quando < h ? 'c-ruim' : ''}">${x.prox ? `${fmtCurta(x.prox.quando)} · ${esc(x.prox.titulo.slice(0, 50))}` : '⚠ nenhum'}</small></td>
-        <td class="dir"><button class="btn peq pri" data-a="crmAbrir" data-id="${x.n.id}">Abrir</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="vazio">Nenhum orçamento parado há 7 dias ou mais. 👏</div>'}</div>`;
+        <td class="dir"><button class="btn peq pri" data-a="crmAbrir" data-id="${x.n.id}">Abrir</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="vazio">Nenhum orçamento parado há 7 dias ou mais.</div>'}</div>`;
 }
 
 // ─── Funil ───
 function vCRM() {
-  if (!CRM.neg) { if (!CRM.carregando) carregarCRM().then(render).catch(e => avisar(e.message)); return topo('Funil de vendas', '') + '<div class="card vazio">Carregando o funil…</div>'; }
+  if (!CRM.neg) { if (!CRM.carregando) carregarCRM().then(render).catch(e => avisar(e.message)); return topo('Funil de vendas', '') + `<div class="card">${esqueleto(6, 4)}</div>`; }
   UI.crmAba ||= 'funil';
   const vends = vendCRM(), fV = UI.crmVend || '';
   const neg = CRM.neg.filter(n => !fV || n.pessoa_id === fV);
@@ -399,8 +399,8 @@ function vMeuDiaOp() {
       + kpi('Ocorrências abertas', EXP ? ocs.length : '…', `${aguard.length} aguardando pagamento`, ocs.length ? 'c-ruim' : '', 'expedicao') : ''}
       ${kpi('Solicitações para mim', paraMim.length, `${pedi.length} que eu pedi em aberto`, paraMim.length ? 'c-med' : '', 'solicitacoes')}</div>
     ${cardChecklistHoje(EU)}${cardCalendario(EU)}
-    <div class="grid g2 mt"><div class="card"><div class="secao-titulo"><h2>Para mim resolver</h2><a href="#/solicitacoes">ver todas</a></div>${paraMim.length ? `<table class="tabela"><tbody>${paraMim.slice(0, 10).map(linhaSol).join('')}</tbody></table>` : '<div class="vazio">Nada pendente para você. 🎉</div>'}</div>
-      ${veExp() ? `<div class="card"><div class="secao-titulo"><h2>Próximos a separar</h2><a href="#/expedicao">expedição</a></div>${separar.length ? `<table class="tabela"><tbody>${separar.slice(0, 10).map(x => `<tr><td><b>${esc(x.p.numero || '')}</b> · ${esc(x.p.cliente_nome || '')}<br><small>${esc(nomeCanal(x.canal))}${x.prazo ? ' · até ' + dataHora(x.prazo) : ''}</small></td><td>${x.atrasado ? '<span class="tag ruim">atrasado</span>' : ''}</td></tr>`).join('')}</tbody></table>` : `<div class="vazio">${EXP ? 'Nada para separar agora. 👏' : 'Carregando…'}</div>`}</div>` : ''}</div>`;
+    <div class="grid g2 mt"><div class="card"><div class="secao-titulo"><h2>Para mim resolver</h2><a href="#/solicitacoes">ver todas</a></div>${paraMim.length ? `<table class="tabela"><tbody>${paraMim.slice(0, 10).map(linhaSol).join('')}</tbody></table>` : '<div class="vazio">Nada pendente para você.</div>'}</div>
+      ${veExp() ? `<div class="card"><div class="secao-titulo"><h2>Próximos a separar</h2><a href="#/expedicao">expedição</a></div>${separar.length ? `<table class="tabela"><tbody>${separar.slice(0, 10).map(x => `<tr><td><b>${esc(x.p.numero || '')}</b> · ${esc(x.p.cliente_nome || '')}<br><small>${esc(nomeCanal(x.canal))}${x.prazo ? ' · até ' + dataHora(x.prazo) : ''}</small></td><td>${x.atrasado ? '<span class="tag ruim">atrasado</span>' : ''}</td></tr>`).join('')}</tbody></table>` : `<div class="vazio">${EXP ? 'Nada para separar agora.' : 'Carregando…'}</div>`}</div>` : ''}</div>`;
 }
 
 /** Fila única do dia: atividades, retornos combinados e negócios parados, um cartão por cliente, em ordem de prioridade.
@@ -498,7 +498,7 @@ function blocoProspeccaoDia(quem) {
 
 function vMeuDia() {
   if (!EU.tiny && !ehDono() && !EU.permissoes?.vendas_todas) return vMeuDiaOp();
-  if (!CRM.neg) { if (!CRM.carregando) carregarCRM().then(render).catch(e => avisar(e.message)); return topo('Meu dia', '') + '<div class="card vazio">Carregando…</div>'; }
+  if (!CRM.neg) { if (!CRM.carregando) carregarCRM().then(render).catch(e => avisar(e.message)); return topo('Meu dia', '') + `<div class="card">${esqueleto(6, 3)}</div>`; }
   const vends = vendCRM();
   if (!UI.diaPessoa || !(vends.some(v => v.id === UI.diaPessoa) || UI.diaPessoa === EU.id)) UI.diaPessoa = EU.id;
   const quem = UI.diaPessoa, h = hoje();
@@ -529,10 +529,10 @@ function vMeuDia() {
     ${cardChecklistHoje(pessoa(quem))}${cardCalendario(pessoa(quem))}
     <div class="chips mt"><button class="chip ${vista === 'fila' ? 'on' : ''}" data-a="diaVista" data-v="fila">✅ Fila de hoje <b>${fila.length}</b></button><button class="chip ${vista === 'leads' ? 'on' : ''}" data-a="diaVista" data-v="leads">📲 Leads Google/Meta <b>${leads.length}</b></button><button class="chip ${vista === 'campanhas' ? 'on' : ''}" data-a="diaVista" data-v="campanhas">📣 Leads Campanhas <b>${nCamp}</b></button></div>
     ${vista === 'leads' ? `<div class="card mt"><div class="secao-titulo"><h2>📲 Leads Google/Meta</h2><small>${leads.length} lead(s) · do mais antigo para o mais novo</small></div>
-      <p class="explica" style="margin:0">Quem pediu contato pelos anúncios. Responda rápido: a chance de venda cai a cada dia.</p>${leads.map(cartaoFila).join('') || '<div class="vazio">Nenhum lead pendente. 👏</div>'}</div>` : vista === 'campanhas' ? blocoCampanhasDia(quem) : `
+      <p class="explica" style="margin:0">Quem pediu contato pelos anúncios. Responda rápido: a chance de venda cai a cada dia.</p>${leads.map(cartaoFila).join('') || '<div class="vazio">Nenhum lead pendente.</div>'}</div>` : vista === 'campanhas' ? blocoCampanhasDia(quem) : `
     <div class="card mt"><div class="secao-titulo"><h2>✅ Fila de hoje</h2><small>${fila.length} cliente(s) · um cartão por cliente, do mais urgente para o menos</small></div>
       <p class="explica" style="margin:0">Primeiro os compromissos combinados, depois o que está atrasado, o de hoje e, por último, negócios sem próximo passo ou parados.</p>
-      ${fila.map(cartaoFila).join('') || '<div class="vazio">Nada pendente para hoje. 👏</div>'}</div>
+      ${fila.map(cartaoFila).join('') || '<div class="vazio">Nada pendente para hoje.</div>'}</div>
     ${blocoProspeccaoDia(quem)}${blocoTelefones(quem, 5)}`}
     <div class="card mt"><h3 style="margin-top:0">📅 Próximos 7 dias</h3>${proximas.map(linhaA).join('') || '<p class="mut">Nada agendado.</p>'}</div>
     ${revisar.length ? `<div class="card mt"><h2>Follow-ups de negócios encerrados: revisar</h2><p class="mut">Confirme se ainda há uma ação válida. Pós-vendas continuam na rotina.</p>${revisar.map(a => `<div class="atv"><div style="flex:1"><b>${esc(a.cliente_nome || '')}</b><br>${esc(a.titulo)}</div><button class="btn peq" data-a="atvRevisada" data-id="${a.id}" data-manter="sim">Manter atividade</button><button class="btn peq" data-a="atvRevisada" data-id="${a.id}">Arquivar</button></div>`).join('')}</div>` : ''}
@@ -728,5 +728,5 @@ function abaPedidosLigar(neg) {
     <div class="card mt">${l.length ? l.slice(0, 100).map(x => `<div class="atv" style="flex-wrap:wrap"><div style="flex:1;min-width:220px"><b>${esc(x.p.cliente_nome || '')}</b> · pedido <b>${esc(x.p.numero)}</b> · ${fmtCurta(x.p.data)} · ${R0(x.p.valor)}<br><small class="mut">${esc(x.p.situacao || '')} · ${esc(nomeVendedor(x.p.vendedor_id))}</small></div>
       <button class="btn peq" data-a="verPedido" data-id="${x.p.id}">Ver itens</button>
       ${x.negs.map(n => `<button class="btn peq pri" data-a="crmLigarPedido" data-negocio="${n.id}" data-pedido="${x.p.id}" title="${esc(n.titulo)}">Ligar a: ${esc(n.titulo.slice(0, 40))} (${R0(n.valor)})</button>`).join('')}</div>`).join('')
-      : '<div class="vazio">Nenhum pedido aguardando vínculo. 👏</div>'}</div>`;
+      : '<div class="vazio">Nenhum pedido aguardando vínculo.</div>'}</div>`;
 }

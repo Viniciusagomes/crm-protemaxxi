@@ -116,6 +116,8 @@ function vVendas() {
 }
 
 // ─── pedidos ───
+/** Cor da pílula de situação do pedido (só visual). */
+const pedSitCls = s => { s = String(s || '').toLowerCase(); return /cancel/.test(s) ? 'ruim' : /entreg|fatur|envia|enviad|pronto/.test(s) ? 'ok' : /abert|aprov|prepar|andamento|separ/.test(s) ? 'med' : ''; };
 function vPedidos() {
   const h = hoje(), dias = +UI.pedPeriodo || 30, desde = addDias(h, -dias + 1);
   const busca = (UI.pedBusca || '').toLowerCase().trim();
@@ -132,7 +134,7 @@ function vPedidos() {
       <select data-c="ui" data-k="pedVend"><option value="">Todos os vendedores</option>${vendIds.map(v => `<option value="${v}" ${UI.pedVend === v ? 'selected' : ''}>${esc(nomeVendedor(v))}</option>`).join('')}</select>
       <select data-c="ui" data-k="pedSit"><option value="">Todas as situações</option>${sits.map(s => `<option ${UI.pedSit === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></div>
     <div class="card rolagem"><table class="tabela"><thead><tr><th>Data</th><th>Nº</th><th>Cliente</th><th>Vendedor</th><th>Canal</th><th>Situação</th><th class="dir">Valor</th></tr></thead><tbody>
-      ${lista.slice(0, 400).map(p => `<tr class="clic" data-a="verPedido" data-id="${p.id}"><td>${fmtCurta(p.data)}/${p.data.slice(2, 4)}</td><td>${esc(p.numero)}</td><td><b>${esc(p.cliente_nome)}</b></td><td><span style="color:${corVendedor(p.vendedor_id)}">●</span> ${esc(nomeVendedor(p.vendedor_id))}</td><td>${p.numero_ecommerce ? `<span class="tag azul">${esc(p.canal || 'e-commerce')}</span>` : '<small class="mut">loja</small>'}</td><td><span class="tag">${esc(p.situacao)}</span></td><td class="dir num">${R(p.valor)}</td></tr>`).join('') || '<tr><td colspan="7" class="vazio">Nenhum pedido com esses filtros.</td></tr>'}
+      ${lista.slice(0, 400).map(p => `<tr class="clic" data-a="verPedido" data-id="${p.id}"><td>${fmtCurta(p.data)}/${p.data.slice(2, 4)}</td><td>${esc(p.numero)}</td><td><b>${esc(p.cliente_nome)}</b></td><td><span style="color:${corVendedor(p.vendedor_id)}">●</span> ${esc(nomeVendedor(p.vendedor_id))}</td><td>${p.numero_ecommerce ? `<span class="tag azul">${esc(p.canal || 'e-commerce')}</span>` : '<small class="mut">loja</small>'}</td><td><span class="tag pilula ${pedSitCls(p.situacao)}">${esc(p.situacao)}</span></td><td class="dir num">${R(p.valor)}</td></tr>`).join('') || '<tr><td colspan="7" class="vazio">Nenhum pedido com esses filtros.</td></tr>'}
     </tbody></table>${lista.length > 400 ? `<p class="mut">Mostrando 400 de ${lista.length}. Use os filtros para refinar.</p>` : ''}</div>`;
 }
 async function abrirPedido(id) {
