@@ -40,3 +40,8 @@ Feito na retomada automática combinada com o Vinícius. Só WhatsApp teve funç
 - Sub-abas sem emoji. Esqueleto enquanto carrega.
 - Ficha: cabeçalho de perfil (iniciais grandes, nome, documento/cidade, selo Ativo/Para reativar, vendedor, botão WhatsApp),
   contatos com ícones de traço (novo ícone telefone), pedidos com situação em pílula.
+## Funil (17/11, tarde)
+
+- Sub-abas sem emoji. Colunas do kanban com ponto de cor da etapa, contagem em pílula e soma em destaque.
+- Cartões mais limpos: iniciais do vendedor, faixa fina vermelha (sem atividade) / âmbar (atrasada), próxima atividade com ícone.
+- Só no .kanban-crm (o kanban da Assistência não muda).
