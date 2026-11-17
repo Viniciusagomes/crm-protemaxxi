@@ -53,3 +53,8 @@ Feito na retomada automática combinada com o Vinícius. Só WhatsApp teve funç
 - Fica de fora: o que pessoas escreveram (.wa-msgs, prévia do WhatsApp, .coment p, leitura de e-mail), campos/opções de
   formulário e as abas do estoque/expedição/ML/compras/cadastro (pedido do Vinícius: área do Fefão).
 - Para excluir um trecho específico: classe `sem-icone`.
+
+## Início (17/11, tarde)
+
+- Saudação sem exclamação; primeiro número (vendas da loja / minhas vendas) em destaque escuro; cartões com mesma altura.
+- Links das seções ("ver todas", "clientes"…) discretos com seta.
