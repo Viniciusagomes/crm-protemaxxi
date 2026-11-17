@@ -10,7 +10,7 @@ const semTipos = s => s.replace(/export (async )?function/g, '$1function').repla
 
 // ─── webhook ───
 const wh = fs.readFileSync(path.join(root, 'supabase/functions/whatsapp-webhook/index.ts'), 'utf8');
-const W = vm.runInNewContext(semTipos(wh.slice(wh.indexOf('/** Confere a assinatura'), wh.indexOf('const EXT'))) + '; ({ assinaturaOk, lerMensagem })',
+const W = vm.runInNewContext(semTipos(wh.slice(wh.indexOf('/** Confere a assinatura'), wh.indexOf('const EXT'))) + '; ({ assinaturaOk, lerMensagem, lerEco })',
   { crypto: globalThis.crypto, TextEncoder, Date, Number, String });
 
 const contatos = [{ wa_id: '5519987654321', profile: { name: 'Ana Cliente' } }];
@@ -28,6 +28,16 @@ m = W.lerMensagem({ ...base, type: 'interactive', interactive: { button_reply: {
 assert.equal(m.texto, 'Sim');
 m = W.lerMensagem({ ...base, type: 'unsupported', unsupported: {} }, []);
 assert.equal(m.tipo, 'outro'); assert.match(m.texto, /celular/);
+// enviada pelo celular (smb_message_echoes): vira saída para o cliente do campo "to"
+m = W.lerEco({ from: '551941417105', to: '5519987654321', id: 'wamid.eco', timestamp: '1762790400', type: 'text', text: { body: 'Bom dia! Segue o orçamento.' } });
+assert.equal(m.para, '5519987654321'); assert.equal(m.texto, 'Bom dia! Segue o orçamento.'); assert.equal(m.wa_msg_id, 'wamid.eco');
+assert.equal(m.de, undefined, 'eco não tem remetente cliente'); assert.equal(m.nome, undefined);
+m = W.lerEco({ from: '551941417105', to: '5519987654321', id: 'wamid.eco2', timestamp: '1762790400', type: 'audio', audio: { id: 'A1', mime_type: 'audio/ogg', voice: true } });
+assert.equal(m.midia_id, 'A1'); assert.equal(m.tipo, 'audio');
+assert.match(wh, /ch\.field !== "messages" && ch\.field !== "smb_message_echoes"/, 'webhook lê os ecos do celular');
+assert.match(wh, /sb\.rpc\("wa_eco", \{ p \}\)/);
+const eco = fs.readFileSync(path.join(root, 'supabase/migrations', fs.readdirSync(path.join(root, 'supabase/migrations')).find(f => f.endsWith('_whatsapp_eco_celular.sql'))), 'utf8');
+assert.match(eco, /'saida'/); assert.match(eco, /revoke execute on function public\.wa_eco\(jsonb\) from public, anon, authenticated/);
 
 (async () => {
   const corpo = '{"entry":[]}', sig = 'sha256=' + crypto.createHmac('sha256', 'segredo').update(corpo).digest('hex');
