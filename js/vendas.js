@@ -118,6 +118,14 @@ function vVendas() {
 // ─── pedidos ───
 /** Cor da pílula de situação do pedido (só visual). */
 const pedSitCls = s => { s = String(s || '').toLowerCase(); return /cancel/.test(s) ? 'ruim' : /entreg|fatur|envia|enviad|pronto/.test(s) ? 'ok' : /abert|aprov|prepar|andamento|separ/.test(s) ? 'med' : ''; };
+/** Iniciais do vendedor na cor dele (só visual). */
+const pedAvatar = vid => { const n = nomeVendedor(vid), p = n.split(/\s+/).filter(Boolean); return `<span class="avatar ped-av" style="background:${corVendedor(vid)}">${esc(((p[0] || '?')[0] + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase())}</span>`; };
+/** Faixa de números do topo da lista de pedidos (mesmos dados da lista; cancelados fora do total). */
+function pedResumo(lista) {
+  const v = lista.filter(valido), tot = somaV(v), canc = lista.length - v.length;
+  const it = (rot, val, sub = '') => `<div class="ped-kpi"><span>${rot}</span><b>${val}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
+  return `<div class="ped-kpis">${it('Pedidos', N(v.length), canc ? `${canc} cancelado(s) fora` : '')}${it('Total', R0(tot))}${it('Ticket médio', v.length ? R0(tot / v.length) : '—')}${it('Clientes', N(new Set(v.map(p => p.cliente_chave || p.cliente_nome)).size))}</div>`;
+}
 function vPedidos() {
   const h = hoje(), dias = +UI.pedPeriodo || 30, desde = addDias(h, -dias + 1);
   const busca = (UI.pedBusca || '').toLowerCase().trim();
@@ -133,17 +141,21 @@ function vPedidos() {
       <select data-c="ui" data-k="pedPeriodo">${[['7', 'Últimos 7 dias'], ['30', 'Últimos 30 dias'], ['90', 'Últimos 90 dias'], ['365', 'Últimos 12 meses'], ['400', 'Tudo carregado']].map(([v, n]) => `<option value="${v}" ${UI.pedPeriodo === v ? 'selected' : ''}>${n}</option>`).join('')}</select>
       <select data-c="ui" data-k="pedVend"><option value="">Todos os vendedores</option>${vendIds.map(v => `<option value="${v}" ${UI.pedVend === v ? 'selected' : ''}>${esc(nomeVendedor(v))}</option>`).join('')}</select>
       <select data-c="ui" data-k="pedSit"><option value="">Todas as situações</option>${sits.map(s => `<option ${UI.pedSit === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></div>
-    <div class="card rolagem"><table class="tabela"><thead><tr><th>Data</th><th>Nº</th><th>Cliente</th><th>Vendedor</th><th>Canal</th><th>Situação</th><th class="dir">Valor</th></tr></thead><tbody>
-      ${lista.slice(0, 400).map(p => `<tr class="clic" data-a="verPedido" data-id="${p.id}"><td>${fmtCurta(p.data)}/${p.data.slice(2, 4)}</td><td>${esc(p.numero)}</td><td><b>${esc(p.cliente_nome)}</b></td><td><span style="color:${corVendedor(p.vendedor_id)}">●</span> ${esc(nomeVendedor(p.vendedor_id))}</td><td>${p.numero_ecommerce ? `<span class="tag azul">${esc(p.canal || 'e-commerce')}</span>` : '<small class="mut">loja</small>'}</td><td><span class="tag pilula ${pedSitCls(p.situacao)}">${esc(p.situacao)}</span></td><td class="dir num">${R(p.valor)}</td></tr>`).join('') || '<tr><td colspan="7" class="vazio">Nenhum pedido com esses filtros.</td></tr>'}
+    ${pedResumo(lista)}
+    <div class="card rolagem ped-lista"><table class="tabela"><thead><tr><th>Data</th><th>Nº</th><th>Cliente</th><th>Vendedor</th><th>Canal</th><th>Situação</th><th class="dir">Valor</th></tr></thead><tbody>
+      ${lista.slice(0, 400).map(p => `<tr class="clic" data-a="verPedido" data-id="${p.id}"><td>${fmtCurta(p.data)}/${p.data.slice(2, 4)}</td><td>${esc(p.numero)}</td><td><b>${esc(p.cliente_nome)}</b></td><td><span class="ped-vend">${pedAvatar(p.vendedor_id)}${esc(nomeVendedor(p.vendedor_id).split(' ')[0])}</span></td><td>${p.numero_ecommerce ? `<span class="tag pilula canal">${esc(p.canal || 'e-commerce')}</span>` : '<span class="tag pilula loja">Loja</span>'}</td><td><span class="tag pilula ${pedSitCls(p.situacao)}">${esc(p.situacao)}</span></td><td class="dir num">${R(p.valor)}</td></tr>`).join('') || '<tr><td colspan="7" class="vazio">Nenhum pedido com esses filtros.</td></tr>'}
     </tbody></table>${lista.length > 400 ? `<p class="mut">Mostrando 400 de ${lista.length}. Use os filtros para refinar.</p>` : ''}</div>`;
 }
 async function abrirPedido(id) {
   const p = D.pedidos.find(x => x.id === id); if (!p) return;
-  modal(`<div class="vazio">Carregando pedido ${esc(p.numero)}…</div>`);
+  modal(`<h2>Pedido ${esc(p.numero)}</h2>${esqueleto(5)}`);
   const [itens, [det]] = await Promise.all([ok(sb.from('pedido_itens').select('*').eq('pedido_id', id).order('seq')), ok(sb.from('pedidos').select('*').eq('id', id))]);
-  modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>Pedido ${esc(p.numero)} <span class="tag">${esc(p.situacao)}</span></h2>
-    <p class="mut">${fmtData(p.data)} · ${esc(nomeVendedor(p.vendedor_id))}${p.numero_ecommerce ? ` · ${esc(p.canal || 'e-commerce')} nº ${esc(p.numero_ecommerce)}` : ''}${det?.forma_pagamento ? ` · ${esc(det.forma_pagamento)}` : ''}</p>
-    <p><b>Cliente:</b> <a href="#" data-a="verCliente" data-chave="${esc(p.cliente_chave || '')}">${esc(p.cliente_nome)}</a></p>
-    ${itens.length ? `<table class="tabela"><thead><tr><th>Código</th><th>Produto</th><th class="dir">Qtd</th><th class="dir">Unitário</th><th class="dir">Total</th></tr></thead><tbody>${itens.map(i => `<tr><td><small>${esc(i.codigo)}</small></td><td>${esc(i.descricao)}</td><td class="dir">${N(+i.quantidade)}</td><td class="dir">${R(+i.valor_unitario)}</td><td class="dir">${R(i.quantidade * i.valor_unitario)}</td></tr>`).join('')}</tbody></table>` : `<p class="mut">${det?.detalhado ? 'Pedido sem itens.' : 'Os itens deste pedido ainda estão sendo baixados do Tiny.'}</p>`}
-    <div class="mt" style="text-align:right">${det?.desconto ? `Desconto ${R(+det.desconto)} · ` : ''}${det?.frete ? `Frete ${R(+det.frete)} · ` : ''}<b style="font-size:18px">Total ${R(p.valor)}</b></div>`, true);
+  const sub = soma(itens.map(i => i.quantidade * i.valor_unitario));
+  const meta = [['Data', fmtData(p.data)], ['Vendedor', esc(nomeVendedor(p.vendedor_id))], ['Canal', p.numero_ecommerce ? `${esc(p.canal || 'e-commerce')} nº ${esc(p.numero_ecommerce)}` : 'Loja'], ...(det?.forma_pagamento ? [['Pagamento', esc(det.forma_pagamento)]] : [])];
+  modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button>
+    <div class="ped-cab"><div><small class="mut">Pedido</small><h2>${esc(p.numero)}</h2></div><span class="tag pilula ${pedSitCls(p.situacao)}">${esc(p.situacao)}</span></div>
+    <dl class="ped-meta">${meta.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>
+    <a href="#" class="ped-cli" data-a="verCliente" data-chave="${esc(p.cliente_chave || '')}"><span class="avatar">${esc((p.cliente_nome || '?').trim().split(/\s+/).slice(0, 2).map(x => x[0]).join('').toUpperCase())}</span><span><small class="mut">Cliente</small><b>${esc(p.cliente_nome)}</b></span><span class="ped-seta">›</span></a>
+    ${itens.length ? `<table class="tabela ped-itens"><thead><tr><th>Produto</th><th class="dir">Qtd</th><th class="dir">Unitário</th><th class="dir">Total</th></tr></thead><tbody>${itens.map(i => `<tr><td><b>${esc(i.descricao)}</b><br><small class="mut">${esc(i.codigo)}</small></td><td class="dir num">${N(+i.quantidade)}</td><td class="dir num">${R(+i.valor_unitario)}</td><td class="dir num">${R(i.quantidade * i.valor_unitario)}</td></tr>`).join('')}</tbody></table>` : `<p class="vazio">${det?.detalhado ? 'Pedido sem itens.' : 'Os itens deste pedido ainda estão sendo baixados do Tiny.'}</p>`}
+    <div class="ped-totais">${itens.length ? `<div><span>Produtos</span><span class="num">${R(sub)}</span></div>` : ''}${det?.desconto ? `<div><span>Desconto</span><span class="num">− ${R(+det.desconto)}</span></div>` : ''}${det?.frete ? `<div><span>Frete</span><span class="num">${R(+det.frete)}</span></div>` : ''}<div class="tot"><span>Total</span><span class="num">${R(p.valor)}</span></div></div>`, true);
 }

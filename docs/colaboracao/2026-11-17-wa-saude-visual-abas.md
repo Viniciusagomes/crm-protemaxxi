@@ -25,3 +25,11 @@ Feito na retomada automática combinada com o Vinícius. Só WhatsApp teve funç
 
 - `node tests/rodar-todos.cjs`: 29/29 (novos `tests/whatsapp-saude.cjs` e `tests/visual-abas.cjs`).
 - Sem revisão do Codex (não instalado). Não testado com login real: conferir com Ctrl+F5 depois do merge.
+
+## Pedidos (17/11, tarde)
+
+- Faixa de números no topo (pedidos sem cancelados, total, ticket médio, clientes) calculada da própria lista filtrada.
+- Vendedor com iniciais na cor dele; canal em pílula (Loja / e-commerce).
+- Detalhe do pedido: cabeçalho com número grande e situação em pílula, quadro de dados (data, vendedor, canal, pagamento),
+  cliente clicável, itens com código embaixo, totais (produtos, desconto, frete, total). Esqueleto enquanto carrega.
+- Situação dos pedidos ficou de fora (mostra dados da expedição; o Vinícius pediu para não mexer em ML/expedição/estoque).
