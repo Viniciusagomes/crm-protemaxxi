@@ -50,7 +50,7 @@ assert.match(eco, /'saida'/); assert.match(eco, /revoke execute on function publ
 
   // ─── envio ───
   const en = fs.readFileSync(path.join(root, 'supabase/functions/whatsapp-enviar/index.ts'), 'utf8');
-  const E = vm.runInNewContext('const JANELA_MS = 24 * 3600e3;' + semTipos(en.slice(en.indexOf('/** Tipo de mensagem'), en.indexOf('async function graph'))) + '; ({ tipoMidia, dentroJanela, assinaturaTexto, comAssinatura })', { Date, String });
+  const E = vm.runInNewContext('const JANELA_MS = 24 * 3600e3;' + semTipos(en.slice(en.indexOf('/** Tipo de mensagem'), en.indexOf('async function graph'))) + '; ({ tipoMidia, dentroJanela, assinaturaTexto, comAssinatura, lerModelos, preencherModelo, problemaParams })', { Date, String });
   // perfil de atendimento em cima da mensagem
   assert.equal(E.assinaturaTexto('Felipe Moreira', ['vendas'], null), 'Felipe Moreira - Vendas');
   assert.equal(E.assinaturaTexto('Ana', ['suporte', 'vendas'], ''), 'Ana - Suporte Técnico');
@@ -63,6 +63,20 @@ assert.match(eco, /'saida'/); assert.match(eco, /revoke execute on function publ
   const agora = Date.parse('2026-11-10T15:00:00Z');
   assert.equal(E.dentroJanela('2026-11-09T15:30:00Z', agora), true); assert.equal(E.dentroJanela('2026-11-09T14:59:00Z', agora), false); assert.equal(E.dentroJanela(null, agora), false);
   assert.ok(en.includes('eu.from("wa_conversas")'), 'lê a conversa com o login de quem envia (RLS)');
+  // modelos aprovados (17/11): só APPROVED, conta as variáveis, preenche e barra variável inválida
+  const ms = E.lerModelos([
+    { name: 'retomar_conversa', language: 'pt_BR', status: 'APPROVED', category: 'UTILITY', components: [{ type: 'BODY', text: 'Olá, {{1}}! Aqui é {{2}}, da loja.' }] },
+    { name: 'novidades', language: 'pt_BR', status: 'APPROVED', category: 'MARKETING', components: [{ type: 'BODY', text: 'Oi {{1}}, novidades.' }, { type: 'BUTTONS', buttons: [{ type: 'QUICK_REPLY', text: 'Quero ver' }] }] },
+    { name: 'pendente', language: 'pt_BR', status: 'PENDING', components: [{ type: 'BODY', text: 'x' }] }]);
+  assert.deepEqual(ms.map(m => [m.nome, m.variaveis]), [['novidades', 1], ['retomar_conversa', 2]], 'só aprovados, em ordem');
+  assert.deepEqual(ms[0].botoes, ['Quero ver']);
+  assert.equal(E.preencherModelo('Olá, {{1}}! Aqui é {{2}}.', ['Ana', 'Pedro']), 'Olá, Ana! Aqui é Pedro.');
+  assert.equal(E.problemaParams(['Ana', 'Pedro'], 2), '');
+  assert.match(E.problemaParams(['Ana'], 2), /2 campos/); assert.match(E.problemaParams(['Ana', ' '], 2), /campo 2/);
+  assert.match(E.problemaParams(['Ana' + String.fromCharCode(10) + 'x', 'P'], 2), /quebra de linha/); assert.match(E.problemaParams(['Ana     x', 'P'], 2), /espaços/);
+  assert.ok(en.indexOf('if (!corpo.modelo && !dentroJanela') > 0, 'fora das 24 h só passa modelo');
+  assert.ok(/nao_contatar\) return json/.test(en), 'não manda modelo para quem pediu para não ser contatado');
+  assert.ok(en.includes('(await modelosAprovados(cfg)).find'), 'confere na Meta que o modelo está aprovado antes de enviar');
   assert.ok(en.includes('startsWith(`saida/${quem}/`)'), 'só envia arquivo da própria pasta');
   assert.ok(!/EAA[A-Za-z0-9]{20}/.test(en + wh), 'nenhum token da Meta no código');
 

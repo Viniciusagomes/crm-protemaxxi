@@ -1168,3 +1168,19 @@ nav .badge { flex: none; }
 .wa-abas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; overflow: visible; }
 .wa-aba { justify-content: center; padding: 6px 8px; min-width: 0; }
 .wa-aba span { min-width: 18px; text-align: center; }
+
+/* ─── WhatsApp: enviar modelo e arrastar arquivo (17/11) ─── */
+.wa-janela { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
+.wa-modelo-tag { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--wa-verde); margin-bottom: 2px; }
+.wa-mod-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; margin: 12px 0; }
+.wa-mod { text-align: left; background: var(--card); border: 1px solid var(--borda); border-radius: 12px; padding: 10px 12px; cursor: pointer; display: grid; gap: 4px; align-content: start; }
+.wa-mod b { font-size: 14px; } .wa-mod small { color: var(--txt3); line-height: 1.4; } .wa-mod .wa-tag { justify-self: start; }
+.wa-mod:hover { border-color: var(--borda-forte); } .wa-mod.on { border-color: var(--verde); box-shadow: 0 0 0 1px var(--verde); background: var(--verde-claro); }
+.wa-mod-campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.wa-mod-campos input { width: 100%; }
+.wa-mod-prev { margin-top: 14px; padding: 16px; border-radius: 12px; background: var(--wa-fundo, #EFEAE2); }
+.wa-mod-prev .bolha { max-width: 420px; margin-left: auto; background: var(--wa-out, #D9FDD3); color: var(--wa-txt, #111B21); border-radius: 10px 2px 10px 10px; padding: 8px 10px; font-size: 14px; line-height: 1.45; box-shadow: 0 1px .5px rgba(11,20,26,.13); }
+.wa-mod-bts { display: grid; gap: 1px; margin: 8px -10px -8px; border-top: 1px solid rgba(0,0,0,.08); }
+.wa-mod-bts span { text-align: center; color: #027EB5; font-weight: 600; padding: 8px; }
+.wa-chat.arrastando::after { content: "Solte para anexar à conversa"; position: absolute; inset: 10px; z-index: 5; display: grid; place-items: center; border: 2px dashed var(--wa-verde); border-radius: 14px;
+  background: color-mix(in srgb, var(--wa-verde) 12%, rgba(255,255,255,.85)); color: var(--wa-verde); font: 700 18px Figtree, system-ui, sans-serif; pointer-events: none; }

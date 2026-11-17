@@ -54,4 +54,13 @@ assert.match(idx, /js\/atendimento\.js\?v=20261117[p-z]/);
 // a aba que chama atenção não pode usar a classe .alerta (é o estilo dos avisos, com faixa lateral)
 assert.doesNotMatch(run('waAbasHtml()'), /class="wa-aba[^"]*alerta/);
 assert.match(run('waAbasHtml()'), /wa-aba +urgente|wa-aba  urgente|urgente/);
+// modelo: sugere o primeiro nome do cliente e o meu; prévia marca o que falta
+run("WA.conv.push({ id: 9, nome_perfil: 'RICARDO ferreira', status: 'aberta' })");
+const mod = { nome: 'retomar_conversa', corpo: 'Olá, {{1}}! Aqui é {{2}}.', variaveis: 2, botoes: [] };
+assert.deepEqual(run(`waModeloSugestao(${JSON.stringify(mod)}, WA.conv.find(c => c.id === 9))`), ['Ricardo', 'Pedro']);
+assert.equal(run(`waModeloTexto(${JSON.stringify(mod)}, ['Ricardo', ''])`), 'Olá, Ricardo! Aqui é [Seu nome].');
+assert.equal(run("waModeloNome('pedido_atualizado')"), 'Pedido atualizado'); assert.equal(run("waModeloNome('outro_modelo')"), 'Outro modelo');
+// bolha de modelo: etiqueta e sem "Tentar de novo"
+const bm = run("waMsgHtml({ id: 3, direcao: 'saida', tipo: 'template', texto: 'Olá', status: 'falhou', erro: 'x', em: new Date().toISOString(), por: 'pedro' }, [])");
+assert.match(bm, /Modelo aprovado/); assert.doesNotMatch(bm, /reenviar/);
 console.log('✔ whatsapp-etiquetas.cjs');

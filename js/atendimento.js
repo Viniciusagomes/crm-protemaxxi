@@ -202,6 +202,7 @@ const WA_IC = {
   lupa: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="m16 16 4 4"/></svg>',
   check: '<svg viewBox="0 0 16 11" width="16" height="11" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M1 6l3.5 3.5L11 2"/></svg>',
   check2: '<svg viewBox="0 0 18 11" width="18" height="11" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M1 6l3.5 3.5L11 2M7.5 9.5 15 2"/></svg>',
+  modelo: '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M4 5h16v11H9l-5 4zM8 9h8M8 12.5h5"/></svg>',
   sino: '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2.2 2.2 0 0 0 4 0"/></svg>',
   relogio: '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="8" cy="8" r="6.3" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M8 4.5V8l2.3 1.5"/></svg>',
 };
@@ -312,11 +313,12 @@ function waChatHtml() {
   const jan = waJanela(c);
   return `<header class="wa-cab" id="waCab">${waCabHtml(c)}</header>
     <div class="wa-corpo"><div class="wa-msgs" id="waMsgs"><p class="wa-nada">Carregando…</p></div><aside class="wa-ficha" id="waFicha"></aside></div>
-    ${jan ? '' : '<div class="wa-janela">Mais de 24 h sem mensagem do cliente: a Meta só deixa mandar <b>modelo aprovado</b>. Por aqui, só nota interna até ele escrever de novo.</div>'}
+    ${jan ? '' : `<div class="wa-janela"><span>Mais de 24 h sem mensagem do cliente: a Meta só deixa mandar <b>modelo aprovado</b>.</span><button class="btn peq pri" data-wa="modelo" data-id="${c.id}">Enviar modelo</button></div>`}
     <footer class="wa-escrever ${WA.modoNota ? 'nota' : ''}" id="waEscrever">
       <div class="wa-sug" id="waSug" hidden></div>
       <button class="wa-ic" data-wa="respLista" title="Respostas prontas (ou digite /)">${WA_IC.raio}</button>
-      <label class="wa-ic" title="Enviar foto ou arquivo">${WA_IC.clipe}<input type="file" id="waArq" hidden></label>
+      <label class="wa-ic" title="Enviar foto ou arquivo (ou arraste para a conversa)">${WA_IC.clipe}<input type="file" id="waArq" hidden></label>
+      <button class="wa-ic" data-wa="modelo" data-id="${c.id}" title="Enviar modelo aprovado">${WA_IC.modelo}</button>
       <div class="wa-campo"><span class="wa-arq" id="waArqNome" hidden></span>
         <textarea id="waTexto" rows="1" placeholder="${WA.modoNota || !jan ? 'Nota interna (só a equipe vê)' : 'Mensagem  ·  digite / para respostas prontas'}">${esc(WA.rasc?.[c.id] || '')}</textarea></div>
       <button class="wa-ic ${WA.modoNota ? 'on' : ''}" data-wa="modoNota" title="Alternar mensagem / nota interna">${WA_IC.nota}</button>
@@ -365,9 +367,9 @@ function waMsgHtml(m, lista) {
   const citHtml = cit ? `<div class="wa-cit ${cit.direcao}"><b>${cit.direcao === 'saida' ? 'Você' : 'Cliente'}</b><span>${esc((cit.texto || `[${cit.tipo}]`).slice(0, 140))}</span></div>` : '';
   const midia = m.midia_path ? waMidiaHtml(m) : m.midia_id ? '<div class="wa-midia-esp">mídia sendo baixada…</div>' : '';
   const quem = m.direcao === 'saida' && m.por ? `<div class="wa-quem">${esc(waAssinatura(m.por))}</div>` : '';
-  return `<div class="wa-msg ${m.direcao}"><div class="bolha ${m.midia_path && !m.texto && /^image|^video/.test(m.midia_mime || '') ? 'so-midia' : ''}">${quem}${citHtml}${midia}${m.texto ? `<span class="txt">${waTexto(m.texto)}</span>` : ''}
+  return `<div class="wa-msg ${m.direcao}"><div class="bolha ${m.midia_path && !m.texto && /^image|^video/.test(m.midia_mime || '') ? 'so-midia' : ''}">${quem}${m.tipo === 'template' ? '<div class="wa-modelo-tag">Modelo aprovado</div>' : ''}${citHtml}${midia}${m.texto ? `<span class="txt">${waTexto(m.texto)}</span>` : ''}
     <span class="wa-meta"><time>${waSoHora(m.em)}</time>${m.direcao === 'saida' ? waTick(m.status) : ''}</span>
-    ${m.status === 'falhou' ? `<div class="wa-erro" title="${esc(m.erro || '')}">Não entregue: ${esc(waErroPt(m.erro))}${m.direcao === 'saida' && (m.texto || m.midia_path) ? ` <button class="wa-retry" data-wa="reenviar" data-id="${m.id}">Tentar de novo</button>` : ''}</div>` : ''}</div></div>`;
+    ${m.status === 'falhou' ? `<div class="wa-erro" title="${esc(m.erro || '')}">Não entregue: ${esc(waErroPt(m.erro))}${m.direcao === 'saida' && m.tipo !== 'template' && (m.texto || m.midia_path) ? ` <button class="wa-retry" data-wa="reenviar" data-id="${m.id}">Tentar de novo</button>` : ''}</div>` : ''}</div></div>`;
 }
 function waDesenharMsgs() {
   const el = $('#waMsgs'), lista = WA.msgs[WA.aberta]; if (!el || !lista) return;
@@ -490,6 +492,91 @@ async function waEnviar(id) {
   } catch (e) { avisar(e.message); }
   if (b) b.disabled = false; ta.focus();
 }
+// ─── modelos aprovados pela Meta (fora das 24 h) ───
+const WA_MODELO_INFO = {
+  retomar_conversa: ['Retomar conversa', ['Nome do cliente', 'Seu nome']], orcamento_pronto: ['Orçamento pronto', ['Nome do cliente', 'Seu nome']],
+  pedido_atualizado: ['Pedido atualizado', ['Nome do cliente', 'Número do pedido', 'Nova situação']], assistencia_os: ['Assistência (OS)', ['Nome do cliente', 'Número da OS', 'Nova situação']],
+  novidades_cliente: ['Novidades (marketing)', ['Nome do cliente', 'Seu nome']],
+};
+const waModeloNome = n => WA_MODELO_INFO[n]?.[0] || String(n).replace(/_/g, ' ').replace(/^\w/, x => x.toUpperCase());
+const waPrimeiro = s => (String(s || '').trim().split(/\s+/)[0] || '').toLowerCase().replace(/^\p{L}/u, x => x.toUpperCase());
+/** Valores sugeridos: {{1}} = primeiro nome do cliente, {{2}} = meu primeiro nome (quando o modelo pede o nome de quem atende). */
+function waModeloSugestao(m, c) {
+  const rot = WA_MODELO_INFO[m.nome]?.[1] || [];
+  return Array.from({ length: m.variaveis }, (_, i) => rot[i] === 'Nome do cliente' || (!rot[i] && i === 0) ? waPrimeiro(c?.nome_perfil)
+    : rot[i] === 'Seu nome' ? waPrimeiro(nomeP(EU.id)) : '');
+}
+const waModeloTexto = (m, vals) => m.corpo.replace(/\{\{(\d+)\}\}/g, (_, i) => vals[+i - 1] ? vals[+i - 1] : `[${(WA_MODELO_INFO[m.nome]?.[1] || [])[+i - 1] || 'campo ' + i}]`);
+async function waModelos(forcar) {
+  if (!forcar && WA.modelos && Date.now() - WA.modelosEm < 5 * 60e3) return WA.modelos;
+  const { data, error } = await sb.functions.invoke('whatsapp-enviar', { body: { acao: 'modelos' } });
+  if (error || !data?.modelos) throw new Error(data?.erro || 'Não consegui buscar os modelos na Meta.');
+  WA.modelosEm = Date.now(); return (WA.modelos = data.modelos);
+}
+async function waModeloAbrir(id) {
+  const c = WA.conv.find(x => x.id === id); if (!c) return;
+  modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>Enviar modelo</h2><div id="waModCorpo">${esqueleto(3)}</div>`, true);
+  let l; try { l = await waModelos(); } catch (e) { const el = $('#waModCorpo'); if (el) el.innerHTML = `<p class="c-ruim">${esc(e.message)}</p>`; return; }
+  const el = $('#waModCorpo'); if (!el) return;
+  if (!l.length) { el.innerHTML = '<p class="mut">Nenhum modelo aprovado ainda. Os modelos enviados estão em análise na Meta; quando forem aprovados, aparecem aqui.</p>'; return; }
+  WA.modSel = { id, nome: l[0].nome };
+  el.innerHTML = `<p class="explica">Modelo é a única forma de falar com o cliente depois de 24 h sem resposta dele. Confira o texto antes de enviar.</p>
+    <div class="wa-mod-lista">${l.map(m => `<button class="wa-mod ${m.nome === WA.modSel.nome ? 'on' : ''}" data-wa="modeloSel" data-n="${esc(m.nome)}"><b>${esc(waModeloNome(m.nome))}</b>${m.categoria === 'MARKETING' ? '<span class="wa-tag med">marketing</span>' : ''}<small>${esc(waModeloTexto(m, []).slice(0, 110))}…</small></button>`).join('')}</div>
+    <div id="waModForm"></div>`;
+  waModeloForm();
+}
+function waModeloForm() {
+  const box = $('#waModForm'), m = (WA.modelos || []).find(x => x.nome === WA.modSel?.nome); if (!box || !m) return;
+  const c = WA.conv.find(x => x.id === WA.modSel.id), vals = waModeloSugestao(m, c), rot = WA_MODELO_INFO[m.nome]?.[1] || [];
+  box.innerHTML = `<div class="wa-mod-campos">${vals.map((v, i) => `<label class="campo">${esc(rot[i] || 'Campo ' + (i + 1))}<input type="text" maxlength="300" data-wa-mod="${i}" value="${esc(v)}"></label>`).join('')}</div>
+    <div class="wa-mod-prev"><div class="bolha"><span class="txt" id="waModPrev"></span>${m.botoes.length ? `<div class="wa-mod-bts">${m.botoes.map(b => `<span>${esc(b)}</span>`).join('')}</div>` : ''}</div></div>
+    <div class="acoes mt"><button class="btn pri" data-wa="modeloEnviar">Enviar modelo</button><button class="btn" data-a="fecharModal">Cancelar</button></div>`;
+  waModeloPrev();
+}
+const waModeloVals = () => [...document.querySelectorAll('[data-wa-mod]')].map(i => i.value.trim());
+function waModeloPrev() { const m = (WA.modelos || []).find(x => x.nome === WA.modSel?.nome), p = $('#waModPrev'); if (m && p) p.innerHTML = waTexto(waModeloTexto(m, waModeloVals())); }
+async function waModeloEnviar(btn) {
+  const m = (WA.modelos || []).find(x => x.nome === WA.modSel?.nome); if (!m) return;
+  const params = waModeloVals(), falta = params.findIndex(v => !v);
+  if (falta >= 0) return avisar(`Preencha: ${(WA_MODELO_INFO[m.nome]?.[1] || [])[falta] || 'campo ' + (falta + 1)}.`);
+  btn.disabled = true;
+  try {
+    const { data, error } = await sb.functions.invoke('whatsapp-enviar', { body: { conversa: WA.modSel.id, modelo: { nome: m.nome, idioma: m.idioma, params } } });
+    let e = data?.erro; if (error && !e) { try { e = (await error.context?.json())?.erro; } catch { /* sem detalhe */ } }
+    if (error || !data?.ok) throw new Error(e || error?.message || 'Não foi possível enviar.');
+    fecharModal(); avisar('Modelo enviado.');
+  } catch (e) { avisar(e.message); btn.disabled = false; }
+}
+
+// ─── arrastar arquivo para a conversa (e colar imagem com Ctrl+V) ───
+function waAnexar(arq) {
+  const c = WA.conv?.find(x => x.id === WA.aberta); if (!c || !arq) return false;
+  if (!waJanela(c)) { avisar('Fora da janela de 24 h: arquivo só depois que o cliente escrever. Use "Enviar modelo".'); return false; }
+  if (WA.modoNota) { avisar('Arquivo não vai em nota interna: saia do modo nota para enviar ao cliente.'); return false; }
+  if (arq.size > 16 * 1024 * 1024) { avisar('Arquivo maior que 16 MB.'); return false; }
+  const inp = $('#waArq'); if (!inp) return false;
+  try { const dt = new DataTransfer(); dt.items.add(arq); inp.files = dt.files; } catch { return false; }
+  waArqRotulo(); $('#waTexto')?.focus(); return true;
+}
+if (typeof document !== 'undefined') {
+  let tempo = null;
+  const naConversa = e => UI.view === 'atendimento' && WA.aberta && e.target.closest?.('.wa-chat') && [...(e.dataTransfer?.types || [])].includes('Files');
+  document.addEventListener('dragover', e => {
+    if (!naConversa(e)) return;
+    e.preventDefault(); e.dataTransfer.dropEffect = 'copy';
+    const ch = $('.wa-chat'); ch?.classList.add('arrastando'); clearTimeout(tempo); tempo = setTimeout(() => ch?.classList.remove('arrastando'), 180);
+  });
+  document.addEventListener('drop', e => {
+    if (!naConversa(e)) return;
+    e.preventDefault(); $('.wa-chat')?.classList.remove('arrastando');
+    const fs = [...(e.dataTransfer.files || [])]; if (!fs.length) return;
+    if (waAnexar(fs[0]) && fs.length > 1) avisar('Um arquivo por vez: anexei o primeiro. Envie e arraste o próximo.');
+  });
+  document.addEventListener('paste', e => {
+    if (e.target.id !== 'waTexto') return;
+    const f = [...(e.clipboardData?.files || [])][0]; if (f && waAnexar(f)) e.preventDefault();
+  });
+}
 async function waNota(id) {
   const ta = $('#waTexto'), t = ta.value.trim(); if (!t) return avisar('Escreva a nota no campo de mensagem.');
   try { await ok(sb.rpc('wa_nota', { p_id: id, p_texto: t })); ta.value = ''; if (WA.rasc) delete WA.rasc[id]; waAutoAltura(); } catch (e) { avisar(e.message); }
@@ -610,6 +697,9 @@ const WA_ACOES = {
   saude: () => waSaude(),
   abrirDaSaude: el => { fecharModal(); const c = WA.conv.find(x => x.id === +el.dataset.id); WA.aba = c?.status === 'encerrada' ? 'encerradas' : 'equipe'; WA.aberta = +el.dataset.id; render(); },
   antigas: () => waMaisAntigas(WA.aberta),
+  modelo: el => waModeloAbrir(+el.dataset.id || WA.aberta),
+  modeloSel: el => { WA.modSel.nome = el.dataset.n; document.querySelectorAll('.wa-mod').forEach(b => b.classList.toggle('on', b === el)); waModeloForm(); },
+  modeloEnviar: el => waModeloEnviar(el),
   etqFiltro: el => { WA.etq = WA.etq === el.dataset.e ? null : el.dataset.e; waAtualizar(); },
   etq: async el => {
     const id = +el.dataset.id, c = WA.conv.find(x => x.id === id); if (!c) return;
@@ -636,6 +726,7 @@ const WA_ACOES = {
 document.addEventListener('click', e => { const el = e.target.closest?.('[data-wa]'); if (el && WA_ACOES[el.dataset.wa]) { e.preventDefault(); WA_ACOES[el.dataset.wa](el, e); } });
 document.addEventListener('input', e => {
   if (e.target.id === 'waBusca') { WA.busca = e.target.value; const l = $('#waLista'), a = $('#waAbas'); if (l) l.innerHTML = waListaHtml(); if (a) a.innerHTML = waAbasHtml(); }
+  if (e.target.dataset?.waMod != null) waModeloPrev();
   if (e.target.id === 'waTexto' && WA.aberta) { (WA.rasc ||= {})[WA.aberta] = e.target.value; WA.sugIdx = 0; waMostrarSug(); waAutoAltura(); }
 });
 document.addEventListener('change', e => {
