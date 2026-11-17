@@ -38,11 +38,16 @@ function vSolicitacoes(soTipo) {
   if (UI.solStatus === 'abertas') lista = lista.filter(s => ABERTAS.includes(s.status));
   if (UI.solStatus === 'fechadas') lista = lista.filter(s => !ABERTAS.includes(s.status));
   const h = hoje();
-  return `<div class="filtros"><div class="chips">${caixas.map(([k, nm]) => `<button class="chip ${UI.solCaixa === k ? 'on' : ''}" data-a="solCaixa" data-v="${k}">${nm}<span class="n">${n(k)}</span></button>`).join('')}</div>
-      <select data-c="ui" data-k="solStatus">${[['abertas', 'Em aberto'], ['fechadas', 'Concluídas/canceladas'], ['todas', 'Todas']].map(([v, nm]) => `<option value="${v}" ${UI.solStatus === v ? 'selected' : ''}>${nm}</option>`).join('')}</select></div>
+  const ab = base.filter(s => ABERTAS.includes(s.status) && (souResp(s) || s.solicitante_id === EU.id || temEquipe() || ehDono()));
+  const atr = ab.filter(s => s.prazo && s.prazo < h), conc = base.filter(s => s.status === 'concluida' && (s.concluido_em || '').startsWith(mesDe(h)));
+  const idade = ab.length ? Math.round(soma(ab.map(s => (Date.now() - new Date(s.criado_em)) / 864e5)) / ab.length) : null;
+  const st = (r, v, sub, cls = '') => `<div class="pain-st ${cls}"><span>${r}</span><b>${v}</b><small>${sub}</small></div>`;
+  return `${soTipo ? '' : `<div class="card sol-resumo"><div class="pain-sts">${st('Em aberto', ab.length, 'que você vê')}${st('Atrasadas', atr.length, atr.length ? 'prazo vencido' : 'nenhuma vencida', atr.length ? 'ruim' : 'ok')}${st('Concluídas no mês', conc.length, MESES[pd(h).getMonth()])}${st('Tempo médio aberta', idade == null ? '—' : idade + ' d', 'desde a abertura')}</div></div>`}
+    <div class="subabas">${caixas.map(([k, nm]) => `<button class="${UI.solCaixa === k ? 'on' : ''}" data-a="solCaixa" data-v="${k}">${nm}${n(k) ? `<span class="badge">${n(k)}</span>` : ''}</button>`).join('')}</div>
+    <div class="filtros"><select data-c="ui" data-k="solStatus">${[['abertas', 'Em aberto'], ['fechadas', 'Concluídas/canceladas'], ['todas', 'Todas']].map(([v, nm]) => `<option value="${v}" ${UI.solStatus === v ? 'selected' : ''}>${nm}</option>`).join('')}</select></div>
     <div class="card rolagem"><table class="tabela"><thead><tr><th>#</th><th>Assunto</th><th>De → Para</th><th>Prioridade</th><th>Prazo</th><th>Situação</th><th>Atualizada</th></tr></thead><tbody>
       ${lista.map(s => { const t = TIPOS_SOL[s.tipo] || TIPOS_SOL.outro; const atrasada = s.prazo && s.prazo < h && ABERTAS.includes(s.status);
-        return `<tr class="clic" data-a="verSolicitacao" data-id="${s.id}"><td><small>#${s.id}</small></td><td><b>${t.ic} ${esc(s.titulo)}</b><br><small>${t.nome}${s.dados?.cliente_nome ? ' · ' + esc(s.dados.cliente_nome) : ''}${s.tipo === 'rma' && s.dados?.etapa ? ' · ' + esc(etapaRMA(s.dados.etapa)) : ''}</small></td>
+        return `<tr class="clic" data-a="verSolicitacao" data-id="${s.id}"><td><small>#${s.id}</small></td><td><b>${esc(s.titulo)}</b><br><small>${t.nome}${s.dados?.cliente_nome ? ' · ' + esc(s.dados.cliente_nome) : ''}${s.tipo === 'rma' && s.dados?.etapa ? ' · ' + esc(etapaRMA(s.dados.etapa)) : ''}</small></td>
           <td>${esc(nomeP(s.solicitante_id))} → <b>${esc(nomesResp(s))}</b>${respDe(s).length > 1 ? `<br><small>cuidando: ${esc(nomeP(s.responsavel_id))}</small>` : ''}${(s.anexos || []).length ? ` <small title="fotos">📷${s.anexos.length}</small>` : ''}</td><td class="pri-${s.prioridade}">${PRIORIDADES[s.prioridade]}</td>
           <td>${s.prazo ? `<span class="${atrasada ? 'c-ruim' : ''}">${fmtCurta(s.prazo)}${atrasada ? ' · atrasada' : ''}</span>` : '—'}</td><td><span class="st st-${s.status}">${STATUS_SOL[s.status]}</span></td>
           <td><small>${new Date(s.atualizado_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</small></td></tr>`; }).join('') || '<tr><td colspan="7" class="vazio">Nada por aqui.</td></tr>'}

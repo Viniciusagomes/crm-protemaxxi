@@ -14,4 +14,6 @@ vm.runInContext(`var diasAtraso = b => b.d;` + bol.slice(bol.indexOf('function f
 const html = vm.runInContext(`faixasAtraso([{ d: 5, valor: 100 }, { d: 45, valor: 200 }, { d: 200, valor: 50 }, { d: 30, valor: 10 }])`, ctx);
 assert.match(html, /até 30 dias<\/span><b>R\$\s?110<\/b><small>2 boleto/); assert.match(html, /mais de 90<\/span><b>R\$\s?50<\/b>/);
 assert.equal(vm.runInContext('faixasAtraso([])', ctx), '');
+const so = ler('js/solicitacoes.js'), av = ler('js/avaliacoes.js');
+assert.match(so, /class="card sol-resumo"/); assert.match(so, /<div class="subabas">\$\{caixas/); assert.match(av, /\$\{distNotas\(notas\)\}/);
 console.log('✔ paginas-vendas.cjs');
