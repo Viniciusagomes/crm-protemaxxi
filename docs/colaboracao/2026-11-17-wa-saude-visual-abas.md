@@ -58,3 +58,10 @@ Feito na retomada automática combinada com o Vinícius. Só WhatsApp teve funç
 
 - Saudação sem exclamação; primeiro número (vendas da loja / minhas vendas) em destaque escuro; cartões com mesma altura.
 - Links das seções ("ver todas", "clientes"…) discretos com seta.
+
+## Acabamento geral, lote 2 (17/11, tarde)
+
+- Sem o tracinho verde embaixo de todo título (sinal de "modelo pronto"); títulos e seções com espaçamento mais calmo.
+- Janelas: fundo desfocado, entrada suave, botão fechar redondo. Filtros em pílulas mais leves. Campos com cantos iguais.
+- Avisos (alerta ruim/med/ok): cartão branco com faixa colorida à esquerda (antes fundo inteiro colorido).
+- Seções recolhíveis (details) com seta própria.
