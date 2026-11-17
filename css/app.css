@@ -1054,3 +1054,10 @@ details[open] > summary::before { transform: rotate(45deg); }
 .em-item.nao-lido::before { content: ""; position: absolute; left: 9px; top: 17px; width: 7px; height: 7px; border-radius: 50%; background: var(--verde); }
 .em-html { border-radius: 10px; }
 .em-texto { line-height: 1.6; font-size: 14.5px; }
+
+/* ─── Assistência (17/11): segue o padrão do Funil ─── */
+.kanban-os .kcol-cab { min-height: 0; padding: 12px 12px 8px; }
+.kanban-os .kcol-cab b { font-size: 12px; letter-spacing: .05em; }
+.kanban-os .kcard { border-radius: 10px; }
+.anexos { display: flex; gap: 8px; flex-wrap: wrap; }
+.anexos a, .anexos img { border-radius: 8px; }
