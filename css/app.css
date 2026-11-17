@@ -853,3 +853,30 @@ body.tvestoque .barra-inf { display: none !important; }
   .so-cel { display: inline-grid !important; } .wa-cab { padding: 6px 8px; gap: 8px; } .wa-cab-a .btn { padding: 4px 8px; font-size: 12.5px; }
   .wa-msgs { padding: 12px 10px; } .wa-msg .bolha { max-width: 85%; }
 }
+/* ─── Acabamento visual (17/11): ícones de traço, números alinhados, foco visível ─── */
+body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+::selection { background: color-mix(in srgb, var(--verde) 28%, transparent); }
+.ico { display: block; flex-shrink: 0; }
+nav .ic { width: 20px; display: grid; place-items: center; opacity: .78; }
+nav button:hover .ic, nav button.on .ic { opacity: 1; }
+nav button.on .ic { color: var(--verde); }
+nav button { transition: background-color .15s ease, color .15s ease; font-size: 14px; }
+.barra-inf button span .ico { margin: 0 auto; }
+.sino { display: inline-flex; align-items: center; gap: 4px; }
+.kpi-card .val, .tabela td, .tabela tfoot td, .num, .val, .wa-ped, .wa-dl dd { font-variant-numeric: tabular-nums; }
+.kpi-card .val { letter-spacing: -.02em; }
+.btn { transition: background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease; }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { opacity: .55; cursor: not-allowed; }
+.btn.pri { box-shadow: 0 1px 0 rgba(0,0,0,.06), inset 0 1px 0 rgba(255,255,255,.12); }
+button:focus-visible, a:focus-visible, .btn:focus-visible, [data-a]:focus-visible, [data-wa]:focus-visible { outline: 2px solid var(--verde); outline-offset: 2px; border-radius: 6px; }
+input:focus, select:focus, textarea:focus { outline: 0; border-color: var(--verde); box-shadow: 0 0 0 3px color-mix(in srgb, var(--verde) 20%, transparent); }
+.tabela th { font-size: 11.5px; letter-spacing: .06em; }
+.tabela tbody tr { transition: background-color .12s ease; }
+.tabela tbody tr:hover td { background: color-mix(in srgb, var(--card2) 70%, transparent); }
+.card { transition: border-color .15s ease; }
+.tag { letter-spacing: .01em; }
+* { scrollbar-width: thin; scrollbar-color: var(--borda-forte) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; } ::-webkit-scrollbar-thumb { background: var(--borda-forte); border-radius: 99px; border: 3px solid transparent; background-clip: content-box; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+.wa-app input:focus, .wa-app textarea:focus { box-shadow: none; border-color: transparent; }

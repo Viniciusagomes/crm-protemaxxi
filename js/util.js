@@ -42,3 +42,45 @@ const topo = (titulo, sub, acoes = '') => `<div class="topo"><div><h1>${titulo}<
 const navMes = () => `<div class="navdia"><button class="btn peq" data-a="mes" data-v="-1">◀</button><span class="data">${fmtMes(UI.mes)}</span><button class="btn peq" data-a="mes" data-v="1">▶</button>${UI.mes !== mesDe(hoje()) ? '<button class="btn peq" data-a="mes" data-v="0">Mês atual</button>' : ''}</div>`;
 const optPessoas = (sel, lista = D.pessoas, vazio) => (vazio ? `<option value="">${vazio}</option>` : '') + lista.map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(p.nome)}</option>`).join('');
 const VINCULO = { clt: 'CLT', estagio: 'Estágio', socio: 'Sócio', pj: 'PJ' };
+
+/** Ícones de traço (24×24, currentColor) no lugar dos emoji do menu. Desenhados aqui, sem biblioteca. */
+const ICONES = {
+  inicio: '<path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z"/>',
+  meudia: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  crm: '<path d="M3 4h18l-7 8.5V19l-4 2v-8.5z"/>',
+  vendas: '<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>',
+  pedidos: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6M9 16h3"/>',
+  situacao: '<path d="M3 12h4l3-8 4 16 3-8h4"/>',
+  boletos: '<path d="M6 3h9l4 4v14H6zM14 3v5h5M12 11v4M12 18h.01"/>',
+  clientes: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.3 2.9-5.5 6.5-5.5s6.5 2.2 6.5 5.5M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.6c2.3.7 3.5 2.6 3.5 5.4"/>',
+  monitoria: '<path d="M3 12.5V3h9.5l8.5 8.5-9 9z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
+  avaliacoes: '<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9z"/>',
+  creditos: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h3"/>',
+  brindes: '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M5 12v9h14v-9M12 8v13M12 8c-1.5-3.5-5-4-5-1.5S10 8 12 8c2 0 5 .1 5-1.5S13.5 4.5 12 8"/>',
+  ml: '<path d="M5 7h14l-1.2 14H6.2zM9 9V7a3 3 0 0 1 6 0v2"/>',
+  trafego: '<path d="M3 10v4h4l8 5V5L7 10zM18.5 9a4 4 0 0 1 0 6"/>',
+  visaoestoque: '<rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/>',
+  expedicao: '<path d="M2 6h12v10H2zM14 9.5h4l3.5 3.5v3H14"/><circle cx="6" cy="18" r="2"/><circle cx="17.5" cy="18" r="2"/>',
+  estoque: '<path d="m3 7.5 9-4.5 9 4.5v9L12 21l-9-4.5zM3 7.5 12 12l9-4.5M12 12v9"/>',
+  abrirTV: '<rect x="3" y="4" width="18" height="12.5" rx="2"/><path d="M8 20.5h8M12 16.5v4"/>',
+  compras: '<path d="M3 4h2.2l2.4 11h11L21 7.5H6.4"/><circle cx="9" cy="19.5" r="1.5"/><circle cx="17.5" cy="19.5" r="1.5"/>',
+  cadastroprod: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M12 8v8M8 12h8"/>',
+  atendimento: '<path d="M20.5 12a8.5 8.5 0 0 1-12.4 7.6L3 21l1.4-4.9A8.5 8.5 0 1 1 20.5 12z"/>',
+  solicitacoes: '<path d="M3 13.5 6 5h12l3 8.5V19H3zM3 13.5h5l1 2.5h6l1-2.5h5"/>',
+  emails: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 7 8.5 6 8.5-6"/>',
+  suporte: '<path d="M14.7 6.3a4.5 4.5 0 0 0 5.9 5.9L13 19.8a2.5 2.5 0 0 1-3.5-3.5l7.6-7.6a4.5 4.5 0 0 0-2.4-2.4zM4 4l4 4"/>',
+  checklist: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="m8 12 3 3 5-6"/>',
+  calendario: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  supervisao: '<path d="m12 3 9 5-9 5-9-5zM3 13l9 5 9-5"/>',
+  geral: '<circle cx="12" cy="12" r="9"/><path d="M12 3v9l6.4 6.4"/>',
+  metas: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+  remuneracao: '<path d="M3 7.5h15.5a2.5 2.5 0 0 1 2.5 2.5v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 7.5 15 4v3.5M16.5 14h.01"/>',
+  feedbacks: '<path d="M4 4h16v12H8.5L4 20z"/>',
+  config: '<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
+  logs: '<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>',
+  ajuda: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.5v.5M12 17h.01"/>',
+  busca: '<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/>',
+  sino: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2.2 2.2 0 0 0 4 0"/>',
+  menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+};
+const icone = (nome, tam = 18) => ICONES[nome] ? `<svg class="ico" viewBox="0 0 24 24" width="${tam}" height="${tam}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONES[nome]}</svg>` : '';

@@ -35,7 +35,7 @@ async function buscarGlobal(txt) {
   const tem = s => semAcento(s || '').toLowerCase().includes(q);
   const grupos = [];
   const telas = [...document.querySelectorAll('#nav button[data-v]')].filter(b => tem(b.textContent)).slice(0, 4)
-    .map(b => ({ ic: b.querySelector('.ic')?.textContent || '•', t: b.textContent.replace(/\d+$/, '').trim(), s: 'Tela', a: 'nav', d: { v: b.dataset.v } }));
+    .map(b => ({ ic: b.querySelector('.ic')?.innerHTML || '•', t: b.textContent.replace(/\d+$/, '').trim(), s: 'Tela', a: 'nav', d: { v: b.dataset.v } }));
   if (telas.length) grupos.push(['Telas', telas]);
   const clis = (D.clientes || []).filter(c => tem(c.nome) || (dig.length >= 4 && ((c.doc || '').includes(dig) || (c.fone || '').includes(dig)))).sort((a, b) => b.total - a.total).slice(0, 6)
     .map(c => ({ ic: '👤', t: c.nome, s: `${c.cidade || ''} · ${R0(c.total)} em 12 meses · ${c.pedidos} pedido(s)`, a: 'verCliente', d: { chave: c.chave } }));
@@ -109,7 +109,7 @@ function notificacoes() {
 }
 function botaoSino() {
   const n = notificacoes().length;
-  return `<button class="sino ${n ? 'tem' : ''}" data-a="sinoAbrir" title="Notificações">🔔${n ? `<span class="badge">${n}</span>` : ''}</button>`;
+  return `<button class="sino ${n ? 'tem' : ''}" data-a="sinoAbrir" title="Notificações">${icone('sino', 20)}${n ? `<span class="badge">${n}</span>` : ''}</button>`;
 }
 function painelSino() {
   const l = notificacoes();
@@ -142,8 +142,8 @@ function atalhosBarra() {
 }
 function conteudoBarraInf() {
   const n = notificacoes().length;
-  return atalhosBarra().map(([v, ic, nome]) => `<button class="${UI.view === v ? 'on' : ''}" data-a="nav" data-v="${v}"><span>${ic}</span>${nome}</button>`).join('')
-    + `<button data-a="abrirBusca"><span>🔎</span>Buscar</button><button data-a="sinoAbrir" class="${n ? 'tem' : ''}"><span>🔔${n ? `<i>${n}</i>` : ''}</span>Avisos</button><button data-a="menuCel"><span>☰</span>Menu</button>`;
+  return atalhosBarra().map(([v, ic, nome]) => `<button class="${UI.view === v ? 'on' : ''}" data-a="nav" data-v="${v}"><span>${icone(v, 20) || ic}</span>${nome}</button>`).join('')
+    + `<button data-a="abrirBusca"><span>${icone('busca', 20)}</span>Buscar</button><button data-a="sinoAbrir" class="${n ? 'tem' : ''}"><span>${icone('sino', 20)}${n ? `<i>${n}</i>` : ''}</span>Avisos</button><button data-a="menuCel"><span>${icone('menu', 20)}</span>Menu</button>`;
 }
 /** Chamado no fim de cada render: sino, barra inferior e botão de instalar. */
 function atualizarShell() {
