@@ -69,3 +69,7 @@ Feito na retomada automática combinada com o Vinícius. Só WhatsApp teve funç
 ## Meu dia e Prospecção (17/11, lote 3)
 
 - Atividades com marcador redondo e linha mais limpa, prospecção em cartões com hierarquia clara, contadores de segmento sóbrios.
+
+## Solicitações e Caixa de e-mails (17/11, lote 3)
+
+- Quadro de solicitações com colunas leves e cartões com elevação; comentários em formato de conversa; e-mails com lista mais limpa e leitura confortável. Corrige: o conversor de emoji não mexe no corpo dos e-mails.
