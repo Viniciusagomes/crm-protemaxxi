@@ -888,3 +888,23 @@ input:focus, select:focus, textarea:focus { outline: 0; border-color: var(--verd
 .wa-saude-l b { display: block; font-size: 14px; } .wa-saude-l small { display: block; color: var(--txt2); }
 .wa-saude-p { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; background: var(--ok); box-shadow: 0 0 0 4px var(--ok-bg); }
 .wa-saude-p.ruim { background: var(--ruim); box-shadow: 0 0 0 4px var(--ruim-bg); }
+/* ─── Abas Início, Meu dia, Funil, Pedidos (17/11): esqueleto, pílulas, estados vazios ─── */
+.esq { display: grid; gap: 12px; padding: 4px 0; }
+.esq-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 6px; }
+.esq-b { border-radius: 8px; background: linear-gradient(90deg, var(--nulo) 0%, color-mix(in srgb, var(--nulo) 45%, var(--card)) 50%, var(--nulo) 100%); background-size: 200% 100%; animation: esq-brilho 1.3s ease-in-out infinite; }
+.esq-kpi { height: 84px; } .esq-l { height: 14px; }
+@keyframes esq-brilho { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.tag.pilula { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; background: var(--card2); color: var(--txt2); border: 1px solid var(--borda); }
+.tag.pilula::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--txt3); flex-shrink: 0; }
+.tag.pilula.ok::before { background: var(--ok); } .tag.pilula.med::before { background: var(--med); } .tag.pilula.ruim::before { background: var(--ruim); }
+.tag.pilula.ok, .tag.pilula.med, .tag.pilula.ruim { background: var(--card2); color: var(--txt); }
+.vazio { padding: 28px 20px; font-size: 14px; color: var(--txt3); }
+.card.vazio { border-style: dashed; box-shadow: none; background: transparent; }
+.kpi-card { position: relative; overflow: hidden; }
+.kpi-card .rot { text-transform: uppercase; letter-spacing: .05em; font-size: 11.5px; }
+.kpi-card.clic { transition: border-color .15s ease, transform .15s ease; }
+.kpi-card.clic:hover { border-color: var(--verde); transform: translateY(-1px); }
+.topo h1 { letter-spacing: -.02em; }
+.topo p { font-size: 14px; }
+.filtros input[type=search], .filtros select { border-radius: 9px; }
+.tabela td.num, .tabela td.dir { font-variant-numeric: tabular-nums; }

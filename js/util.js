@@ -84,3 +84,5 @@ const ICONES = {
   menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
 };
 const icone = (nome, tam = 18) => ICONES[nome] ? `<svg class="ico" viewBox="0 0 24 24" width="${tam}" height="${tam}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONES[nome]}</svg>` : '';
+/** Esqueleto de carregamento (blocos cinza pulsando) no lugar de "Carregando…". */
+const esqueleto = (linhas = 4, kpis = 0) => `<div class="esq" role="status" aria-label="Carregando">${kpis ? `<div class="esq-kpis">${'<div class="esq-b esq-kpi"></div>'.repeat(kpis)}</div>` : ''}${Array.from({ length: linhas }, (_, i) => `<div class="esq-b esq-l" style="width:${[92, 78, 85, 64, 88, 70][i % 6]}%"></div>`).join('')}</div>`;
