@@ -1116,3 +1116,51 @@ button.wa-etq.on { background: var(--etq); color: #fff; border-color: var(--etq)
 .wa-abas { flex-wrap: wrap; row-gap: 6px; }
 .wa-etq-filtro { padding-top: 8px; border-bottom: 1px solid var(--wa-linha); }
 .ico-em.azul { color: #2B7BB9; opacity: 1; } .ico-em.roxo { color: #7C5CD6; opacity: 1; }
+
+/* ─── Barra lateral (17/11): topo alinhado, botões iguais, recolher/expandir ─── */
+.side { overflow: hidden; transition: padding .18s ease; }
+.app { transition: grid-template-columns .18s ease; }
+.side .marca { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-rows: auto auto; align-items: center; column-gap: 6px; padding: 2px 4px 16px 8px; }
+.side .marca img { grid-area: 1 / 1; max-width: 118px; height: 26px; }
+.side .marca small { grid-area: 2 / 1; margin-top: 4px; }
+.side .marca .busca-btn, .side .marca .sino-lugar { position: static; grid-row: 1 / span 2; margin: 0; }
+.side .marca .busca-btn { grid-column: 2; } .side .marca .sino-lugar { grid-column: 3; }
+.sino, .busca-btn { width: 34px; height: 34px; display: inline-grid; place-items: center; padding: 0; border-radius: 10px; }
+.sino .ico, .busca-btn .ico { width: 18px; height: 18px; }
+.sino .badge { top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; display: grid; place-items: center; font-size: 10.5px; line-height: 1; border: 2px solid var(--noite); border-radius: 99px; }
+nav button { min-width: 0; }
+nav button .rot { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+nav .ic { flex: none; display: inline-grid; place-items: center; }
+nav .badge { flex: none; }
+.side-rodape { padding: 0 4px; }
+.side-rodape .linha-botoes { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 6px; }
+.side-rodape .linha-botoes .tema { height: 36px; padding: 0; display: grid; place-items: center; border-radius: 10px; color: var(--side-txt); background: rgba(255,255,255,.06); }
+.side-rodape .linha-botoes .tema:hover { background: rgba(255,255,255,.14); color: #fff; }
+.side-rodape .linha-botoes .tema .ico { width: 18px; height: 18px; }
+.side-rodape .linha-botoes .letra { font: 800 13px/1 Archivo, system-ui, sans-serif; letter-spacing: -.02em; }
+.side-recolher { display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: 0; color: #7F93A6; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; }
+.side-recolher:hover { background: rgba(255,255,255,.06); color: #fff; }
+.side-recolher .ico { width: 16px; height: 16px; flex: none; transition: transform .18s ease; }
+.salvo { padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (min-width: 861px) {
+  html.side-mini .app { grid-template-columns: 76px 1fr; }
+  html.side-mini .side { padding: 16px 10px; }
+  html.side-mini .side .marca { grid-template-columns: 1fr; grid-template-rows: auto; justify-items: center; row-gap: 8px; padding: 0 0 12px; }
+  html.side-mini .side .marca img { grid-area: auto; width: 34px; max-width: 34px; height: 30px; object-fit: cover; object-position: left center; }
+  html.side-mini .side .marca small { display: none; }
+  html.side-mini .side .marca .busca-btn, html.side-mini .side .marca .sino-lugar { grid-column: 1; grid-row: auto; }
+  html.side-mini nav button { justify-content: center; padding: 10px 0; position: relative; }
+  html.side-mini nav button .rot { display: none; }
+  html.side-mini nav button.on { box-shadow: inset 3px 0 0 var(--verde); }
+  html.side-mini nav .badge { position: absolute; top: 4px; right: 6px; min-width: 8px; height: 8px; padding: 0; font-size: 0; border: 2px solid var(--noite); }
+  html.side-mini nav .grupo { font-size: 0; padding: 0; height: 1px; margin: 8px 10px; background: rgba(255,255,255,.08); }
+  html.side-mini .usuario { justify-content: center; padding: 10px 0 4px; } html.side-mini .usuario > :not(.avatar) { display: none; }
+  html.side-mini .salvo { display: none; }
+  html.side-mini .side-recolher { justify-content: center; padding: 8px 0; } html.side-mini .side-recolher .rot { display: none; }
+  html.side-mini .side-recolher .ico { transform: rotate(180deg); }
+  html.side-mini .side-rodape { padding: 0; }
+  html.side-mini .side-rodape .linha-botoes { grid-template-columns: 1fr; gap: 4px; }
+  html.side-mini .side-rodape .linha-botoes .tema { height: 32px; }
+  html.side-mini #btnLetra, html.side-mini #btnInstalar { display: none; }   /* recolhido: só senha, tema e sair */
+  html.side-mini .sino-fundo { padding-left: 90px; }
+}
