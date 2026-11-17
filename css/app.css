@@ -974,3 +974,10 @@ input:focus, select:focus, textarea:focus { outline: 0; border-color: var(--verd
 .ico-em .ico { display: block; width: .95em; height: .95em; min-width: 13px; min-height: 13px; }
 .ico-em.ok { color: var(--ok); opacity: 1; } .ico-em.med { color: var(--med); opacity: 1; } .ico-em.ruim { color: var(--ruim); opacity: 1; }
 .btn .ico-em, .chip .ico-em, .tag .ico-em { opacity: 1; }
+
+/* ─── Início (17/11): primeiro número em destaque, links de seção discretos ─── */
+.inicio-kpis .kpi-card { min-height: 112px; display: flex; flex-direction: column; justify-content: space-between; }
+.inicio-kpis .kpi-card .val { font-size: 28px; }
+.secao-titulo a { font-size: 13px; font-weight: 600; text-decoration: none; color: var(--txt2); white-space: nowrap; }
+.secao-titulo a:hover { color: var(--verde-esc); } .secao-titulo a::after { content: ' \2192'; }
+.alerta { border-radius: 10px; }
