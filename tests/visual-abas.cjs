@@ -29,7 +29,7 @@ console.log('ok visual das abas');
 {
   const fs2 = require('fs'), p2 = require('path'), r2 = p2.join(__dirname, '..');
   const main = fs2.readFileSync(p2.join(r2, 'js/main.js'), 'utf8'), shell = fs2.readFileSync(p2.join(r2, 'js/shell.js'), 'utf8'), css = fs2.readFileSync(p2.join(r2, 'css/app.css'), 'utf8');
-  assert.match(main, /<span class="rot">\$\{nome\}<\/span>/, 'nome do item do menu em .rot');
+  assert.match(main, /<span class="rot">\$\{it\.rot\}<\/span>/, 'nome do item do menu em .rot');
   assert.match(main, /recolherMenu: \(\) => recolherMenu\(\)/);
   assert.match(shell, /localStorage\.setItem\(MENU_MINI/);
   assert.equal((shell.match(/function rodapeBotoes[\s\S]*?\n\}/)[0].match(/b\('/g) || []).length, 4, 'senha, tema, letra e sair');
