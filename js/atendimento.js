@@ -248,7 +248,7 @@ function waFiltro(aba) {
   const l = WA.conv.filter(c => (aba === 'minhas' ? c.status === 'aberta' && c.responsavel === EU.id : aba === 'fila' ? c.status === 'aberta' && !c.responsavel
       : aba === 'esperando' ? waEsperaMin(c) != null && meuOuLivre(c) : aba === 'equipe' ? c.status === 'aberta' : c.status === 'encerrada')
     && (!q || (c.nome_perfil || '').toLowerCase().includes(q) || (d.length >= 3 && String(c.wa_id).includes(d))));
-  return aba === 'esperando' ? l.sort((a, b) => waEsperaMin(b) - waEsperaMin(a)) : l;
+  return l.sort((a, b) => new Date(b.ultima_msg_em || 0) - new Date(a.ultima_msg_em || 0));   // mais recente primeiro em todas as abas
 }
 function waListaHtml() {
   const l = waFiltro(WA.aba);

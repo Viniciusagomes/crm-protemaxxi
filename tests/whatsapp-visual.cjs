@@ -21,13 +21,14 @@ assert.equal(run('waEsperaTxt(12)'), '12 min'); assert.equal(run('waEsperaTxt(13
 
 ctx.Date = class extends Date { constructor(...a) { super(...(a.length ? a : [agora])); } static now() { return agora; } };
 run('Date = this.Date');
-// aba "Esperando": minhas e sem dono, a mais antiga primeiro; de outro vendedor não entra
+// aba "Esperando": minhas e sem dono, a mais recente primeiro; de outro vendedor não entra
 run(`WA.conv = [
   { id: 1, wa_id: '5519', status: 'aberta', responsavel: 'pedro', ultima_entrada_em: '${iso(5)}', ultima_msg_em: '${iso(5)}' },
   { id: 2, wa_id: '5518', status: 'aberta', responsavel: null, ultima_entrada_em: '${iso(50)}', ultima_msg_em: '${iso(50)}' },
   { id: 3, wa_id: '5517', status: 'aberta', responsavel: 'felipe', ultima_entrada_em: '${iso(90)}', ultima_msg_em: '${iso(90)}' },
   { id: 4, wa_id: '5516', status: 'aberta', responsavel: 'pedro', ultima_entrada_em: '${iso(90)}', ultima_msg_em: '${iso(1)}' }];`);
-assert.deepEqual(run("waFiltro('esperando').map(c => c.id)"), [2, 1]);
+assert.deepEqual(run("waFiltro('esperando').map(c => c.id)"), [1, 2]);
+assert.deepEqual(run("waFiltro('equipe').map(c => c.id)"), [4, 1, 2, 3], 'todas as abas: mais recente primeiro');
 assert.match(run('waAbasHtml()'), /Esperando<span>2<\/span>/);
 
 // variáveis das respostas prontas
