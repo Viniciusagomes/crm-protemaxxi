@@ -131,7 +131,7 @@ const EMOJI_ICONE = {
 const PONTO_COR = { '🟢': 'ok', '🔴': 'ruim', '🟡': 'med', '🟠': 'med', '⚪': '' };
 const EMOJI_RE = new RegExp('(' + Object.keys(EMOJI_ICONE).sort((a, b) => b.length - a.length).map(e => e.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\uFE0F?\\s?', 'gu');
 // Onde NÃO trocar: texto escrito por pessoas (WhatsApp, e-mail, comentários), campos e as abas do estoque/expedição/ML.
-const EMOJI_FORA = 'option,select,textarea,input,script,style,code,pre,[contenteditable],.sem-icone,.wa-msgs,.wa-item .prev,.wa-cab-c,.coment p,.email-corpo,.email-ler,.leitura';
+const EMOJI_FORA = 'option,select,textarea,input,script,style,code,pre,[contenteditable],.sem-icone,.wa-msgs,.wa-item .prev,.wa-cab-c,.coment p,.em-html,.em-texto,.em-leitor .em-corpo,.email-corpo,.email-ler,.leitura';
 const EMOJI_ABAS_FORA = new Set(['ml', 'expedicao', 'estoque', 'visaoestoque', 'tvestoque', 'abrirTV', 'compras', 'cadastroprod', 'envioml']);
 /** Troca os emoji de uma árvore do DOM (exportada para o teste). */
 function trocarEmojis(raiz) {
