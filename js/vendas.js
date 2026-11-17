@@ -136,11 +136,13 @@ function vPedidos() {
   const sits = [...new Set(D.pedidos.map(p => p.situacao))].sort();
   const vendIds = [...new Set(D.pedidos.map(p => p.vendedor_id).filter(Boolean))];
   const tot = somaV(lista.filter(valido));
+  const porSit = Object.entries(D.pedidos.filter(p => p.data >= desde && (!UI.pedVend || p.vendedor_id === UI.pedVend)).reduce((a, p) => { (a[p.situacao] ||= { n: 0, v: 0 }); a[p.situacao].n++; a[p.situacao].v += p.valor || 0; return a; }, {})).sort((a, b) => b[1].n - a[1].n);
+  const resumoSit = porSit.length > 1 ? `<div class="sit-resumo">${porSit.map(([s, x]) => `<button class="${UI.pedSit === s ? 'on' : ''}" data-a="pedSitRapido" data-v="${esc(s)}" title="Filtrar por ${esc(s)}"><span>${esc(s)}</span><b>${x.n}</b><small>${R0(x.v)}</small></button>`).join('')}</div>` : '';
   return topo('Pedidos', `${lista.length} pedido(s) · ${R0(tot)} (sem cancelados) · ${infoSync()}`)
     + `<div class="filtros"><input type="search" placeholder="Buscar cliente, nº do pedido ou nº do e-commerce" value="${esc(UI.pedBusca)}" data-c="ui" data-k="pedBusca" data-fid="pedBusca">
       <select data-c="ui" data-k="pedPeriodo">${[['7', 'Últimos 7 dias'], ['30', 'Últimos 30 dias'], ['90', 'Últimos 90 dias'], ['365', 'Últimos 12 meses'], ['400', 'Tudo carregado']].map(([v, n]) => `<option value="${v}" ${UI.pedPeriodo === v ? 'selected' : ''}>${n}</option>`).join('')}</select>
       <select data-c="ui" data-k="pedVend"><option value="">Todos os vendedores</option>${vendIds.map(v => `<option value="${v}" ${UI.pedVend === v ? 'selected' : ''}>${esc(nomeVendedor(v))}</option>`).join('')}</select>
-      <select data-c="ui" data-k="pedSit"><option value="">Todas as situações</option>${sits.map(s => `<option ${UI.pedSit === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></div>
+      <select data-c="ui" data-k="pedSit"><option value="">Todas as situações</option>${sits.map(s => `<option ${UI.pedSit === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></div>${resumoSit}
     ${pedResumo(lista)}
     <div class="card rolagem ped-lista"><table class="tabela"><thead><tr><th>Data</th><th>Nº</th><th>Cliente</th><th>Vendedor</th><th>Canal</th><th>Situação</th><th class="dir">Valor</th></tr></thead><tbody>
       ${lista.slice(0, 400).map(p => `<tr class="clic" data-a="verPedido" data-id="${p.id}"><td>${fmtCurta(p.data)}/${p.data.slice(2, 4)}</td><td>${esc(p.numero)}</td><td><b>${esc(p.cliente_nome)}</b></td><td><span class="ped-vend">${pedAvatar(p.vendedor_id)}${esc(nomeVendedor(p.vendedor_id).split(' ')[0])}</span></td><td>${p.numero_ecommerce ? `<span class="tag pilula canal">${esc(p.canal || 'e-commerce')}</span>` : '<span class="tag pilula loja">Loja</span>'}</td><td><span class="tag pilula ${pedSitCls(p.situacao)}">${esc(p.situacao)}</span></td><td class="dir num">${R(p.valor)}</td></tr>`).join('') || '<tr><td colspan="7" class="vazio">Nenhum pedido com esses filtros.</td></tr>'}

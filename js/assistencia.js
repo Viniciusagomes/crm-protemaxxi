@@ -77,7 +77,7 @@ function vAssistencia() {
   const abertas = AT.os.filter(o => !['entregue', 'cancelado'].includes(o.status));
   const cab = topo('Assistência técnica', 'Garantia, manutenção e RMA (assistência / fábrica): do recebimento do equipamento até a entrega, com aviso ao cliente em cada etapa. As OS do Tiny também estão aqui.',
       `<button class="btn" data-a="atAtualizar">↻ Atualizar</button><button class="btn pri" data-a="atNova">+ Nova OS</button>`)
-    + `<div class="chips">${[['visao', '📊 Visão geral', ''], ['os', '🛠 Ordens de serviço', abertas.length]].map(([k, n, b]) => `<button class="chip ${UI.atAba === k ? 'on' : ''}" data-a="atAba" data-v="${k}">${n}${b !== '' ? `<span class="n">${b}</span>` : ''}</button>`).join('')}</div>`;
+    + `<div class="subabas">${[['visao', 'Visão geral', ''], ['os', 'Ordens de serviço', abertas.length]].map(([k, n, b]) => `<button class="${UI.atAba === k ? 'on' : ''}" data-a="atAba" data-v="${k}">${n}${b !== '' && b ? `<span class="badge">${b}</span>` : ''}</button>`).join('')}</div>`;
   return cab + (UI.atAba === 'visao' ? visaoAT(abertas) : abaOS(abertas));
 }
 

@@ -25,6 +25,16 @@ function avisoBoletos() {
     ${ehDono() ? 'Acompanhe a cobrança dos vendedores.' : 'Entre em contato com o cliente para regularizar. O aviso some quando o pagamento for confirmado.'} <u>Ver boletos</u></span></div>`;
 }
 
+/** Valor em atraso por faixa de dias (até 30, 31 a 60, 61 a 90, mais de 90): onde está o risco. */
+function faixasAtraso(ab) {
+  if (!ab.length) return '';
+  const F = [['até 30 dias', 0, 30, 'med'], ['31 a 60', 31, 60, 'med'], ['61 a 90', 61, 90, 'ruim'], ['mais de 90', 91, 1e9, 'ruim']];
+  const d = F.map(([n, a, b, c]) => { const l = ab.filter(x => { const k = diasAtraso(x); return k >= a && k <= b; }); return { n, c, q: l.length, v: soma(l.map(x => +x.valor)) }; });
+  const tot = Math.max(1, soma(d.map(x => x.v)));
+  return `<div class="card mt"><div class="secao-titulo"><h2>Tempo de atraso</h2><small>quanto mais antigo, mais difícil receber</small></div>
+    <div class="faixas-barra">${d.map(x => x.v ? `<i class="${x.c}" style="flex:${x.v / tot}" title="${x.n}: ${R(x.v)}"></i>` : '').join('')}</div>
+    <div class="faixas-leg">${d.map(x => `<div><span>${x.n}</span><b>${R0(x.v)}</b><small>${x.q} boleto(s)</small></div>`).join('')}</div></div>`;
+}
 function vBoletos() {
   if (!BOL.lista) { if (!BOL.carregando) carregarBoletos().then(render).catch(e => avisar(e.message)); return topo('Boletos em atraso', '') + '<div class="card vazio">Carregando…</div>'; }
   const filtros = { abertos: ['⏳ Em aberto', b => ['aberto', 'renegociado'].includes(b.status)], pagos: ['✅ Pagos', b => b.status === 'pago'], todos: ['Todos', () => true] };
@@ -63,9 +73,10 @@ function vBoletos() {
       <div class="card kpi-card"><div class="rot">Maior atraso</div><div class="val">${maior} dia(s)</div><div class="sub">entre os em aberto</div></div>
       <div class="card kpi-card"><div class="rot">Renegociados</div><div class="val">${ab.filter(b => b.status === 'renegociado').length}</div><div class="sub">com nova data</div></div>
       <div class="card kpi-card"><div class="rot">Pagos (30 dias)</div><div class="val c-ok">${BOL.lista.filter(b => b.status === 'pago' && b.baixado_em > new Date(Date.now() - 30 * 864e5).toISOString()).length}</div><div class="sub">baixados</div></div></div>
+    ${faixasAtraso(ab)}
     <div class="filtros mt"><div class="chips">${Object.entries(filtros).map(([k, [n, f]]) => `<button class="chip ${UI.bolFiltro === k ? 'on' : ''}" data-a="bolFiltro" data-v="${k}">${n}<span class="n">${BOL.lista.filter(f).length}</span></button>`).join('')}</div>
       ${vends.length > 1 ? `<select data-c="ui" data-k="bolVend"><option value="">Todos os vendedores</option>${vends.map(v => `<option value="${v}" ${UI.bolVend === v ? 'selected' : ''}>${esc(nomeP(v))}</option>`).join('')}</select>` : ''}</div>
-    ${lista.length ? lista.map(card).join('') : `<div class="card vazio">${UI.bolFiltro === 'abertos' ? 'Nenhum boleto em atraso. 👏' : 'Nada por aqui.'}</div>`}`;
+    ${lista.length ? lista.map(card).join('') : `<div class="card vazio">${UI.bolFiltro === 'abertos' ? 'Nenhum boleto em atraso.' : 'Nada por aqui.'}</div>`}`;
 }
 
 // ─── cadastro (dono) ───
