@@ -1061,3 +1061,18 @@ details[open] > summary::before { transform: rotate(45deg); }
 .kanban-os .kcard { border-radius: 10px; }
 .anexos { display: flex; gap: 8px; flex-wrap: wrap; }
 .anexos a, .anexos img { border-radius: 8px; }
+
+/* ─── Equipe e configurações (17/11) ─── */
+.cab-pessoa { padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid var(--borda); }
+.cab-pessoa .quem h2, .cab-pessoa .quem b { letter-spacing: -.01em; }
+.cfg-linha { padding: 10px 0; border-bottom-color: color-mix(in srgb, var(--borda) 70%, transparent); }
+.cfg-cab { font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--txt3); font-weight: 700; }
+.pilha { height: 10px; gap: 2px; background: transparent; }
+.pilha i { border-radius: 99px; }
+.faixa { border-radius: 10px; padding: 5px 8px; }
+.seg { border-color: var(--borda); border-radius: 10px; padding: 3px; gap: 2px; background: var(--card2); }
+.seg button { border-radius: 7px; background: transparent; padding: 6px 12px; font-size: 13.5px; color: var(--txt2); }
+.seg button + button { border-left: 0; }
+.seg button.on { background: var(--card); color: var(--txt); box-shadow: 0 1px 3px rgba(17,32,47,.12); }
+.icone-btn { border-radius: 8px; }
+.kpi-entrada label { font-size: 12.5px; }
