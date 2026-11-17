@@ -1,5 +1,5 @@
 'use strict';
-/* Intranet Protemaxxi — Atendimento WhatsApp (fase 1).
+/* Intranet Protemaxxi — Atendimento WhatsApp (visual parecido com o app; aba "Esperando", respostas com "/").
    Caixa de entrada em tempo real (Supabase Realtime) com a API oficial da Meta: o cliente escreve → função whatsapp-webhook grava →
    a conversa aparece aqui; a resposta sai pela função whatsapp-enviar. Ações (assumir, transferir, encerrar, nota) pelas funções wa_*.
    Quem vê: o dono e quem tem a permissão "Atendimento WhatsApp" (conversas sem dono, as suas e as da sua equipe).
@@ -86,6 +86,7 @@ function waAtualizar() {
   const nav = $('#nav'); if (nav && typeof menu === 'function') nav.innerHTML = menu();
   if (UI.view !== 'atendimento') return;
   const l = $('#waLista'); if (l) l.innerHTML = waListaHtml();
+  const ab = $('#waAbas'); if (ab) ab.innerHTML = waAbasHtml();
   const cab = $('#waCab'); if (cab && WA.aberta) cab.innerHTML = waCabHtml(WA.conv.find(c => c.id === WA.aberta));
   const exp = $('#waExp'); if (exp) exp.innerHTML = waExpHtml();
 }
@@ -175,81 +176,159 @@ async function waHorAdd() {
   try { await ok(sb.from('wa_horarios').insert(dias.map(dia => ({ pessoa, dia, inicio: ini, fim })))); waEquipe(); } catch (e) { avisar(e.message); }
 }
 
-// ─── tela ───
+// ─── tela (visual parecido com o WhatsApp) ───
+const WA_IC = {
+  enviar: '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>',
+  clipe: '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M20 11.5 12.2 19.3a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8"/></svg>',
+  nota: '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M5 4h10l4 4v12H5zM14 4v5h5M8 13h8M8 17h5"/></svg>',
+  raio: '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>',
+  info: '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="currentColor" d="M11 10h2v7h-2zM11 7h2v2h-2z"/></svg>',
+  voltar: '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M15 5 8 12l7 7"/></svg>',
+  lupa: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="m16 16 4 4"/></svg>',
+  check: '<svg viewBox="0 0 16 11" width="16" height="11" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M1 6l3.5 3.5L11 2"/></svg>',
+  check2: '<svg viewBox="0 0 18 11" width="18" height="11" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M1 6l3.5 3.5L11 2M7.5 9.5 15 2"/></svg>',
+  relogio: '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="8" cy="8" r="6.3" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M8 4.5V8l2.3 1.5"/></svg>',
+};
+const waTick = s => s === 'lida' ? `<span class="wa-tk lida" title="Lida">${WA_IC.check2}</span>` : s === 'entregue' ? `<span class="wa-tk" title="Entregue">${WA_IC.check2}</span>`
+  : s === 'enviada' ? `<span class="wa-tk" title="Enviada">${WA_IC.check}</span>` : s === 'enviando' ? `<span class="wa-tk" title="Enviando">${WA_IC.relogio}</span>` : s === 'falhou' ? '<span class="wa-tk falhou" title="Não entregue">!</span>' : '';
+/** Iniciais e cor fixa por conversa (avatar sem foto). */
+const waIniciais = n => { const p = String(n || '').replace(/[^\p{L}\p{N} ]/gu, ' ').trim().split(/\s+/).filter(Boolean); return p.length ? (p[0][0] + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase() : '#'; };
+const waAvatar = (c, cls = '') => { const n = c.nome_perfil || ''; const h = [...String(c.wa_id || c.id)].reduce((s, x) => (s * 31 + x.charCodeAt(0)) % 360, 7);
+  return `<span class="wa-av ${cls}" style="--h:${h}">${/\p{L}/u.test(n) ? esc(waIniciais(n)) : '<svg viewBox="0 0 24 24" width="60%" height="60%" aria-hidden="true"><path fill="currentColor" d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5z"/></svg>'}</span>`; };
+/** Cliente esperando resposta: a última mensagem da conversa é dele. Devolve os minutos de espera (ou null). */
+const waEsperaMin = (c, agora = Date.now()) => {
+  if (c.status !== 'aberta' || !c.ultima_entrada_em) return null;
+  const e = new Date(c.ultima_entrada_em).getTime(); if (new Date(c.ultima_msg_em || 0).getTime() > e + 1000) return null;
+  return Math.max(0, Math.floor((agora - e) / 60e3));
+};
+const waEsperaTxt = m => m < 60 ? `${m} min` : m < 1440 ? `${Math.floor(m / 60)} h` : `${Math.floor(m / 1440)} d`;
+const waEsperaCls = m => m >= 15 ? 'ruim' : m >= 5 ? 'med' : 'ok';
+const WA_MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+const waDiaRot = (s, agora = new Date()) => { const d = new Date(s), h = new Date(agora); h.setHours(0, 0, 0, 0); const x = new Date(d); x.setHours(0, 0, 0, 0);
+  const dif = Math.round((h - x) / 864e5); return dif === 0 ? 'Hoje' : dif === 1 ? 'Ontem' : dif < 7 ? d.toLocaleDateString('pt-BR', { weekday: 'long' }) : `${d.getDate()} de ${WA_MESES[d.getMonth()]}${d.getFullYear() !== h.getFullYear() ? ' de ' + d.getFullYear() : ''}`; };
+const waSoHora = s => new Date(s).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+/** Respostas prontas: troca {nome}, {vendedor} e {saudacao}. */
+const waSaudacao = (h = new Date().getHours()) => h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+const waVariaveis = (t, c) => String(t || '').replace(/\{nome\}/gi, ((c?.nome_perfil || '').trim().split(/\s+/)[0] || '').replace(/^\w/, x => x.toUpperCase()))
+  .replace(/\{vendedor\}/gi, typeof EU !== 'undefined' && EU ? nomeP(EU.id).split(' ')[0] : '').replace(/\{saudacao\}/gi, waSaudacao()).replace(/ +([,!.?])/g, '$1');
+const WA_PACOTE = [
+  ['saudação', '{saudacao}, {nome}! Aqui é o {vendedor}, da Protemaxxi. Como posso te ajudar?'],
+  ['um momento', 'Só um momento, {nome}, já vou verificar para você.'],
+  ['orçamento — dados', 'Para montar seu orçamento, me conta: é para casa ou empresa? Quantos ambientes/câmeras você imagina? Precisa de instalação?'],
+  ['orçamento enviado', '{nome}, te enviei o orçamento acima. Qualquer dúvida é só me chamar por aqui!'],
+  ['instalação', 'Fazemos a instalação sim! Me passa o bairro/cidade e o melhor dia para agendarmos a visita técnica.'],
+  ['retomar contato', '{saudacao}, {nome}! Passando para saber se ficou alguma dúvida sobre o que conversamos.'],
+  ['agradecimento', 'Obrigado pela preferência, {nome}! Qualquer coisa, estamos à disposição.'],
+];
+
 function vAtendimento() {
-  if (!WA.conv) { if (!WA.carregando) carregarWA().then(render).catch(e => avisar(e.message)); return topo('Atendimento WhatsApp', '') + '<div class="card vazio">Carregando…</div>'; }
+  if (!WA.conv) { if (!WA.carregando) carregarWA().then(render).catch(e => avisar(e.message)); return topo('WhatsApp', '') + '<div class="card vazio">Carregando…</div>'; }
   const semConfig = !WA.cfg?.phone_number_id;
-  const acoes = `<button class="btn" data-wa="respostas">⚡ Respostas prontas</button>${typeof Notification !== 'undefined' && Notification.permission === 'default' ? '<button class="btn" data-wa="notif">🔔 Ativar avisos</button>' : ''}${ehDono() ? '<button class="btn" data-wa="equipe">👥 Equipe</button><button class="btn" data-wa="config">⚙ Configurar</button>' : ''}`;
+  const acoes = `<button class="btn" data-wa="respostas">${WA_IC.raio} Respostas prontas</button>${typeof Notification !== 'undefined' && Notification.permission === 'default' ? '<button class="btn" data-wa="notif">Ativar avisos</button>' : ''}${ehDono() ? '<button class="btn" data-wa="equipe">Equipe</button><button class="btn" data-wa="config">Configurar</button>' : ''}`;
   setTimeout(() => { if (WA.aberta) waAbrir(WA.aberta, true); if (waEu()?.estado && waEu().estado !== 'fora') waPing(); }, 0);
-  return topo('Atendimento WhatsApp', 'Mensagens do WhatsApp da loja em tempo real', acoes)
-    + (semConfig ? `<div class="card aviso med">⚙ O WhatsApp ainda não está ligado à Meta. ${ehDono() ? 'Siga o passo a passo e preencha em <b>Configurar</b>.' : 'O administrador está configurando.'}</div>` : '')
-    + `<div class="card" id="waExp">${waExpHtml()}</div>`
-    + `<div class="wa-caixa"><div class="wa-lado"><input type="search" id="waBusca" placeholder="Buscar nome ou número" value="${esc(WA.busca)}">
-        <div class="chips">${[['minhas', 'Minhas'], ['fila', 'Sem dono'], ['equipe', 'Todas abertas'], ['encerradas', 'Encerradas']].map(([k, n]) => `<button class="chip ${WA.aba === k ? 'on' : ''}" data-wa="aba" data-v="${k}">${n}<span class="n">${waFiltro(k).length}</span></button>`).join('')}</div>
-        <div id="waLista">${waListaHtml()}</div></div>
-      <div class="wa-chat">${WA.aberta ? waChatHtml() : '<div class="vazio" style="margin:auto">Escolha uma conversa.</div>'}</div></div>`;
+  return topo('WhatsApp', '', acoes)
+    + (semConfig ? `<div class="card aviso med">O WhatsApp ainda não está ligado à Meta. ${ehDono() ? 'Siga o passo a passo e preencha em <b>Configurar</b>.' : 'O administrador está configurando.'}</div>` : '')
+    + `<div class="wa-app ${WA.aberta ? 'com-chat' : ''} ${WA.fichaAberta ? 'com-ficha' : ''}">
+      <section class="wa-lado">
+        <div class="wa-exp" id="waExp">${waExpHtml()}</div>
+        <label class="wa-busca">${WA_IC.lupa}<input type="search" id="waBusca" placeholder="Pesquisar nome ou número" value="${esc(WA.busca)}"></label>
+        <div class="wa-abas" id="waAbas">${waAbasHtml()}</div>
+        <div class="wa-lista" id="waLista">${waListaHtml()}</div>
+      </section>
+      <section class="wa-chat">${WA.aberta ? waChatHtml() : waVazioHtml()}</section></div>`;
+}
+const waVazioHtml = () => `<div class="wa-vazio"><div class="wa-vazio-ic">${WA_IC.enviar}</div><h3>WhatsApp da loja</h3><p>Escolha uma conversa à esquerda.<br>As mensagens chegam aqui em tempo real.</p></div>`;
+const WA_ABAS = [['minhas', 'Minhas'], ['esperando', 'Esperando'], ['fila', 'Sem dono'], ['equipe', 'Todas'], ['encerradas', 'Encerradas']];
+function waAbasHtml() {
+  return WA_ABAS.map(([k, n]) => { const q = waFiltro(k).length; return `<button class="wa-aba ${WA.aba === k ? 'on' : ''} ${k === 'esperando' && q ? 'alerta' : ''}" data-wa="aba" data-v="${k}">${n}${q ? `<span>${q}</span>` : ''}</button>`; }).join('');
 }
 function waFiltro(aba) {
   const q = WA.busca.trim().toLowerCase(), d = q.replace(/\D/g, '');
-  return WA.conv.filter(c => (aba === 'minhas' ? c.status === 'aberta' && c.responsavel === EU.id : aba === 'fila' ? c.status === 'aberta' && !c.responsavel : aba === 'equipe' ? c.status === 'aberta' : c.status === 'encerrada')
+  const meuOuLivre = c => !c.responsavel || c.responsavel === EU.id || ehDono();
+  const l = WA.conv.filter(c => (aba === 'minhas' ? c.status === 'aberta' && c.responsavel === EU.id : aba === 'fila' ? c.status === 'aberta' && !c.responsavel
+      : aba === 'esperando' ? waEsperaMin(c) != null && meuOuLivre(c) : aba === 'equipe' ? c.status === 'aberta' : c.status === 'encerrada')
     && (!q || (c.nome_perfil || '').toLowerCase().includes(q) || (d.length >= 3 && String(c.wa_id).includes(d))));
+  return aba === 'esperando' ? l.sort((a, b) => waEsperaMin(b) - waEsperaMin(a)) : l;
 }
 function waListaHtml() {
   const l = waFiltro(WA.aba);
-  return l.length ? l.slice(0, 200).map(c => `<div class="wa-item ${WA.aberta === c.id ? 'on' : ''}" data-wa="abrir" data-id="${c.id}">
-      <div><b>${esc(waNome(c))}</b>${c.nao_lidas ? `<span class="badge">${c.nao_lidas}</span>` : ''}<br><small class="mut">${esc((c.ultima_msg_texto || '').slice(0, 60))}</small></div>
-      <div class="dir"><small class="mut">${waHora(c.ultima_msg_em)}</small><br><small>${c.responsavel ? esc(nomeP(c.responsavel).split(' ')[0]) : '<span class="tag med">sem dono</span>'}</small></div></div>`).join('')
-    : '<p class="mut" style="padding:12px">Nenhuma conversa aqui.</p>';
+  return l.length ? l.slice(0, 200).map(c => {
+    const esp = waEsperaMin(c), fora = c.status === 'aberta' && !waJanela(c);
+    return `<div class="wa-item ${WA.aberta === c.id ? 'on' : ''}" data-wa="abrir" data-id="${c.id}">${waAvatar(c)}
+      <div class="wa-item-c"><div class="l1"><b>${esc(waNome(c))}</b><time class="${c.nao_lidas ? 'nova' : ''}">${waHora(c.ultima_msg_em)}</time></div>
+        <div class="l2"><span class="prev">${esc((c.ultima_msg_texto || '').slice(0, 80))}</span>${c.nao_lidas ? `<span class="wa-bolinha">${c.nao_lidas}</span>` : ''}</div>
+        <div class="l3">${c.responsavel ? `<span class="wa-dono">${esc(nomeP(c.responsavel).split(' ')[0])}</span>` : '<span class="wa-tag med">sem dono</span>'}${esp != null ? `<span class="wa-tag ${waEsperaCls(esp)}" title="Cliente esperando resposta">${WA_IC.relogio} ${waEsperaTxt(esp)}</span>` : ''}${fora ? '<span class="wa-tag" title="Mais de 24 h sem mensagem do cliente: só modelo aprovado">fora das 24 h</span>' : ''}</div></div></div>`;
+  }).join('') : `<p class="wa-nada">${WA.aba === 'esperando' ? 'Ninguém esperando resposta. 👏' : 'Nenhuma conversa aqui.'}</p>`;
 }
 function waCabHtml(c) {
   if (!c) return '';
   const meu = c.responsavel === EU.id, vc = c.vendedor_carteira && c.vendedor_carteira !== c.responsavel ? c.vendedor_carteira : null;
   const carteira = vc ? (waDisp(vc) && (meu || ehDono())
-      ? `<button class="btn peq pri" data-wa="enviarVendedor" data-id="${c.id}" title="${esc(nomeP(vc))} voltou e está disponível">📤 Enviar para o vendedor: ${esc(nomeP(vc).split(' ')[0])}</button>`
+      ? `<button class="btn peq pri" data-wa="enviarVendedor" data-id="${c.id}" title="${esc(nomeP(vc))} voltou e está disponível">Enviar para o vendedor: ${esc(nomeP(vc).split(' ')[0])}</button>`
       : `<small class="mut" title="Quando ele estiver disponível aparece o botão para enviar a conversa">Vendedor da carteira: ${esc(nomeP(vc))} (indisponível)</small>`) : '';
-  return `<div><b>${esc(waNome(c))}</b> <small class="mut">${esc(waFone(c.telefone || c.wa_id))}</small><br>
-      <small>${c.responsavel ? 'Com ' + esc(nomeP(c.responsavel)) : '<span class="tag med">sem dono</span>'}${c.status === 'encerrada' ? ' · <span class="tag">encerrada</span>' : ''}${waJanela(c) ? '' : ' · <span class="tag ruim" title="Mais de 24 h sem mensagem do cliente">fora da janela de 24 h</span>'}</small></div>
-    <div class="acoes" style="margin:0">${carteira}${!meu ? `<button class="btn peq pri" data-wa="assumir" data-id="${c.id}">🙋 Assumir</button>` : ''}
-      <button class="btn peq" data-wa="transferir" data-id="${c.id}">↪ Transferir</button>
-      ${c.status === 'aberta' ? `<button class="btn peq" data-wa="encerrar" data-id="${c.id}">✔ Encerrar</button>` : ''}</div>`;
+  const esp = waEsperaMin(c);
+  return `<button class="wa-ic so-cel" data-wa="voltar" title="Voltar">${WA_IC.voltar}</button>${waAvatar(c, 'peq')}
+    <div class="wa-cab-c" data-wa="ficha" title="Dados do cliente"><b>${esc(waNome(c))}</b>
+      <small>${esc(waFone(c.telefone || c.wa_id))} · ${c.responsavel ? 'com ' + esc(nomeP(c.responsavel)) : '<span class="wa-tag med">sem dono</span>'}${c.status === 'encerrada' ? ' · encerrada' : ''}${esp != null ? ` · <span class="c-${waEsperaCls(esp)}">esperando há ${waEsperaTxt(esp)}</span>` : ''}</small></div>
+    <div class="wa-cab-a">${carteira}${!meu ? `<button class="btn peq pri" data-wa="assumir" data-id="${c.id}">Assumir</button>` : ''}
+      <button class="btn peq" data-wa="transferir" data-id="${c.id}">Transferir</button>
+      ${c.status === 'aberta' ? `<button class="btn peq" data-wa="encerrar" data-id="${c.id}">Encerrar</button>` : ''}
+      <button class="wa-ic" data-wa="ficha" title="Dados do cliente">${WA_IC.info}</button></div>`;
 }
 function waChatHtml() {
-  const c = WA.conv.find(x => x.id === WA.aberta); if (!c) return '';
-  return `<div class="wa-cab" id="waCab">${waCabHtml(c)}</div>
-    <div class="wa-corpo"><div class="wa-msgs" id="waMsgs"><p class="mut">Carregando…</p></div><div class="wa-ficha" id="waFicha"></div></div>
-    <div class="wa-escrever">
-      <select id="waRespSel" title="Respostas prontas"><option value="">⚡</option>${WA.resp.map(r => `<option value="${r.id}">${esc(r.atalho)}</option>`).join('')}</select>
-      <textarea id="waTexto" rows="2" placeholder="${waJanela(c) ? 'Escreva a mensagem (Enter envia, Shift+Enter quebra linha)' : 'Fora da janela de 24 h: só nota interna'}">${esc(WA.rasc?.[c.id] || '')}</textarea>
-      <label class="btn peq" title="Enviar foto ou arquivo">📎<input type="file" id="waArq" hidden></label>
-      <button class="btn peq" data-wa="nota" data-id="${c.id}" title="Só a equipe vê">📝 Nota</button>
-      <button class="btn pri" data-wa="enviar" data-id="${c.id}" ${waJanela(c) ? '' : 'disabled'}>Enviar</button></div>`;
+  const c = WA.conv.find(x => x.id === WA.aberta); if (!c) return waVazioHtml();
+  const jan = waJanela(c);
+  return `<header class="wa-cab" id="waCab">${waCabHtml(c)}</header>
+    <div class="wa-corpo"><div class="wa-msgs" id="waMsgs"><p class="wa-nada">Carregando…</p></div><aside class="wa-ficha" id="waFicha"></aside></div>
+    ${jan ? '' : '<div class="wa-janela">Mais de 24 h sem mensagem do cliente: a Meta só deixa mandar <b>modelo aprovado</b>. Por aqui, só nota interna até ele escrever de novo.</div>'}
+    <footer class="wa-escrever ${WA.modoNota ? 'nota' : ''}" id="waEscrever">
+      <div class="wa-sug" id="waSug" hidden></div>
+      <button class="wa-ic" data-wa="respLista" title="Respostas prontas (ou digite /)">${WA_IC.raio}</button>
+      <label class="wa-ic" title="Enviar foto ou arquivo">${WA_IC.clipe}<input type="file" id="waArq" hidden></label>
+      <div class="wa-campo"><span class="wa-arq" id="waArqNome" hidden></span>
+        <textarea id="waTexto" rows="1" placeholder="${WA.modoNota || !jan ? 'Nota interna (só a equipe vê)' : 'Mensagem  ·  digite / para respostas prontas'}">${esc(WA.rasc?.[c.id] || '')}</textarea></div>
+      <button class="wa-ic ${WA.modoNota ? 'on' : ''}" data-wa="modoNota" title="Alternar mensagem / nota interna">${WA_IC.nota}</button>
+      <button class="wa-mandar" data-wa="${WA.modoNota || !jan ? 'nota' : 'enviar'}" data-id="${c.id}" title="${WA.modoNota || !jan ? 'Salvar nota' : 'Enviar (Enter)'}">${WA.modoNota || !jan ? WA_IC.nota : WA_IC.enviar}</button>
+    </footer>`;
 }
 async function waAbrir(id, redesenho) {
   id = +id; WA.aberta = id;
-  if (!redesenho) { document.querySelectorAll('.wa-item').forEach(e => e.classList.toggle('on', +e.dataset.id === id)); const ch = $('.wa-chat'); if (ch) ch.innerHTML = waChatHtml(); }
+  if (!redesenho) {
+    document.querySelectorAll('.wa-item').forEach(e => e.classList.toggle('on', +e.dataset.id === id));
+    $('.wa-app')?.classList.add('com-chat');
+    const ch = $('.wa-chat'); if (ch) ch.innerHTML = waChatHtml();
+  }
   try { await waMensagens(id, true); } catch (e) { return avisar(e.message); }
   if (WA.aberta !== id) return;
-  waDesenharMsgs(); waFicha(id);
+  waDesenharMsgs(); waFicha(id); waAutoAltura();
   const c = WA.conv.find(x => x.id === id);
   if (c?.nao_lidas) sb.rpc('wa_lida', { p_id: id }).then(() => { c.nao_lidas = 0; waAtualizar(); });
+}
+/** Uma mensagem no estilo WhatsApp (exportada para o teste). */
+function waMsgHtml(m, lista) {
+  if (m.direcao === 'nota') return m.tipo === 'evento' ? `<div class="wa-evento">${esc(nomeP(m.por))} ${esc(m.texto)} · ${waSoHora(m.em)}</div>`
+    : `<div class="wa-nota"><b>Nota de ${esc(nomeP(m.por).split(' ')[0])}</b> ${esc(m.texto)} <time>${waSoHora(m.em)}</time></div>`;
+  const cit = m.resposta_a ? (lista || []).find(x => x.wa_msg_id === m.resposta_a) : null;
+  const citHtml = cit ? `<div class="wa-cit ${cit.direcao}"><b>${cit.direcao === 'saida' ? 'Você' : 'Cliente'}</b><span>${esc((cit.texto || `[${cit.tipo}]`).slice(0, 140))}</span></div>` : '';
+  const midia = m.midia_path ? waMidiaHtml(m) : m.midia_id ? '<div class="wa-midia-esp">mídia sendo baixada…</div>' : '';
+  const quem = m.direcao === 'saida' && m.por ? `<div class="wa-quem">${esc(waAssinatura(m.por))}</div>` : '';
+  return `<div class="wa-msg ${m.direcao}"><div class="bolha ${m.midia_path && !m.texto && /^image|^video/.test(m.midia_mime || '') ? 'so-midia' : ''}">${quem}${citHtml}${midia}${m.texto ? `<span class="txt">${waTexto(m.texto)}</span>` : ''}
+    <span class="wa-meta"><time>${waSoHora(m.em)}</time>${m.direcao === 'saida' ? waTick(m.status) : ''}</span>
+    ${m.status === 'falhou' ? `<div class="wa-erro">Não entregue${m.erro ? ': ' + esc(m.erro) : ''}</div>` : ''}</div></div>`;
 }
 function waDesenharMsgs() {
   const el = $('#waMsgs'), lista = WA.msgs[WA.aberta]; if (!el || !lista) return;
   const embaixo = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-  el.innerHTML = lista.map(m => {
-    if (m.direcao === 'nota') return `<div class="wa-nota ${m.tipo === 'evento' ? 'evento' : ''}">${m.tipo === 'evento' ? `${esc(nomeP(m.por))} ${esc(m.texto)}` : `📝 <b>${esc(nomeP(m.por))}</b>: ${esc(m.texto)}`} <small>${waHora(m.em)}</small></div>`;
-    const midia = m.midia_path ? waMidiaHtml(m) : m.midia_id ? '<small class="mut">[mídia — baixando…]</small>' : '';
-    return `<div class="wa-msg ${m.direcao}"><div class="bolha">${midia}${m.texto ? `<div class="txt">${waTexto(m.texto)}</div>` : ''}
-      <small class="mut">${m.direcao === 'saida' ? esc(nomeP(m.por).split(' ')[0]) + ' · ' : ''}${waHora(m.em)} ${m.direcao === 'saida' ? WA_STATUS[m.status] || '' : ''}</small>
-      ${m.status === 'falhou' ? `<div class="c-ruim" style="font-size:12px">Não entregue: ${esc(m.erro || '')}</div>` : ''}</div></div>`;
-  }).join('') || '<p class="mut">Sem mensagens.</p>';
+  let dia = '';
+  el.innerHTML = lista.map(m => { const d = new Date(m.em).toDateString(), sep = d !== dia ? `<div class="wa-dia"><span>${waDiaRot(m.em)}</span></div>` : ''; dia = d; return sep + waMsgHtml(m, lista); }).join('')
+    || '<p class="wa-nada">Sem mensagens.</p>';
   if (embaixo || !el.dataset.rolou) { el.scrollTop = el.scrollHeight; el.dataset.rolou = '1'; }
   waCarregarMidias();
 }
-const waTexto = t => esc(t).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>').replace(/\*([^*\n]+)\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+const waTexto = t => esc(t).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>').replace(/\*([^*\n]+)\*/g, '<b>$1</b>').replace(/(^|\s)_([^_\n]+)_(?=\s|$)/g, '$1<i>$2</i>').replace(/~([^~\n]+)~/g, '<s>$1</s>').replace(/\n/g, '<br>');
 function waMidiaHtml(m) {
   const t = (m.midia_mime || '').split('/')[0];
-  return `<div class="wa-midia" data-path="${esc(m.midia_path)}" data-tipo="${t}" data-nome="${esc(m.midia_nome || 'arquivo')}">📎 ${esc(m.midia_nome || m.tipo)}</div>`;
+  return `<div class="wa-midia" data-path="${esc(m.midia_path)}" data-tipo="${t}" data-nome="${esc(m.midia_nome || 'arquivo')}"><div class="wa-midia-esp">carregando ${t === 'image' ? 'foto' : t === 'audio' ? 'áudio' : t === 'video' ? 'vídeo' : 'arquivo'}…</div></div>`;
 }
 /** Mídias ficam em bucket privado: gera link assinado (1 h) e guarda na memória. */
 async function waCarregarMidias() {
@@ -257,12 +336,12 @@ async function waCarregarMidias() {
     el.dataset.ok = '1';
     const p = el.dataset.path;
     if (!WA.urls[p]) { const { data } = await sb.storage.from('whatsapp').createSignedUrl(p, 3600); WA.urls[p] = data?.signedUrl; }
-    const u = WA.urls[p]; if (!u) continue;
-    const t = el.dataset.tipo;
-    el.innerHTML = t === 'image' ? `<a href="${u}" target="_blank" rel="noopener"><img src="${u}" alt="foto" style="max-width:260px;max-height:260px;border-radius:8px"></a>`
-      : t === 'audio' ? `<audio controls src="${u}" style="max-width:260px"></audio>`
-      : t === 'video' ? `<video controls src="${u}" style="max-width:260px;border-radius:8px"></video>`
-      : `<a href="${u}" target="_blank" rel="noopener">📄 ${esc(el.dataset.nome)}</a>`;
+    const u = WA.urls[p]; if (!u) { el.innerHTML = '<div class="wa-midia-esp">arquivo indisponível</div>'; continue; }
+    const t = el.dataset.tipo, nome = el.dataset.nome, ext = (nome.split('.').pop() || '').slice(0, 4).toUpperCase();
+    el.innerHTML = t === 'image' ? `<img src="${u}" alt="foto" loading="lazy" data-wa="foto" data-u="${esc(u)}">`
+      : t === 'audio' ? `<audio controls preload="metadata" src="${u}"></audio><div class="wa-vel">${[1, 1.5, 2].map(v => `<button data-wa="vel" data-v="${v}" class="${v === 1 ? 'on' : ''}">${v}×</button>`).join('')}</div>`
+      : t === 'video' ? `<video controls preload="metadata" src="${u}"></video>`
+      : `<a class="wa-doc" href="${u}" target="_blank" rel="noopener"><span class="wa-doc-ic">${esc(ext || 'DOC')}</span><span>${esc(nome)}</span></a>`;
   }
 }
 async function waFicha(id) {
@@ -270,19 +349,46 @@ async function waFicha(id) {
   const c = WA.conv.find(x => x.id === id);
   let f = null; try { f = await ok(sb.rpc('wa_ficha', { p_id: id })); } catch { /* sem ficha */ }
   if (WA.aberta !== id) return;
-  el.innerHTML = f ? `<h3>👤 ${esc(f.nome)}</h3><small class="mut">${esc([f.doc, [f.cidade, f.uf].filter(Boolean).join('/')].filter(Boolean).join(' · '))}</small>
-      ${f.nao_contatar ? '<p class="c-ruim">⚠ Pediu para não ser contatado.</p>' : ''}
-      <p>Vendedor: <b>${esc(f.vendedor || '—')}</b><br>Comprou em 12 meses: <b>${R(f.total_12m)}</b></p>
-      <h4>Últimos pedidos</h4>${f.pedidos.length ? f.pedidos.map(p => `<div><small><b>${esc(p.numero)}</b> · ${fmtCurta(p.data)} · ${R(p.valor)}<br><span class="mut">${esc(p.situacao || '')}${p.canal ? ' · ' + esc(p.canal) : ''}</span></small></div>`).join('') : '<p class="mut">Nenhum.</p>'}
+  const topoF = `<div class="wa-ficha-topo">${waAvatar(c || {}, 'grande')}<h3>${esc(f?.nome || waNome(c || {}))}</h3><small>${esc(waFone(c?.telefone || c?.wa_id))}</small></div>`;
+  el.innerHTML = topoF + (f ? `<small class="mut">${esc([f.doc, [f.cidade, f.uf].filter(Boolean).join('/')].filter(Boolean).join(' · '))}</small>
+      ${f.nao_contatar ? '<p class="c-ruim">Pediu para não ser contatado.</p>' : ''}
+      <dl class="wa-dl"><dt>Vendedor</dt><dd>${esc(f.vendedor || '—')}</dd><dt>Comprou em 12 meses</dt><dd>${R(f.total_12m)}</dd></dl>
+      <h4>Últimos pedidos</h4>${f.pedidos.length ? f.pedidos.map(p => `<div class="wa-ped"><b>${esc(p.numero)}</b> <span>${fmtCurta(p.data)}</span> <span class="v">${R(p.valor)}</span><small>${esc(p.situacao || '')}${p.canal ? ' · ' + esc(p.canal) : ''}</small></div>`).join('') : '<p class="mut">Nenhum.</p>'}
       <div class="acoes"><button class="btn peq" data-wa="fichaCompleta" data-chave="${esc(f.chave)}">Abrir ficha</button><button class="btn peq" data-wa="ligarCliente" data-id="${id}">Trocar</button></div>`
-    : `<h3>Cliente não identificado</h3><p class="mut">${esc(waFone(c?.telefone || c?.wa_id))} não está em nenhum cliente do Tiny.</p><button class="btn peq" data-wa="ligarCliente" data-id="${id}">🔗 Ligar a um cliente</button>`;
+    : `<p class="mut">Este número não está em nenhum cliente do Tiny.</p><button class="btn peq" data-wa="ligarCliente" data-id="${id}">Ligar a um cliente</button>`);
 }
+
+// ─── respostas prontas com "/" ───
+function waSugestoes(q) {
+  q = String(q || '').toLowerCase().trim();
+  const sem = x => x.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+  q = sem(q);
+  const porNome = WA.resp.filter(r => !q || sem(r.atalho).includes(q));   // primeiro pelo nome; se nada, procura no texto
+  return (porNome.length || q.length < 3 ? porNome : WA.resp.filter(r => sem(r.texto).includes(q))).slice(0, 8);
+}
+function waMostrarSug() {
+  const ta = $('#waTexto'), box = $('#waSug'); if (!ta || !box) return;
+  const m = ta.value.match(/^\/(.*)$/s);
+  if (!m && !WA.sugForcada) { box.hidden = true; return; }
+  const l = waSugestoes(m ? m[1] : ''); WA.sugIdx = Math.min(WA.sugIdx || 0, Math.max(0, l.length - 1));
+  const c = WA.conv.find(x => x.id === WA.aberta);
+  box.innerHTML = (l.length ? l.map((r, i) => `<button class="${i === WA.sugIdx ? 'on' : ''}" data-wa="respUsar" data-id="${r.id}"><b>/${esc(r.atalho)}</b><span>${esc(waVariaveis(r.texto, c).slice(0, 110))}</span></button>`).join('')
+    : `<p>${WA.resp.length ? 'Nenhuma resposta com esse nome.' : 'Nenhuma resposta pronta ainda.'} <a href="#" data-wa="respostas">Cadastrar</a></p>`);
+  box.hidden = false;
+}
+function waUsarResposta(id) {
+  const r = WA.resp.find(x => x.id === +id), ta = $('#waTexto'); if (!r || !ta) return;
+  const c = WA.conv.find(x => x.id === WA.aberta), txt = waVariaveis(r.texto, c);
+  ta.value = /^\//.test(ta.value) || !ta.value.trim() ? txt : ta.value + '\n' + txt;
+  (WA.rasc ||= {})[WA.aberta] = ta.value; WA.sugForcada = false; $('#waSug').hidden = true; waAutoAltura(); ta.focus();
+}
+function waAutoAltura() { const ta = $('#waTexto'); if (!ta) return; ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'; }
 
 // ─── ações ───
 async function waEnviar(id) {
   const ta = $('#waTexto'), texto = ta.value.trim(), arq = $('#waArq')?.files?.[0];
   if (!texto && !arq) return;
-  const b = document.querySelector('[data-wa="enviar"]'); if (b) b.disabled = true;
+  const b = document.querySelector('.wa-mandar'); if (b) b.disabled = true;
   try {
     let midia = {};
     if (arq) {
@@ -295,13 +401,13 @@ async function waEnviar(id) {
     const { data, error } = await sb.functions.invoke('whatsapp-enviar', { body: { conversa: id, texto, ...midia } });
     let m = data?.erro; if (error && !m) { try { m = (await error.context?.json())?.erro; } catch { /* sem detalhe */ } }
     if (error || !data?.ok) throw new Error(m || error?.message || 'Não foi possível enviar.');
-    ta.value = ''; if (WA.rasc) delete WA.rasc[id]; if ($('#waArq')) $('#waArq').value = ''; waArqRotulo();
+    ta.value = ''; if (WA.rasc) delete WA.rasc[id]; if ($('#waArq')) $('#waArq').value = ''; waArqRotulo(); waAutoAltura();
   } catch (e) { avisar(e.message); }
   if (b) b.disabled = false; ta.focus();
 }
 async function waNota(id) {
   const ta = $('#waTexto'), t = ta.value.trim(); if (!t) return avisar('Escreva a nota no campo de mensagem.');
-  try { await ok(sb.rpc('wa_nota', { p_id: id, p_texto: t })); ta.value = ''; if (WA.rasc) delete WA.rasc[id]; } catch (e) { avisar(e.message); }
+  try { await ok(sb.rpc('wa_nota', { p_id: id, p_texto: t })); ta.value = ''; if (WA.rasc) delete WA.rasc[id]; waAutoAltura(); } catch (e) { avisar(e.message); }
 }
 async function waAcao(fn, args, msg) {
   try { await ok(sb.rpc(fn, args)); if (msg) avisar(msg); } catch (e) { avisar(e.message); }
@@ -309,7 +415,7 @@ async function waAcao(fn, args, msg) {
 function waTransferir(id) {
   const quem = D.pessoas.filter(p => p.ativo && (p.papel === 'dono' || p.permissoes?.atendimento));
   modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>Transferir conversa</h2>
-    <label class="campo">Para<select id="waPara"><option value="">↩ Devolver para a fila (sem dono)</option>${quem.map(p => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select></label>
+    <label class="campo">Para<select id="waPara"><option value="">Devolver para a fila (sem dono)</option>${quem.map(p => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select></label>
     <div class="acoes mt"><button class="btn pri" data-wa="transferirOk" data-id="${id}">Transferir</button></div>
     ${quem.length < 2 ? '<p class="explica mt">Para aparecer aqui, a pessoa precisa da permissão <b>Atendimento WhatsApp</b> (Configurações › colaborador).</p>' : ''}`);
 }
@@ -330,16 +436,18 @@ function waLigarCliente(id) {
   }, 300); };
 }
 function waRespostas() {
-  modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>⚡ Respostas prontas</h2>
-    <table class="tabela"><tbody>${WA.resp.map(r => `<tr><td><b>${esc(r.atalho)}</b><br><small style="white-space:pre-wrap">${esc(r.texto)}</small></td><td class="dir"><button class="btn peq perigo" data-wa="respApagar" data-id="${r.id}">🗑</button></td></tr>`).join('') || '<tr><td class="mut">Nenhuma ainda.</td></tr>'}</tbody></table>
+  modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>Respostas prontas</h2>
+    <p class="explica">Na conversa, digite <b>/</b> e o nome para inserir. Use <b>{nome}</b> (primeiro nome do cliente), <b>{vendedor}</b> (seu nome) e <b>{saudacao}</b> (bom dia / boa tarde / boa noite).</p>
+    ${WA.resp.length ? '' : '<div class="acoes"><button class="btn pri" data-wa="respPacote">Criar pacote inicial (7 respostas)</button></div>'}
+    <table class="tabela"><tbody>${WA.resp.map(r => `<tr><td><b>/${esc(r.atalho)}</b><br><small style="white-space:pre-wrap">${esc(r.texto)}</small></td><td class="dir"><button class="btn peq perigo" data-wa="respApagar" data-id="${r.id}">Apagar</button></td></tr>`).join('') || '<tr><td class="mut">Nenhuma ainda.</td></tr>'}</tbody></table>
     <h3 class="mt2">Nova</h3><label class="campo">Nome curto<input id="waRAtalho" maxlength="40" placeholder="ex.: endereço da loja"></label>
-    <label class="campo">Texto<textarea id="waRTexto" rows="4" maxlength="2000"></textarea></label>
+    <label class="campo">Texto<textarea id="waRTexto" rows="4" maxlength="2000" placeholder="{saudacao}, {nome}! …"></textarea></label>
     <div class="acoes"><button class="btn pri" data-wa="respSalvar">Salvar</button></div>`, true);
 }
 async function waConfig() {
   let info = null; try { info = await ok(sb.rpc('wa_webhook_info')); } catch (e) { avisar(e.message); }
   const c = WA.cfg || {}, url = `${window.CRM_CONFIG.url}/functions/v1/whatsapp-webhook`;
-  modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>⚙ Ligar o WhatsApp à Meta</h2>
+  modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>Ligar o WhatsApp à Meta</h2>
     <p class="explica">Passo a passo completo: <b>projetos/WHATSAPP-META-PASSO-A-PASSO.md</b>. O token e a chave secreta do app vão nas <b>secrets do Supabase</b> (META_WA_TOKEN e META_APP_SECRET), nunca aqui.</p>
     <div class="grade"><label class="campo">ID do número de telefone<input id="waCfgPhone" value="${esc(c.phone_number_id || '')}" inputmode="numeric"></label>
       <label class="campo">ID da conta do WhatsApp Business<input id="waCfgWaba" value="${esc(c.waba_id || '')}" inputmode="numeric"></label>
@@ -350,13 +458,21 @@ async function waConfig() {
     <label class="campo">Token de verificação<input readonly value="${esc(info?.verify_token || '')}"></label>
     <p class="explica">Depois de verificar, assine o campo <b>messages</b>.</p>`, true);
 }
-function waArqRotulo() { const f = $('#waArq')?.files?.[0], l = $('#waArq')?.parentElement; if (l) l.firstChild.textContent = f ? `📎 ${f.name.slice(0, 18)}` : '📎'; }
+function waArqRotulo() { const f = $('#waArq')?.files?.[0], l = $('#waArqNome'); if (l) { l.hidden = !f; l.innerHTML = f ? `${esc(f.name.slice(0, 40))} <a href="#" data-wa="arqTirar" title="Tirar">✕</a>` : ''; } }
 
 const WA_ACOES = {
-  aba: el => { WA.aba = el.dataset.v; render(); },
+  aba: el => { WA.aba = el.dataset.v; const a = $('#waAbas'), l = $('#waLista'); if (a && l) { a.innerHTML = waAbasHtml(); l.innerHTML = waListaHtml(); } else render(); },
   abrir: el => waAbrir(el.dataset.id),
+  voltar: () => { WA.aberta = null; $('.wa-app')?.classList.remove('com-chat'); const ch = $('.wa-chat'); if (ch) ch.innerHTML = waVazioHtml(); document.querySelectorAll('.wa-item.on').forEach(e => e.classList.remove('on')); },
+  ficha: () => { WA.fichaAberta = !WA.fichaAberta; $('.wa-app')?.classList.toggle('com-ficha', WA.fichaAberta); },
   enviar: el => waEnviar(+el.dataset.id),
   nota: el => waNota(+el.dataset.id),
+  modoNota: () => { WA.modoNota = !WA.modoNota; const ch = $('.wa-chat'), ta = $('#waTexto'), v = ta?.value; if (ch) { ch.innerHTML = waChatHtml(); waDesenharMsgs(); waFicha(WA.aberta); const t = $('#waTexto'); if (t) { t.value = v || ''; t.focus(); waAutoAltura(); } } },
+  respLista: () => { WA.sugForcada = !WA.sugForcada; WA.sugIdx = 0; waMostrarSug(); },
+  respUsar: el => waUsarResposta(el.dataset.id),
+  foto: el => modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><img class="wa-foto-grande" src="${esc(el.dataset.u)}" alt="foto"><div class="acoes mt"><a class="btn" href="${esc(el.dataset.u)}" target="_blank" rel="noopener">Abrir em nova aba</a></div>`, true),
+  vel: el => { const a = el.closest('.wa-midia')?.querySelector('audio'); if (a) a.playbackRate = +el.dataset.v; el.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === el)); },
+  arqTirar: () => { if ($('#waArq')) $('#waArq').value = ''; waArqRotulo(); },
   assumir: el => waAcao('wa_assumir', { p_id: +el.dataset.id }, 'A conversa agora é sua.'),
   transferir: el => waTransferir(+el.dataset.id),
   transferirOk: el => { waAcao('wa_transferir', { p_id: +el.dataset.id, p_pessoa: $('#waPara').value || null }, 'Transferida.'); fecharModal(); },
@@ -367,8 +483,11 @@ const WA_ACOES = {
   fichaCompleta: el => abrirCliente(el.dataset.chave),
   respostas: () => waRespostas(),
   respSalvar: async () => {
-    const a = $('#waRAtalho').value.trim(), t = $('#waRTexto').value.trim(); if (!a || !t) return avisar('Preencha o nome e o texto.');
+    const a = $('#waRAtalho').value.trim().replace(/^\//, ''), t = $('#waRTexto').value.trim(); if (!a || !t) return avisar('Preencha o nome e o texto.');
     try { WA.resp.push(await ok(sb.from('wa_respostas').insert({ atalho: a, texto: t, criado_por: EU.id }).select().single())); WA.resp.sort((x, y) => x.atalho.localeCompare(y.atalho)); waRespostas(); } catch (e) { avisar(e.message); }
+  },
+  respPacote: async () => {
+    try { WA.resp = await ok(sb.from('wa_respostas').insert(WA_PACOTE.map(([atalho, texto]) => ({ atalho, texto, criado_por: EU.id }))).select()); WA.resp.sort((x, y) => x.atalho.localeCompare(y.atalho)); waRespostas(); avisar('Pacote criado. Edite à vontade.'); } catch (e) { avisar(e.message); }
   },
   respApagar: async el => { if (!confirm('Apagar esta resposta pronta?')) return; try { await ok(sb.from('wa_respostas').delete().eq('id', +el.dataset.id)); WA.resp = WA.resp.filter(r => r.id !== +el.dataset.id); waRespostas(); } catch (e) { avisar(e.message); } },
   notif: async () => { try { await Notification.requestPermission(); } catch { /* ok */ } render(); },
@@ -385,22 +504,31 @@ const WA_ACOES = {
     try { await ok(sb.from('config').upsert({ chave: 'whatsapp', valor: v })); WA.cfg = v; avisar('Salvo.'); fecharModal(); render(); } catch (e) { avisar(e.message); }
   },
 };
-document.addEventListener('click', e => { const el = e.target.closest('[data-wa]'); if (el && WA_ACOES[el.dataset.wa]) { e.preventDefault(); WA_ACOES[el.dataset.wa](el, e); } });
+document.addEventListener('click', e => { const el = e.target.closest?.('[data-wa]'); if (el && WA_ACOES[el.dataset.wa]) { e.preventDefault(); WA_ACOES[el.dataset.wa](el, e); } });
 document.addEventListener('input', e => {
-  if (e.target.id === 'waBusca') { WA.busca = e.target.value; const l = $('#waLista'); if (l) l.innerHTML = waListaHtml(); }
-  if (e.target.id === 'waTexto' && WA.aberta) (WA.rasc ||= {})[WA.aberta] = e.target.value;
+  if (e.target.id === 'waBusca') { WA.busca = e.target.value; const l = $('#waLista'), a = $('#waAbas'); if (l) l.innerHTML = waListaHtml(); if (a) a.innerHTML = waAbasHtml(); }
+  if (e.target.id === 'waTexto' && WA.aberta) { (WA.rasc ||= {})[WA.aberta] = e.target.value; WA.sugIdx = 0; waMostrarSug(); waAutoAltura(); }
 });
 document.addEventListener('change', e => {
-  if (e.target.id === 'waRespSel' && e.target.value) { const r = WA.resp.find(x => x.id === +e.target.value), ta = $('#waTexto'); if (r && ta) { ta.value = (ta.value ? ta.value + '\n' : '') + r.texto; (WA.rasc ||= {})[WA.aberta] = ta.value; ta.focus(); } e.target.value = ''; }
   if (e.target.id === 'waArq') waArqRotulo();
-  if (e.target.dataset.waAssin) {
+  if (e.target.dataset?.waAssin) {
     const p = e.target.dataset.waAssin, v = e.target.value.trim();
     waAcao('wa_atendente_assinatura', { p_pessoa: p, p_texto: v }, 'Perfil salvo.').then(() => { const a = WA.equipe?.find(x => x.pessoa === p); if (a) a.assinatura = v || null; else (WA.equipe ||= []).push({ pessoa: p, assinatura: v || null, setores: ['vendas'], estado: 'fora' }); });
   }
-  if (e.target.dataset.waSetor) {
+  if (e.target.dataset?.waSetor) {
     const p = e.target.dataset.waSetor, setores = [...document.querySelectorAll(`[data-wa-setor="${p}"]:checked`)].map(x => x.value);
     waAcao('wa_atendente_cfg', { p_pessoa: p, p_setores: setores }, 'Setores salvos.');
   }
 });
-if (typeof setInterval === 'function') { setInterval(waPing, 30e3); setTimeout(waPing, 5e3); }   // sinal de presença do expediente
-document.addEventListener('keydown', e => { if (e.target.id === 'waTexto' && e.key === 'Enter' && !e.shiftKey && WA.aberta) { e.preventDefault(); const c = WA.conv.find(x => x.id === WA.aberta); if (c && waJanela(c)) waEnviar(WA.aberta); } });
+if (typeof setInterval === 'function') {
+  setInterval(waPing, 30e3); setTimeout(waPing, 5e3);   // sinal de presença do expediente
+  setInterval(() => { if (typeof UI !== 'undefined' && UI.view === 'atendimento' && WA.conv) waAtualizar(); }, 60e3);   // tempo de espera anda sozinho
+}
+document.addEventListener('keydown', e => {
+  if (e.target.id !== 'waTexto' || !WA.aberta) return;
+  const box = $('#waSug'), abertas = box && !box.hidden ? [...box.querySelectorAll('[data-wa="respUsar"]')] : [];
+  if (abertas.length && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); WA.sugIdx = (WA.sugIdx + (e.key === 'ArrowDown' ? 1 : abertas.length - 1)) % abertas.length; waMostrarSug(); return; }
+  if (abertas.length && (e.key === 'Enter' || e.key === 'Tab')) { e.preventDefault(); waUsarResposta(abertas[WA.sugIdx || 0].dataset.id); return; }
+  if (e.key === 'Escape' && box && !box.hidden) { WA.sugForcada = false; box.hidden = true; return; }
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); const c = WA.conv.find(x => x.id === WA.aberta); if (WA.modoNota || !(c && waJanela(c))) waNota(WA.aberta); else waEnviar(WA.aberta); }
+});
