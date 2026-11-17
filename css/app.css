@@ -929,3 +929,19 @@ input:focus, select:focus, textarea:focus { outline: 0; border-color: var(--verd
 .ped-totais div { display: flex; justify-content: space-between; color: var(--txt2); }
 .ped-totais .tot { border-top: 1px solid var(--borda); padding-top: 8px; margin-top: 4px; color: var(--txt); font-weight: 800; font-size: 18px; font-family: Archivo, system-ui, sans-serif; }
 @media (max-width: 720px) { .ped-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* ─── Clientes (17/11): iniciais, cabeçalho de perfil na ficha, contatos com ícones ─── */
+.avatar.cli-av { --h: 160; width: 34px; height: 34px; font-size: 12.5px; color: hsl(var(--h) 45% 30%); background: hsl(var(--h) 50% 87%); }
+.avatar.cli-av.g { width: 64px; height: 64px; font-size: 22px; }
+:root[data-theme="dark"] .avatar.cli-av { color: hsl(var(--h) 60% 84%); background: hsl(var(--h) 28% 26%); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .avatar.cli-av { color: hsl(var(--h) 60% 84%); background: hsl(var(--h) 28% 26%); } }
+.cli-nome { display: flex; align-items: center; gap: 10px; min-width: 200px; }
+.cli-nome > div { display: grid; } .cli-nome small { font-size: 12px; }
+.cli-wa { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--ok-bg); color: var(--ok); vertical-align: middle; margin-left: 4px; }
+.cli-perfil { display: flex; align-items: center; gap: 16px; padding: 4px 40px 16px 0; margin-bottom: 12px; border-bottom: 1px solid var(--borda); }
+.cli-perfil-c { flex: 1; min-width: 0; }
+.cli-perfil-c h2 { margin: 0; font-size: 22px; letter-spacing: -.02em; } .cli-perfil-c p { margin: 2px 0 6px; font-size: 13.5px; }
+.cli-selos { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+.cli-wa-btn { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.cli-contato { gap: 8px 22px; margin: 0 0 12px; }
+.cli-contato > span { display: inline-flex; align-items: center; gap: 6px; } .cli-contato .ico { color: var(--txt3); } .cli-contato b { font-weight: 600; color: var(--txt2); margin-right: 2px; }
+@media (max-width: 640px) { .cli-perfil { flex-wrap: wrap; padding-right: 0; } .cli-wa-btn { width: 100%; justify-content: center; } }

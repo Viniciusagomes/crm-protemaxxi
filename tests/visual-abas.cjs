@@ -13,4 +13,6 @@ for (const f of ['js/crm.js', 'js/main.js', 'js/vendas.js']) assert.doesNotMatch
 assert.doesNotMatch(ler('js/crm.js'), /card vazio">Carregando/, 'Funil e Meu dia com esqueleto');
 // Pedidos: faixa de números e detalhe redesenhado
 assert.match(ler('js/vendas.js'), /function pedResumo\(lista\)/); assert.match(ler('js/vendas.js'), /class="ped-totais"/);
+// Clientes: iniciais e cabeçalho de perfil
+assert.match(ler('js/clientes.js'), /const cliAvatar = /); assert.match(ler('js/clientes.js'), /class="cli-perfil"/); assert.doesNotMatch(ler('js/clientes.js'), /'👤 Carteira'/);
 console.log('ok visual das abas');
