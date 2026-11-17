@@ -1012,3 +1012,26 @@ input[type=text], input[type=number], input[type=date], input[type=month], input
 details > summary { cursor: pointer; list-style: none; } details > summary::-webkit-details-marker { display: none; }
 details > summary::before { content: ""; display: inline-block; width: 7px; height: 7px; border-right: 2px solid var(--txt3); border-bottom: 2px solid var(--txt3); transform: rotate(-45deg); margin: 0 10px 2px 2px; transition: transform .15s ease; }
 details[open] > summary::before { transform: rotate(45deg); }
+
+/* ─── Meu dia e Prospecção (17/11) ─── */
+.atv { padding: 10px 4px; gap: 12px; border-bottom-color: color-mix(in srgb, var(--borda) 70%, transparent); transition: background-color .12s ease; border-radius: 8px; }
+.atv:hover { background: var(--card2); }
+.atv b { font-weight: 600; }
+.atv-check { width: 22px; height: 22px; border-width: 1.5px; transition: border-color .15s ease, background-color .15s ease, transform .15s ease; font-size: 12px; }
+.atv-check:active { transform: scale(.9); }
+.atv.atrasada { box-shadow: inset 3px 0 0 var(--ruim); padding-left: 10px; }
+.atv.atrasada b { color: var(--txt); } .atv.atrasada small { color: var(--ruim); }
+.nova-atv { padding: 10px; background: var(--card2); border: 1px dashed var(--borda-forte); border-radius: 10px; }
+.segs { gap: 12px; }
+.segs > * { border-radius: 12px; }
+.seg-n { font-family: Figtree, system-ui, sans-serif; font-weight: 600; font-size: 13px; color: var(--txt2); text-transform: uppercase; letter-spacing: .04em; }
+.seg-v { font-family: Archivo, system-ui, sans-serif !important; font-weight: 800 !important; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.seg-acao { border-top-style: solid; }
+.pro-card { border-radius: 12px; padding: 16px; gap: 10px; box-shadow: 0 1px 2px rgba(17,32,47,.05); transition: border-color .15s ease, box-shadow .15s ease; }
+.pro-card:hover { border-color: var(--borda-forte); box-shadow: 0 4px 14px rgba(17,32,47,.07); }
+.pro-card.feito { background: var(--card); border-left: 1px solid var(--borda); position: relative; }
+.pro-card.feito::before { content: ""; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 0 3px 3px 0; background: var(--ok); }
+.pro-nome { font-size: 16.5px; letter-spacing: -.01em; }
+.pro-motivo { line-height: 1.45; }
+.pro-msg { border-radius: 10px; border: 1px solid var(--borda); }
+.pro-res .chip { border-radius: 8px; }
