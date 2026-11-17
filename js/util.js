@@ -130,6 +130,7 @@ Object.assign(ICONES, {
   envelope: '<rect x="3.5" y="5.5" width="17" height="13" rx="1.5"/><path d="m4 7 8 6 8-6"/>',
   numero: '<path d="M9 4 7 20M17 4l-2 16M4.5 9h16M3.5 15h16"/>',
   predio: '<path d="M5 21V4h10v17M15 9h4v12M3 21h18M8 8h4M8 12h4M8 16h4"/>',
+  seta: '<path d="m9 6 6 6-6 6"/>',
   tema: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17a8.5 8.5 0 0 0 0-17z" fill="currentColor"/>',
   sair: '<path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10"/>',
   recolher: '<path d="M11 6l-6 6 6 6M19 6l-6 6 6 6"/>',

@@ -94,36 +94,7 @@ gruposPessoas = function () {
 };
 
 // ═══════════════════════════ INÍCIO ═══════════════════════════
-function vInicio() {
-  const h = hoje(), m = mesDe(h), hora = new Date().getHours();
-  const saud = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
-  const pc = pctDia(EU, h), temTarefas = tarefas(EU, 'D').length > 0;
-  const paraMim = minhasPendentes(), pedi = D.solicitacoes.filter(s => s.solicitante_id === EU.id && ABERTAS.includes(s.status));
-  const fus = followupsHoje(ehDono() ? null : EU.id);
-  const kFat = kpiDe(EU, 'fat');
-  const r = EU.tiny ? resumoVendedor(EU.tiny, h) : null;
-  const val = D.pedidos.filter(p => valido(p) && p.data.startsWith(m));
-  const du = diasUteisEntre(`${m}-01`, h), duT = diasUteisEntre(`${m}-01`, `${m}-${pad(ultimoDia(m))}`);
-  const rem = EU.regras.length ? calcRem(EU, m, 'projecao') : null;
-  const al = ehDono() ? alertas().slice(0, 6) : [];
-  const cards = [];
-  if (veTudoVendas()) cards.push(`<div class="card kpi-card"><div class="rot">Vendas da loja no mês</div><div class="val">${R0(somaV(val))}</div><div class="sub">Projeção ${R0(du ? somaV(val) / du * duT : 0)} · hoje ${R0(somaV(val.filter(p => p.data === h)))}</div></div>`);
-  if (r) cards.push(`<div class="card kpi-card"><div class="rot">Minhas vendas no mês</div><div class="val">${R0(r.mes)}</div><div class="sub">Projeção ${R0(r.proj)}${kFat ? ` · meta ${R0(kFat.meta)}` : ''}</div>${kFat ? `<div class="mt">${barra(r.proj / (kFat.meta || 1))}</div>` : ''}</div>`);
-  if (temTarefas && podeAba('checklist')) cards.push(`<div class="card kpi-card clic" style="cursor:pointer" data-a="nav" data-v="checklist"><div class="rot">Meu checklist de hoje</div><div class="val c-${classe(pc)}">${pc == null ? 'folga' : P(pc)}</div><div class="sub">No mês: ${P(adesao(EU, m))}</div><div class="mt">${barra(pc)}</div></div>`);
-  if (rem && ehDono()) cards.push(`<div class="card kpi-card clic" style="cursor:pointer" data-a="nav" data-v="remuneracao"><div class="rot">${ehDono() ? 'Meu ganho previsto' : 'Quanto vou ganhar este mês'}</div><div class="val c-ok">${R0(rem.total)}</div><div class="sub">Variável: ${R0(rem.variavel + rem.equipe)} · projeção</div></div>`);
-  if (ehDono()) { const rs = D.pessoas.filter(p => p.ativo && p.regras.length).map(p => calcRem(p, m, 'projecao')); cards.push(`<div class="card kpi-card clic" style="cursor:pointer" data-a="nav" data-v="remuneracao"><div class="rot">Folha prevista do mês</div><div class="val">${R0(soma(rs.map(x => x.total)))}</div><div class="sub">Custo c/ encargos ${R0(soma(rs.map(x => x.custo)))}</div></div>`); }
-  cards.push(`<div class="card kpi-card clic" style="cursor:pointer" data-a="nav" data-v="solicitacoes"><div class="rot">Solicitações para mim</div><div class="val ${paraMim.length ? 'c-med' : ''}">${paraMim.length}</div><div class="sub">${pedi.length} que eu pedi em aberto</div></div>`);
-  const linhaSol = s => `<tr class="clic" data-a="verSolicitacao" data-id="${s.id}"><td>${(TIPOS_SOL[s.tipo] || TIPOS_SOL.outro).ic} <b>${esc(s.titulo)}</b><br><small>de ${esc(nomeP(s.solicitante_id))}${s.prazo ? ` · prazo ${fmtCurta(s.prazo)}` : ''}</small></td><td class="pri-${s.prioridade}">${PRIORIDADES[s.prioridade]}</td><td><span class="st st-${s.status}">${STATUS_SOL[s.status]}</span></td></tr>`;
-  if (cards[0]) cards[0] = cards[0].replace('card kpi-card', 'card kpi-card destaque');   // primeiro número em destaque (só visual)
-  return topo(`${saud}, ${esc(primeiroNome(EU))}`, `${fmtData(h)} · ${infoSync()}`, '<button class="btn pri" data-a="novaSolicitacao">+ Nova solicitação</button>')
-    + `${avisoBoletos()}${avisoAssistencia()}<div class="grid g4 inicio-kpis">${cards.join('')}</div>
-    <div class="grid g2 mt">
-      <div class="card"><div class="secao-titulo"><h2>Para mim resolver</h2><a href="#/solicitacoes">ver todas</a></div>${paraMim.length ? `<table class="tabela"><tbody>${paraMim.slice(0, 8).map(linhaSol).join('')}</tbody></table>` : '<div class="vazio">Nenhuma solicitação pendente para você.</div>'}</div>
-      <div class="card"><div class="secao-titulo"><h2>Follow-ups de hoje</h2><a href="#/clientes">clientes</a></div>${fus.length ? `<table class="tabela"><tbody>${fus.slice(0, 10).map(i => `<tr><td class="clic" data-a="verCliente" data-chave="${esc(i.cliente_chave)}" style="cursor:pointer"><b>${esc(i.cliente_nome || '')}</b><br><small>${TIPOS_INT[i.tipo] || ''} · ${esc(i.texto.slice(0, 80))}${ehDono() ? ' · ' + esc(nomeP(i.autor_id)) : ''}</small></td><td><span class="tag ${i.proximo_contato < h ? 'ruim' : 'ok'}">${fmtCurta(i.proximo_contato)}</span></td><td><button class="btn peq" data-a="followupFeito" data-id="${i.id}">✓ Feito</button></td></tr>`).join('')}</tbody></table>` : '<div class="vazio">Nenhum retorno marcado para hoje. Registre contatos na ficha do cliente e marque o próximo.</div>'}</div>
-    </div>
-    ${al.length ? `<div class="card mt"><div class="secao-titulo"><h2>Atenção na equipe</h2><a href="#/geral">visão da equipe</a></div><div class="alertas">${al.map(a => `<div class="alerta ${a.c}" ${a.p ? `data-a="abrirPessoa" data-p="${a.p.id}" data-d="${a.d || ''}"` : ''}><span class="ic">${a.ic}</span><span>${a.t}</span></div>`).join('')}</div></div>` : ''}
-    ${r ? `<div class="card mt"><div class="secao-titulo"><h2>Minha corrida do mês</h2><a href="#/vendas">painel de vendas</a></div>${graficoCorrida([EU.tiny], h)}</div>` : ''}`;
-}
+// vInicio() está em js/painel.js (painel do mês: números, ritmo, atenção e a fazer).
 
 // ═══════════════════════════ CONFIGURAÇÕES EXTRAS (dono) ═══════════════════════════
 let USUARIOS = null;

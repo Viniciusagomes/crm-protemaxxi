@@ -1184,3 +1184,96 @@ nav .badge { flex: none; }
 .wa-mod-bts span { text-align: center; color: #027EB5; font-weight: 600; padding: 8px; }
 .wa-chat.arrastando::after { content: "Solte para anexar à conversa"; position: absolute; inset: 10px; z-index: 5; display: grid; place-items: center; border: 2px dashed var(--wa-verde); border-radius: 14px;
   background: color-mix(in srgb, var(--wa-verde) 12%, rgba(255,255,255,.85)); color: var(--wa-verde); font: 700 18px Figtree, system-ui, sans-serif; pointer-events: none; }
+
+/* ═══ Painéis do Início e do Meu dia (17/11) ═══ */
+.pain-kpis { display: grid; grid-template-columns: 1.35fr 1fr 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+.pain-kpi { background: var(--card); border: 1px solid var(--borda); border-radius: 14px; padding: 16px 18px; position: relative; overflow: hidden; min-width: 0; }
+.pain-kpi.clic { cursor: pointer; } .pain-kpi.clic:hover { border-color: var(--borda-forte); }
+.pain-kpi-r { font: 700 11px/1.2 Archivo, system-ui, sans-serif; letter-spacing: .1em; text-transform: uppercase; color: var(--txt3); }
+.pain-kpi-v { font: 800 28px/1.15 Archivo, system-ui, sans-serif; letter-spacing: -.02em; margin: 8px 0 4px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pain-kpi-s { font-size: 13px; color: var(--txt2); }
+.pain-kpi.destaque { background: var(--noite); border-color: var(--noite); color: #fff; }
+.pain-kpi.destaque .pain-kpi-r { color: #8FA3B6; } .pain-kpi.destaque .pain-kpi-s { color: #B9C7D3; }
+.pain-kpi.destaque .pain-kpi-v { font-size: 32px; }
+.pain-spark { display: block; width: 100%; height: 34px; margin-top: 10px; }
+.pain-spark .linha { fill: none; stroke: var(--verde); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.pain-spark .area { fill: color-mix(in srgb, var(--verde) 18%, transparent); }
+.pain-delta { display: inline-flex; gap: 4px; align-items: baseline; font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
+.pain-delta small { font-weight: 500; opacity: .75; }
+.pain-delta.sobe { color: var(--ok); } .pain-delta.desce { color: var(--ruim); } .pain-delta.neutro { color: var(--txt3); font-weight: 500; }
+.pain-kpi.destaque .pain-delta.sobe { color: #5BD691; } .pain-kpi.destaque .pain-delta.desce { color: #FF8A80; }
+.pain-meta { position: relative; height: 8px; border-radius: 99px; background: var(--card2); margin-top: 12px; }
+.pain-meta i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; background: var(--ok); }
+.pain-meta i.med { background: var(--med); } .pain-meta i.ruim { background: var(--ruim); }
+.pain-meta em { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--txt); border-radius: 2px; }
+.pain-grade { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr); gap: 16px; align-items: start; }
+.pain-grade.so { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pain-grade.so .pain-col { display: contents; }
+.pain-col { display: grid; gap: 16px; min-width: 0; }
+.pain-card { margin: 0; }
+.pain-card .secao-titulo h2 { margin: 0; }
+.pain-n { font: 700 12px/1 Archivo, sans-serif; background: var(--card2); color: var(--txt2); border-radius: 99px; padding: 4px 9px; }
+.pain-frase { margin: 0 0 6px; color: var(--txt2); font-size: 14px; line-height: 1.55; }
+.pain-graf svg { width: 100%; height: auto; display: block; }
+.pain-graf text { font-size: 11px; fill: var(--txt3); font-family: Figtree, system-ui, sans-serif; }
+.pain-graf .grade { stroke: var(--borda); stroke-dasharray: 2 4; }
+.pain-graf .atual { fill: none; stroke: var(--verde); stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
+.pain-graf .area { fill: color-mix(in srgb, var(--verde) 12%, transparent); }
+.pain-graf .ant { fill: none; stroke: var(--txt3); stroke-width: 1.6; stroke-dasharray: 5 5; opacity: .7; }
+.pain-graf .meta { stroke: var(--med); stroke-width: 1.6; stroke-dasharray: 2 4; }
+.pain-graf .meta-t { fill: var(--med); font-weight: 700; }
+.pain-graf .ponto { fill: var(--verde); stroke: var(--card); stroke-width: 3; }
+.pain-graf .ponto-t { fill: var(--txt); font-weight: 800; font-size: 13px; font-family: Archivo, sans-serif; }
+.pain-leg { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--txt2); margin-top: 6px; }
+.pain-leg span { display: inline-flex; gap: 6px; align-items: center; }
+.pain-leg i { width: 16px; height: 3px; border-radius: 3px; background: var(--verde); display: inline-block; }
+.pain-leg i.ant { background: repeating-linear-gradient(90deg, var(--txt3) 0 4px, transparent 4px 7px); }
+.pain-leg i.meta { background: var(--med); width: 3px; height: 12px; } .pain-leg i.claro { background: color-mix(in srgb, var(--verde) 30%, transparent); height: 8px; }
+.pain-lista, .pain-fazer { display: grid; gap: 4px; margin: 0 -6px; }
+.pain-item, .pain-fz { display: flex; gap: 12px; align-items: center; width: 100%; text-align: left; background: none; border: 0; border-radius: 10px; padding: 10px; cursor: pointer; color: var(--txt); font: inherit; }
+.pain-item:hover, .pain-fz:hover { background: var(--card2); }
+.pain-ic { width: 32px; height: 32px; flex: none; border-radius: 9px; display: grid; place-items: center; background: var(--card2); color: var(--txt2); }
+.pain-item.n3 .pain-ic { background: var(--ruim-bg); color: var(--ruim); } .pain-item.n2 .pain-ic { background: var(--med-bg); color: var(--med); }
+.pain-txt { flex: 1; min-width: 0; font-size: 14px; line-height: 1.4; } .pain-txt small { color: var(--txt3); }
+.pain-seta { color: var(--txt3); flex: none; }
+.pain-ok { display: flex; gap: 12px; align-items: center; padding: 6px 2px; color: var(--ok); } .pain-ok b { display: block; color: var(--txt); } .pain-ok small { color: var(--txt3); }
+.pain-fz-c { flex: 1; min-width: 0; display: grid; gap: 6px; } .pain-fz-c b { font-weight: 600; font-size: 14px; }
+.pain-fz-b { display: block; height: 6px; border-radius: 99px; background: var(--card2); overflow: hidden; }
+.pain-fz-b i { display: block; height: 100%; border-radius: 99px; background: var(--ok); } .pain-fz-b i.med { background: var(--med); } .pain-fz-b i.ruim { background: var(--ruim); }
+.pain-fz-v { flex: none; font-size: 13px; color: var(--txt2); font-variant-numeric: tabular-nums; text-align: right; }
+.pain-mini { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.pain-mini .pain-kpi-v { font-size: 22px; }
+.pain-eq { display: grid; gap: 12px; }
+.pain-eq-l { display: grid; grid-template-columns: 130px minmax(0, 1fr) 150px; gap: 12px; align-items: center; }
+.pain-eq-n { display: flex; gap: 8px; align-items: center; min-width: 0; } .pain-eq-n b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.pain-eq-n .avatar { width: 28px; height: 28px; font-size: 11px; flex: none; }
+.pain-eq-b { position: relative; height: 12px; border-radius: 99px; background: var(--card2); }
+.pain-eq-b i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; }
+.pain-eq-b i.proj { background: color-mix(in srgb, var(--verde) 25%, transparent); } .pain-eq-b i.real { background: var(--verde); }
+.pain-eq-b em { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--med); border-radius: 2px; }
+.pain-eq-v { text-align: right; font-variant-numeric: tabular-nums; } .pain-eq-v b { display: block; } .pain-eq-v small { color: var(--txt3); font-size: 12px; }
+/* Meu dia */
+.pain-dia { display: grid; grid-template-columns: auto minmax(0, 1fr) 220px; gap: 24px; align-items: center; }
+.pain-anel { position: relative; flex: none; } .pain-anel svg { width: 100%; height: 100%; display: block; }
+.pain-anel .fundo { fill: none; stroke: var(--card2); stroke-width: 9; }
+.pain-anel .frente, .pain-anel .cheio { fill: none; stroke: var(--verde); stroke-width: 9; stroke-linecap: round; transition: stroke-dasharray .4s ease; }
+.pain-anel-txt { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.pain-anel-txt b { font: 800 22px/1 Archivo, sans-serif; font-variant-numeric: tabular-nums; } .pain-anel-txt small { font-size: 11px; color: var(--txt3); margin-top: 3px; }
+.pain-sts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; }
+.pain-st { padding: 4px 16px; border-left: 1px solid var(--borda); display: grid; gap: 2px; min-width: 0; }
+.pain-st:first-child { border-left: 0; padding-left: 0; }
+.pain-st span { font: 700 11px/1.2 Archivo, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--txt3); }
+.pain-st b { font: 800 26px/1.2 Archivo, sans-serif; font-variant-numeric: tabular-nums; } .pain-st small { color: var(--txt3); font-size: 12.5px; }
+.pain-st.ruim b { color: var(--ruim); } .pain-st.med b { color: var(--med); } .pain-st.ok b { color: var(--ok); }
+.pain-sem > span { font: 700 11px/1.2 Archivo, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--txt3); }
+.pain-semana { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; height: 74px; margin-top: 8px; }
+.pain-semana > div { display: grid; grid-template-rows: 1fr auto; gap: 4px; align-items: end; text-align: center; height: 100%; }
+.pain-semana i { display: block; background: color-mix(in srgb, var(--verde) 35%, transparent); border-radius: 4px 4px 2px 2px; min-height: 4px; }
+.pain-semana .hoje i { background: var(--verde); } .pain-semana small { font-size: 10.5px; color: var(--txt3); }
+.pain-vistas { display: inline-flex; } .pain-vistas b { margin-left: 4px; font-variant-numeric: tabular-nums; opacity: .7; }
+.pain-agd-dia { display: flex; justify-content: space-between; margin: 14px 0 4px; padding-bottom: 6px; border-bottom: 1px solid var(--borda); font-weight: 700; font-size: 13px; color: var(--txt2); }
+.pain-agd-dia span::first-letter { text-transform: uppercase; }
+.pain-agd-dia small { color: var(--txt3); font-weight: 600; }
+@media (max-width: 1100px) { .pain-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pain-grade { grid-template-columns: minmax(0, 1fr); } .pain-dia { grid-template-columns: auto minmax(0, 1fr); } .pain-sem { grid-column: 1 / -1; } }
+@media (max-width: 640px) { .pain-kpis { grid-template-columns: minmax(0, 1fr); } .pain-sts { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 14px; } .pain-st:nth-child(3) { border-left: 0; padding-left: 0; } .pain-dia { grid-template-columns: minmax(0, 1fr); justify-items: start; } .pain-eq-l { grid-template-columns: 1fr; gap: 6px; } .pain-eq-v { text-align: left; } .pain-grade.so { grid-template-columns: minmax(0, 1fr); } }
+.pain-avisos .alerta { margin-bottom: 10px !important; } .pain-avisos .alerta small, .pain-avisos .alerta br { display: none; }   /* no Início os avisos ficam numa linha; o detalhe está na aba */
+.pain-eq-l { grid-template-columns: 150px minmax(0, 1fr) 150px; }
