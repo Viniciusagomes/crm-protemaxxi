@@ -33,3 +33,10 @@ Feito na retomada automática combinada com o Vinícius. Só WhatsApp teve funç
 - Detalhe do pedido: cabeçalho com número grande e situação em pílula, quadro de dados (data, vendedor, canal, pagamento),
   cliente clicável, itens com código embaixo, totais (produtos, desconto, frete, total). Esqueleto enquanto carrega.
 - Situação dos pedidos ficou de fora (mostra dados da expedição; o Vinícius pediu para não mexer em ML/expedição/estoque).
+
+## Clientes (17/11, tarde)
+
+- Lista: iniciais do cliente (cor fixa pelo nome), vendedor com iniciais, "dias sem comprar" em pílula, WhatsApp como ícone.
+- Sub-abas sem emoji. Esqueleto enquanto carrega.
+- Ficha: cabeçalho de perfil (iniciais grandes, nome, documento/cidade, selo Ativo/Para reativar, vendedor, botão WhatsApp),
+  contatos com ícones de traço (novo ícone telefone), pedidos com situação em pílula.
