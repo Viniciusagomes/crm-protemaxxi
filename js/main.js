@@ -5,9 +5,9 @@
 // Abas que moram dentro de outra: no menu aparece só a principal; dentro dela, uma barra de sub-abas (o endereço antigo continua valendo).
 const MENU_GRUPOS = {
   meudia: [['meudia', 'Meu dia'], ['checklist', 'Checklist do dia']],
-  vendas: [['vendas', 'Painel de vendas'], ['pedidos', 'Pedidos']],
+  vendas: [['vendas', 'Painel de vendas'], ['pedidos', 'Pedidos'], ['monitoria', 'Monitoria de preços']],
   creditos: [['creditos', 'Créditos e vales'], ['brindes', 'Brindes']],
-  supervisao: [['supervisao', 'Supervisão'], ['geral', 'Visão da equipe'], ['feedbacks', 'Feedbacks']],
+  supervisao: [['supervisao', 'Supervisão'], ['geral', 'Visão da equipe'], ['metas', 'Metas e números'], ['feedbacks', 'Feedbacks']],
   config: [['config', 'Configurações'], ['logs', 'Logs']],
 };
 const MENU_NOME = { meudia: 'Meu dia', vendas: 'Vendas', creditos: 'Créditos e brindes', supervisao: 'Supervisão', config: 'Configurações' };
@@ -49,13 +49,13 @@ function badgeAba(k) {
 function menu() {
   const itens = [
     ['', 'inicio', '⌂', 'Início'], ['', 'meudia', '☀', 'Meu dia'],
-    ['Vendas'], ['', 'crm', '🎯', 'Funil (CRM)'], ['', 'clientes', '👤', 'Clientes'], ['', 'vendas', '📈', 'Vendas'], ['', 'situacao', '🚦', 'Situação dos pedidos'], ['', 'monitoria', '🏷', 'Monitoria de preços'],
+    ['Vendas'], ['', 'crm', '🎯', 'Funil (CRM)'], ['', 'clientes', '👤', 'Clientes'], ['', 'vendas', '📈', 'Vendas'], ['', 'situacao', '🚦', 'Situação dos pedidos'],
     ['Financeiro'], ['', 'boletos', '🧾', 'Boletos em atraso'], ['', 'creditos', '💳', 'Créditos e brindes'], ['', 'remuneracao', '💰', ehDono() ? 'Remuneração' : 'Meu ganho'],
     ['Atendimento'], ['', 'atendimento', '💬', 'WhatsApp'], ['', 'emails', '✉', 'Caixa de e-mails'], ['', 'suporte', '🔧', 'Assistência (OS)'],
     ['Marketing'], ['', 'trafego', '📣', 'Tráfego (Google Ads)'], ['', 'calendario', '📅', 'Calendário de marketing'], ['', 'avaliacoes', '⭐', 'Avaliações'],
     ['Operação'], ['', 'ml', '🛍', 'Mercado Livre'], ['', 'visaoestoque', '📋', 'Visão geral do estoque'], ['', 'expedicao', '📦', 'Expedição'], ['', 'estoque', '🏷', 'Estoque'], ['', 'abrirTV', '📺', 'TV do estoque'], ['', 'compras', '🤝', 'Compras e fornecedores'], ['', 'cadastroprod', '🧩', 'Cadastro de produtos'],
-    ['Equipe'], ['', 'solicitacoes', '📨', 'Solicitações'], ['', 'supervisao', '👥', 'Supervisão'], ['', 'metas', '🎯', 'Metas e números'],
-    ['Sistema'], ['', 'config', '⚙', 'Configurações'], ['', 'ajuda', '?', 'Como usar'],
+    ['Equipe'], ['', 'solicitacoes', '📨', 'Solicitações'], ['', 'supervisao', '👥', 'Supervisão'],
+    ['Sistema'], ['', 'config', '⚙', 'Configurações'],   // "Como usar" virou o botão ? no rodapé da barra
   ];
   // aba principal de um grupo aparece se qualquer sub-aba for visível; o clique leva à primeira visível
   const itemDe = ([g, k, ic, nome]) => {
@@ -65,10 +65,28 @@ function menu() {
     const badge = filhos ? soma(filhos.map(([x]) => badgeAba(x))) : badgeAba(k);
     return { k, alvo, ic, rot, badge, on: filhos ? filhos.some(([x]) => x === UI.view) : UI.view === k };
   };
-  const vis = itens.map(it => it[1] ? itemDe(it) : { grupo: it[0] }).filter(Boolean)
-    .filter((it, i, arr) => !it.grupo || (arr[i + 1] && !arr[i + 1].grupo));   // tira títulos de grupo que ficaram vazios
-  return vis.map(it => it.grupo ? `<div class="grupo">${it.grupo}</div>`
-    : `<button class="${it.on ? 'on' : ''}" data-a="nav" data-v="${it.alvo}" title="${it.rot}"><span class="ic">${icone(it.k) || it.ic}</span><span class="rot">${it.rot}</span>${it.badge ? `<span class="badge">${it.badge}</span>` : ''}</button>`).join('');
+  // categorias: cada título abre e fecha; a da aba atual fica sempre aberta
+  const cats = []; let atual = { nome: '', itens: [] }; cats.push(atual);
+  for (const it of itens) { if (!it[1]) { atual = { nome: it[0], itens: [] }; cats.push(atual); continue; } const x = itemDe(it); if (x) atual.itens.push(x); }
+  const abertas = menuAbertas();
+  const botao = it => {
+    const subs = it.on ? subAbas(UI.view) : [];
+    return `<button class="${it.on ? 'on' : ''}" data-a="nav" data-v="${it.alvo}" title="${it.rot}"><span class="ic">${icone(it.k) || it.ic}</span><span class="rot">${it.rot}</span>${it.badge ? `<span class="badge">${it.badge}</span>` : ''}</button>`
+      + (subs.length ? `<div class="menu-sub">${subs.map(([k, n]) => `<button class="${UI.view === k ? 'on' : ''}" data-a="nav" data-v="${k}" title="${n}"><span class="rot">${n}</span>${badgeAba(k) ? `<span class="badge">${badgeAba(k)}</span>` : ''}</button>`).join('')}</div>` : '');
+  };
+  return cats.filter(c => c.itens.length).map(c => {
+    if (!c.nome) return c.itens.map(botao).join('');
+    const temAtual = c.itens.some(it => it.on), aberta = temAtual || abertas.has(c.nome), soma_ = soma(c.itens.map(it => it.badge || 0));
+    return `<div class="menu-cat ${aberta ? 'aberta' : ''}"><button class="grupo" data-a="menuCat" data-c="${c.nome}" aria-expanded="${aberta}" ${temAtual ? 'disabled title="Aba aberta aqui dentro"' : ''}><span class="rot">${c.nome}</span>${!aberta && soma_ ? `<span class="badge">${soma_}</span>` : ''}<span class="cat-seta">${icone('seta', 13)}</span></button>
+      <div class="menu-cat-itens">${c.itens.map(botao).join('')}</div></div>`;
+  }).join('');
+}
+/** Categorias que a pessoa deixou abertas (lembradas neste navegador). */
+function menuAbertas() { try { return new Set(JSON.parse(localStorage.getItem('menuAbertas') || '[]')); } catch { return new Set(); } }
+function menuCat(nome) {
+  const s = menuAbertas(); s.has(nome) ? s.delete(nome) : s.add(nome);
+  try { localStorage.setItem('menuAbertas', JSON.stringify([...s])); } catch { /* ok */ }
+  const nav = document.getElementById('nav'); if (nav) nav.innerHTML = menu();
 }
 const VIEWS_FN = {
   inicio: () => vInicio(), vendas: () => vVendas(), ml: () => vML(), trafego: () => vTrafego(), pedidos: () => vPedidos(), clientes: () => vClientes(),
@@ -398,6 +416,7 @@ const A = {
   sinoPermitir: async () => { try { await Notification.requestPermission(); } catch { /* ok */ } $('.sino-fundo')?.remove(); checarSino(); },
   menuCel: () => document.body.classList.toggle('menu-aberto'),
   recolherMenu: () => recolherMenu(),
+  menuCat: el => menuCat(el.dataset.c),
   alternarLetra: () => alternarLetra(),
   instalarApp: () => instalarApp(),
   crmAtualizar: () => Promise.all([carregarCRM(true), carregarResumoPro(true)]).then(render).catch(e => avisar(e.message)),

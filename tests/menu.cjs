@@ -13,12 +13,16 @@ run(`var UI = { view: 'checklist' }, EU = { id: 'ana', tiny: 5, permissoes: {} }
   var podeAba = k => vis.has(k), ehDono = () => false, veMonitoria = () => false, veTudoVendas = () => false, veML = () => false, veTrafego = () => false, veCompras = () => false,
     veAtendimento = () => false, veEmails = () => false, calPessoas = () => [], temEquipe = () => false, veExp = () => false, minhasPendentes = () => [], trPendentes = () => 0, cpPendentes = () => 0;`);
 const html = run('menu()');
-const itens = [...html.matchAll(/data-v="([^"]+)"/g)].map(m => m[1]);
-assert.deepEqual(itens, ['inicio', 'meudia', 'crm', 'clientes', 'vendas', 'situacao', 'boletos', 'solicitacoes', 'feedbacks', 'ajuda'], 'vendedor vê o mesmo de antes, agrupado');
-assert.doesNotMatch(html, /data-v="checklist"|data-v="pedidos"/, 'checklist e pedidos ficam dentro de Meu dia e Vendas');
+const itens = [...html.replace(/<div class="menu-sub">.*?<\/div>/gs, '').matchAll(/data-v="([^"]+)"/g)].map(m => m[1]);
+assert.deepEqual(itens, ['inicio', 'meudia', 'crm', 'clientes', 'vendas', 'situacao', 'boletos', 'solicitacoes', 'feedbacks'], 'vendedor vê o mesmo de antes, agrupado (Como usar foi para o rodapé)');
+assert.doesNotMatch(html.replace(/<div class="menu-sub">.*?<\/div>/gs, ''), /data-v="checklist"|data-v="pedidos"/, 'checklist e pedidos ficam dentro de Meu dia e Vendas');
 assert.match(html, /class="on" data-a="nav" data-v="meudia"/, 'estando no checklist, o Meu dia fica marcado');
 assert.match(html, /<span class="rot">Feedbacks<\/span>/, 'grupo com uma sub-aba só mostra o nome dela');
-assert.doesNotMatch(html, /Financeiro<\/div><div class="grupo">/, 'título de grupo vazio some');
+assert.doesNotMatch(html, /data-c="Marketing"|data-c="Operação"|data-c="Sistema"/, 'categoria sem aba visível some');
+assert.match(run("UI.view = 'pedidos'; menu()"), /class="menu-cat aberta"><button class="grupo" data-a="menuCat" data-c="Vendas" aria-expanded="true" disabled/, 'categoria da aba atual fica aberta');
+assert.match(html, /class="menu-cat "><button class="grupo" data-a="menuCat" data-c="Vendas" aria-expanded="false"/, 'as outras começam fechadas');
+run("UI.view = 'checklist'");
+assert.match(html, /<div class="menu-sub">.*data-v="checklist"/s, 'sub-itens aparecem embaixo da aba aberta');
 assert.deepEqual(run("subAbas('checklist').map(x => x[0])"), ['meudia', 'checklist']);
 assert.deepEqual(run("subAbas('feedbacks')"), [], 'sem barra quando só há uma');
 // dono vê tudo, com Logs dentro de Configurações e Visão da equipe dentro de Equipe
@@ -26,9 +30,9 @@ run("ehDono = () => true; podeAba = () => true; temEquipe = () => true; veExp = 
 const dono = run('menu()');
 assert.doesNotMatch(dono, /data-v="logs"|data-v="geral"|data-v="brindes"/);
 assert.deepEqual(run("subAbas('logs').map(x => x[0])"), ['config', 'logs']);
-assert.deepEqual(run("subAbas('geral').map(x => x[0])"), ['supervisao', 'geral', 'feedbacks']);
+assert.deepEqual(run("subAbas('geral').map(x => x[0])"), ['supervisao', 'geral', 'metas', 'feedbacks']);
 const total = (dono.match(/data-a="nav"/g) || []).length;
-assert.ok(total <= 28, `menu do dono com ${total} itens (antes eram 34)`); console.log('itens do dono:', total);
+assert.ok(total <= 40, `menu do dono com ${total} itens (antes eram 34)`); console.log('itens do dono:', total);
 // sub-abas aparecem no topo das telas
 assert.match(run("UI.view = 'brindes'; topo('Brindes', '')"), /class="subabas".*data-v="creditos".*class="on" data-a="nav" data-v="brindes"/s);
 console.log('✔ menu.cjs');

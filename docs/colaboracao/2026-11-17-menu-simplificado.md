@@ -34,3 +34,12 @@ Pedido do Vinícius: reorganizar as categorias, reduzir a quantidade de abas e c
 - Situação dos pedidos dentro de Vendas. É área do Fefão, então não mexi.
 - TV do estoque dentro de Visão geral do estoque (área do Fefão).
 - Monitoria de preços dentro de Vendas.
+
+## Segunda rodada (mesmo PR): categorias que abrem e fecham
+- Cada categoria do menu virou um botão que abre e fecha (seta). A categoria da aba atual fica sempre aberta.
+  As demais lembram o estado neste navegador (`localStorage.menuAbertas`). Fechada, a categoria mostra a soma das pendências.
+- A aba aberta mostra embaixo dela as sub-abas, clicáveis (`.menu-sub`).
+- Mais 3 abas para dentro de outras: Monitoria de preços → Vendas; Metas e números → Supervisão;
+  Como usar → botão "?" no rodapé da barra. A categoria Sistema fica só para o dono (Configurações).
+- Barra recolhida: todas as categorias abertas, só com os ícones e sem sub-itens.
+- Testes: `menu.cjs` cobre categorias (a atual aberta, as outras fechadas, categoria vazia some) e os sub-itens; 32/32.
