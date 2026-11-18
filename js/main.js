@@ -693,7 +693,7 @@ const A = {
   },
 };
 async function recarregarPessoas() {
-  const rows = await ok(sb.from('pessoas').select('id,user_id,email'));
+  const rows = await pessoasComPrivado();   // o e-mail vem de pessoas_privado (a tabela não libera essa coluna)
   for (const r of rows) { const p = pessoa(r.id); if (p) { p.user_id = r.user_id; p.email = r.email || ''; } }
 }
 function getPath(path) { return path.split('.').reduce((o, k) => o?.[k], D); }
