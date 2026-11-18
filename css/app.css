@@ -1392,3 +1392,9 @@ details.dobra > summary b { font-size: 16px; } details.dobra > summary small { c
 .cpa-acoes { white-space: nowrap; } .cpa-acoes .btn { margin-left: 4px; }
 .em-contas { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 @media (max-width: 640px) { .cpa-acoes { white-space: normal; } .cpa-acoes .btn { margin: 2px; } }
+/* menu recolhido (18/11): sem barra de rolagem horizontal; a vertical fica fina e só aparece quando precisa */
+nav { overflow-x: hidden; }
+html.side-mini nav { overflow-x: hidden; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.15) transparent; }
+html.side-mini nav::-webkit-scrollbar { width: 4px; height: 0; }
+html.side-mini nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); border-radius: 4px; }
+html.side-mini nav * { max-width: 100%; }
