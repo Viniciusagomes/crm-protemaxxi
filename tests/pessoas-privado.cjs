@@ -34,3 +34,9 @@ assert.match(sql, /when p\.id in \(select seg\.pessoas_visiveis\(\)\) then coale
 assert.match(sql, /then '\{"atendimento": true\}'::jsonb/);
 assert.match(sql, /where seg\.eh_membro\(\)/); assert.match(sql, /revoke all on function public\.pessoas_privado\(\) from public, anon;/);
 console.log('✔ pessoas-privado.cjs');
+// passo 2: a tabela não libera email/permissoes para leitura
+{ const f = fs.readdirSync(path.join(root, 'supabase/migrations')).find(x => x.endsWith('_pessoas_colunas_fechadas.sql'));
+  assert.ok(f, 'migration do passo 2 existe'); const s = ler('supabase/migrations/' + f);
+  assert.match(s, /revoke select on public\.pessoas from anon, authenticated;/);
+  const cols = s.match(/grant select \(([^)]*)\)/)[1]; assert.doesNotMatch(cols, /email|permissoes/);
+  for (const c of fs.readFileSync(path.join(root, 'js/dados.js'), 'utf8').match(/const PESSOAS_COLS = '([^']*)'/)[1].split(',')) assert.ok(cols.includes(c), 'coluna da tela liberada: ' + c); }
