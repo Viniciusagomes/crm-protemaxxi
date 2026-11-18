@@ -189,3 +189,28 @@ function painDiaResumo(quem, x) {
     </div>
     <div class="pain-sem"><span>Concluídas na semana</span>${painSemana(dias)}</div></div>`;
 }
+
+// ─── peças das outras páginas (18/11) ───
+/** Aviso da equipe (alertas()) no formato da lista "Precisa da sua atenção". */
+function painDeAlerta(x) {
+  const ic = x.view === 'metas' ? 'metas' : x.view === 'config' ? 'clientes' : x.n >= 3 ? 'alerta' : x.n === 1 ? 'busca' : 'relogio';
+  return { n: x.n >= 3 ? 3 : x.n >= 2 ? 2 : 1, ic, txt: x.t, a: x.p ? `data-a="abrirPessoa" data-p="${x.p.id}" data-d="${x.d || ''}"${x.view ? ` data-view="${x.view}"` : ''}` : `data-a="nav" data-v="${x.view || 'geral'}"` };
+}
+/** Barras horizontais de distribuição: [{rot, v, sub?, cls?}]. O comprimento é relativo ao maior valor. */
+function painDist(itens, fmt = v => String(v)) {
+  const l = itens.filter(x => x && x.v != null), max = Math.max(1e-9, ...l.map(x => Math.abs(x.v)));
+  if (!l.length) return '<div class="vazio">Sem dados.</div>';
+  return `<div class="pain-dist">${l.map(x => `<div class="pain-dist-l${x.a ? ' clic' : ''}" ${x.a || ''}><span class="pain-dist-r" title="${esc(String(x.rot).replace(/<[^>]+>/g, ''))}">${x.rot}</span>
+    <span class="pain-dist-b"><i class="${x.cls || ''}" style="width:${Math.max(x.v ? 2 : 0, Math.abs(x.v) / max * 100)}%"></i></span><span class="pain-dist-v"><b>${fmt(x.v)}</b>${x.sub ? `<small>${x.sub}</small>` : ''}</span></div>`).join('')}</div>`;
+}
+/** Checklist médio da equipe nos últimos 7 dias (só quem tinha tarefa diária e trabalhava no dia). Exportada para o teste. */
+function painChkSemana(pessoas, h = hoje()) {
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = addDias(h, i - 6), pcs = pessoas.filter(p => tarefas(p, 'D').length && trabalha(p, d)).map(p => pctDia(p, d)).filter(v => v != null);
+    return { d, rot: DIAS_LONGO[pd(d).getDay()].slice(0, 3), hoje: d === h, pc: pcs.length ? media(pcs) : null, n: pcs.length };
+  });
+}
+function painChkSemanaHtml(dias) {
+  return `<div class="pain-semana pct">${dias.map(x => `<div class="${x.hoje ? 'hoje' : ''}" title="${fmtCurta(x.d)}: ${x.pc == null ? 'ninguém trabalhando' : `${P(x.pc)} (${x.n} pessoa(s))`}">
+    <em>${x.pc == null ? '·' : Math.round(x.pc * 100)}</em><i class="${x.pc == null ? 'nulo' : classe(x.pc)}" style="height:${x.pc == null ? 4 : Math.max(4, x.pc * 100)}%"></i><small>${x.rot}</small></div>`).join('')}</div>`;
+}

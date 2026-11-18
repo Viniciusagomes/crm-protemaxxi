@@ -364,29 +364,40 @@ function vGeral() {
   const mkt = somaKpi('fat_mkt', m, 'projecao'), mktR = somaKpi('fat_mkt', m, 'realizado');
   const trabHoje = ativos().filter(p => tarefas(p, 'D').length && trabalha(p, h));
   const mediaHoje = media(trabHoje.map(p => pctDia(p, h)));
+  const mediaMes = media(ativos().filter(p => tarefas(p, 'D').length).map(p => adesao(p, m)));
   const rems = ativos().filter(p => p.regras.length).map(p => calcRem(p, m, 'projecao'));
   const folha = soma(rems.map(r => r.total)), custo = soma(rems.map(r => r.custo)), varT = soma(rems.map(r => r.variavel + r.equipe));
   const fatTotal = (fat?.v || 0) + (mkt?.v || 0);
   const al = alertas();
   const raizes = D.pessoas.filter(p => !p.supervisor || !pessoa(p.supervisor));
-  const vendedores = ativos().filter(p => kpiDe(p, 'fat'));
-  const ranking = vendedores.map(p => { const k = kpiDe(p, 'fat'); return { p, k, v: kpiReal(p, k, m), pr: kpiProj(p, k, m) }; }).sort((a, b) => b.v - a.v);
+  // placar e comparação pelos pedidos do Tiny (mesma conta do Início)
+  const vends = vendedoresPainel(), ids = new Set(vends.map(p => p.tiny));
+  const r = vends.length && D.pedidos?.length ? painResumo(p => ids.has(p.vendedor_id), h) : null;
+  const placar = vends.map(p => { const x = resumoVendedor(p.tiny, h); return { p, mes: x.mes, proj: x.proj, meta: kpiDe(p, 'fat')?.meta || 0 }; }).sort((a, b) => b.mes - a.mes);
+  const barraMeta = (v, meta) => meta ? `<div class="pain-meta"><i class="${classe(v / meta)}" style="width:${Math.min(1, v / meta) * 100}%"></i></div>` : '';
+  const kFolha = painKpi('Folha prevista', R0(folha), `variável ${R0(varT)}${fatTotal ? ` · custo ${P(custo / fatTotal)} das vendas` : ''}`, '', 'clic" data-a="nav" data-v="remuneracao');
   return topo('Visão da equipe', `${fmtData(h)} · ${fmtMes(m)}`) + `
-  <div class="grid g4">
-    ${fat ? `<div class="card kpi-card"><div class="rot">Vendas da equipe comercial</div><div class="val">${R0(fatR.v)}</div><div class="sub">Projeção ${R0(fat.v)} · meta ${R0(fat.meta)}</div><div class="mt">${barra(fat.meta ? fat.v / fat.meta : 0)}</div></div>` : ''}
-    ${mkt ? `<div class="card kpi-card"><div class="rot">Vendas nos marketplaces</div><div class="val">${R0(mktR.v)}</div><div class="sub">Projeção ${R0(mkt.v)} · meta ${R0(mkt.meta)}</div><div class="mt">${barra(mkt.meta ? mkt.v / mkt.meta : 0)}</div></div>` : ''}
-    <div class="card kpi-card"><div class="rot">Checklist de hoje (média da equipe)</div><div class="val c-${classe(mediaHoje)}">${P(mediaHoje)}</div><div class="sub">${trabHoje.length} pessoa(s) trabalhando hoje</div><div class="mt">${barra(mediaHoje)}</div></div>
-    <div class="card kpi-card"><div class="rot">Folha prevista no mês</div><div class="val">${R0(folha)}</div><div class="sub">Variável ${R0(varT)} · custo c/ encargos ${R0(custo)}${fatTotal ? ` · ${P(custo / fatTotal)} das vendas` : ''}</div><div class="mt"><div class="pilha"><i style="width:${folha ? (folha - varT) / folha * 100 : 0}%;background:#8AA0B4"></i><i style="width:${folha ? varT / folha * 100 : 0}%;background:var(--verde)"></i></div></div></div>
+  <div class="pain-kpis">
+    ${fat ? painKpi('Vendas da equipe comercial', R0(fatR.v), r ? painDelta(r.mes, r.antMesmo) : `meta ${R0(fat.meta)}`, r ? painSpark(r.ult30) : '', 'destaque') : ''}
+    ${fat ? painKpi('Projeção do mês', R0(fat.v), fat.meta ? `${P(fat.v / fat.meta)} da meta de ${R0(fat.meta)}` : 'sem meta definida', barraMeta(fat.v, fat.meta)) : ''}
+    ${mkt ? painKpi('Marketplaces', R0(mktR.v), `projeção ${R0(mkt.v)}${mkt.meta ? ` · ${P(mkt.v / mkt.meta)} da meta` : ''}`, barraMeta(mkt.v, mkt.meta)) : kFolha}
+    ${painKpi('Checklist hoje', `<span class="c-${classe(mediaHoje)}">${P(mediaHoje)}</span>`, `${trabHoje.length} pessoa(s) trabalhando · mês ${P(mediaMes)}`, barraMeta(mediaHoje || 0, 1))}
   </div>
-  <div class="card mt"><div class="secao-titulo"><h2>Organograma</h2><small>Clique numa pessoa para abrir o checklist dela. Percentuais do indicador = projeção do mês.</small></div><div class="org">${raizes.map(orgNo).join('')}</div></div>
-  <div class="grid g2 mt">
-    <div class="card"><div class="secao-titulo"><h2>O que precisa de atenção</h2><small>${al.length} aviso(s)</small></div>
-      <div class="alertas">${al.length ? al.slice(0, 14).map(a => `<div class="alerta ${a.c}" ${a.p ? `data-a="abrirPessoa" data-p="${a.p.id}" data-d="${a.d || ''}"` : `data-a="nav" data-v="${a.view || 'geral'}"`} ${a.view && a.p ? `data-view="${a.view}"` : ''}><span class="ic">${a.ic}</span><span>${a.t}</span></div>`).join('') : '<div class="vazio">Tudo em dia. 🎉</div>'}
-      ${al.length > 14 ? `<small>+ ${al.length - 14} outros avisos na aba Supervisão.</small>` : ''}</div></div>
-    <div class="card"><div class="secao-titulo"><h2>Placar de vendas do mês</h2><small>Realizado · projeção</small></div>
-      ${ranking.length ? `<table class="tabela"><tbody>${ranking.map((x, i) => { const a = ating(x.k, x.pr); return `<tr class="clic" data-a="abrirPessoa" data-p="${x.p.id}" data-view="metas"><td style="width:28px"><b>${i + 1}º</b></td><td><div style="display:flex;gap:8px;align-items:center">${av(x.p)}<div><b>${esc(x.p.nome)}</b><br><small>meta ${R0(x.k.meta)}</small></div></div></td><td style="width:34%">${barra(a)}<small>projeção ${R0(x.pr)} (${P(a)})</small></td><td class="dir num"><b>${R0(x.v)}</b></td></tr>`; }).join('')}</tbody></table>` : '<div class="vazio">Ninguém com indicador de faturamento.</div>'}
+  <div class="pain-grade">
+    <div class="pain-col">
+      <div class="card pain-card"><div class="secao-titulo"><h2>Placar de vendas do mês</h2><a href="#/metas">metas</a></div>
+        ${placar.length ? painEquipe(placar) : '<div class="vazio">Ninguém ligado a um vendedor do Tiny.</div>'}</div>
+      <div class="card pain-card"><div class="secao-titulo"><h2>Checklist da equipe na semana</h2><a href="#/supervisao">supervisão</a></div>
+        <p class="pain-frase">Média de quem trabalhou em cada dia. No mês, a equipe está em <b class="c-${classe(mediaMes)}">${P(mediaMes)}</b>.</p>
+        ${painChkSemanaHtml(painChkSemana(ativos(), h))}</div>
     </div>
-  </div>`;
+    <div class="pain-col">
+      <div class="card pain-card"><div class="secao-titulo"><h2>Precisa de atenção</h2>${al.length ? `<span class="pain-n">${al.length}</span>` : ''}</div>${painAtencaoHtml(al.map(painDeAlerta))}
+        ${al.length > 7 ? `<small class="mut">Mais ${al.length - 7} aviso(s) na Supervisão.</small>` : ''}</div>
+      ${mkt ? `<div class="pain-mini">${kFolha}</div>` : ''}
+    </div>
+  </div>
+  <details class="card mt dobra"><summary><b>Organograma</b><small>clique numa pessoa para abrir o checklist dela · o % do indicador é a projeção do mês</small></summary><div class="org mt">${raizes.map(orgNo).join('')}</div></details>`;
 }
 
 // ═══════════════════════════ CHECKLIST ═══════════════════════════
@@ -511,11 +522,13 @@ function vSupervisao() {
   if (!sups.find(s => s.id === UI.sup)) UI.sup = (sups.find(s => s.supervisor) || sups[0]).id;
   const s = pessoa(UI.sup), equipe = subs(s.id), m = UI.mes, h = hoje();
   const rem = s.regras.length ? calcRem(s, m, 'projecao') : null;
+  let nCobrar = 0, nConferir = 0;
   const cards = equipe.map(p => {
     const ont = diaAnteriorTrab(p, h), pcO = ont ? pctDia(p, ont) : null, pcH = pctDia(p, h);
     const crH = trabalha(p, h) ? criticasPendentes(p, h) : [], crO = ont ? criticasPendentes(p, ont) : [];
     const sa = semanaisAtrasadas(p, h), ma = mensaisAtrasadas(p, h);
     const confO = ont && reg(p.id, ont)?.conferido;
+    nCobrar += crO.length + sa.length + ma.length; if (ont && !confO && tarefas(p, 'D').length) nConferir++;
     const kpis = p.kpis.map(k => { const pr = kpiProj(p, k, mesDe(h)); return `<div style="margin-top:6px"><div style="display:flex;justify-content:space-between;font-size:13px"><span>${esc(k.nome)}</span><span>${fmtK(k, kpiReal(p, k, mesDe(h)))} <small>/ ${fmtK(k, k.meta)}</small></span></div>${barra(ating(k, pr))}</div>`; }).join('');
     return `<div class="card cobranca ${classe(pcO)}">
       <div class="secao-titulo"><div style="display:flex;gap:10px;align-items:center">${av(p)}<div><b>${esc(p.nome)}</b><br><small>${esc(p.cargo)}</small></div></div><button class="btn peq" data-a="abrirPessoa" data-p="${p.id}">Abrir checklist</button></div>
@@ -531,20 +544,35 @@ function vSupervisao() {
       ${p.tiny ? (() => { const pro = campanhaHoje(p.id); return `<div class="mt"><b>Prospecção de hoje</b><br><small>${pro ? `${pro.contatos} de ${pro.total} contatos · ${pro.pulados} pulado(s) · ${pro.pendentes} pendente(s)` : PRO.resumoErro ? 'Resumo indisponível. Atualize para tentar novamente.' : 'Carregando campanha…'}</small><br><button class="btn peq" data-a="irProspeccao" data-pessoa="${p.id}">Ver campanha</button></div>`; })() : ''}
     </div>`;
   }).join('');
+  const comChk = equipe.filter(p => tarefas(p, 'D').length), hojeEq = media(comChk.filter(p => trabalha(p, h)).map(p => pctDia(p, h))), mesEq = adesaoEquipe(s.id, m);
+  const resumo = `<div class="pain-kpis">
+      ${painKpi('Checklist da equipe hoje', `<span class="c-${classe(hojeEq)}">${P(hojeEq)}</span>`, `${comChk.filter(p => trabalha(p, h)).length} de ${comChk.length} trabalhando hoje`, `<div class="pain-meta"><i class="${classe(hojeEq)}" style="width:${(hojeEq || 0) * 100}%"></i></div>`, 'destaque')}
+      ${painKpi(`Checklist no mês`, `<span class="c-${classe(mesEq)}">${P(mesEq)}</span>`, fmtMes(m), `<div class="pain-meta"><i class="${classe(mesEq)}" style="width:${(mesEq || 0) * 100}%"></i></div>`)}
+      ${painKpi('Para cobrar', String(nCobrar), nCobrar ? 'tarefas críticas e atrasadas' : 'nada pendente', '', nCobrar ? 'pede' : '')}
+      ${painKpi('Dias para conferir', String(nConferir), nConferir ? 'último dia de trabalho sem o "conferido"' : 'tudo conferido', '', nConferir ? 'pede' : '')}
+    </div>`;
   return topo('Supervisão', 'O que cada supervisor precisa cobrar da equipe, hoje e no mês.', `<div class="seg">${sups.map(x => `<button class="${x.id === s.id ? 'on' : ''}" data-a="sup" data-p="${x.id}">${esc(x.nome)}</button>`).join('')}</div><button class="btn" data-a="print">🖨 Imprimir</button>`)
-    + `<div class="card"><div class="cab-pessoa"><div class="quem">${av(s, 'g')}<div><h2 style="margin:0">${esc(s.nome)}</h2><small>${esc(s.cargo)} · ${equipe.length} pessoa(s) na equipe · checklist médio da equipe no mês: <b>${P(adesaoEquipe(s.id, m))}</b></small></div></div>
+    + resumo + `<div class="card"><div class="cab-pessoa"><div class="quem">${av(s, 'g')}<div><h2 style="margin:0">${esc(s.nome)}</h2><small>${esc(s.cargo)} · ${equipe.length} pessoa(s) na equipe · checklist médio da equipe no mês: <b>${P(adesaoEquipe(s.id, m))}</b></small></div></div>
       ${rem ? `<div style="text-align:right"><small>Ganho previsto vindo da equipe em ${MESES[pd(m + '-01').getMonth()]}</small><div class="num" style="font-size:24px;font-weight:800;color:var(--verde-esc)">${R0(rem.equipe)}</div><a href="#" data-a="verRem" data-p="${s.id}">ver detalhes</a></div>` : ''}</div></div>
     ${blocoPendencias(s, equipe)}
     ${equipe.length ? `<h2 class="mt2">Cobrança de hoje</h2><div class="grid g2">${cards}</div>` : '<div class="card vazio mt">Nenhum subordinado ativo.</div>'}
     <div class="card mt2"><div class="secao-titulo"><h2>Checklist dia a dia</h2>${navMes()}</div>${heatmap([s, ...equipe], m)}</div>
-    <h2 class="mt2">O que cobrar de cada um</h2><p class="mut" style="margin-top:-6px">Referência completa: o que cada pessoa tem que fazer e como o supervisor confere. Dá para imprimir e deixar na mesa.</p>
-    ${equipe.map(referenciaCobranca).join('')}
-    <h2 class="mt2">O que o próprio supervisor faz</h2>${referenciaCobranca(s)}`;
+    <details class="card mt2 dobra"><summary><b>O que cobrar de cada um</b><small>referência completa: o que cada pessoa tem que fazer e como o supervisor confere</small></summary>
+      <div class="mt">${equipe.map(referenciaCobranca).join('')}<h3 class="mt2">O que o próprio supervisor faz</h3>${referenciaCobranca(s)}</div></details>`;
 }
 
 // ═══════════════════════════ METAS ═══════════════════════════
 function vMetas() {
   const m = UI.mes, ps = ativos().filter(p => p.kpis.length);
+  const st = metasSituacao(ps, m), h = hoje(), fimM = `${m}-${pad(ultimoDia(m))}`;
+  const restam = m === mesDe(h) ? diasUteisEntre(addDias(h, 1), fimM) : 0;
+  const anelP = p => { const l = st.itens.filter(x => x.p === p); const a = media(l.map(x => Math.min(1.5, x.a))); return a == null ? '' : `<span class="pain-anel-peq" title="Média da projeção dos indicadores com meta">${painAnel(Math.min(1, a), 58, P(a))}</span>`; };
+  const resumo = st.itens.length ? `<div class="pain-kpis">
+      ${painKpi('Indicadores no ritmo', `${st.ok.length}<small class="mut"> de ${st.itens.length}</small>`, 'projeção bate a meta', `<div class="pain-pilha"><i class="ok" style="width:${st.ok.length / st.itens.length * 100}%"></i><i class="med" style="width:${st.risco.length / st.itens.length * 100}%"></i><i class="ruim" style="width:${st.abaixo.length / st.itens.length * 100}%"></i></div>`, 'destaque')}
+      ${painKpi('Em risco', `<span class="c-med">${st.risco.length}</span>`, 'projeção entre 70% e 99% da meta', st.risco.length ? `<small class="pain-nomes">${nomesMetas(st.risco, ps)}</small>` : '')}
+      ${painKpi('Abaixo de 70%', `<span class="${st.abaixo.length ? 'c-ruim' : 'c-ok'}">${st.abaixo.length}</span>`, st.abaixo.length ? 'precisa de plano de ação' : 'ninguém muito abaixo', st.abaixo.length ? `<small class="pain-nomes">${nomesMetas(st.abaixo, ps)}</small>` : '')}
+      ${painKpi(m === mesDe(h) ? 'Dias úteis restantes' : 'Mês', m === mesDe(h) ? String(restam) : fmtMes(m), m === mesDe(h) ? `de ${diasUteisEntre(m + '-01', fimM)} no mês` : m < mesDe(h) ? 'mês fechado' : 'mês futuro')}
+    </div>` : '';
   const cards = ps.map(p => {
     const linhas = p.kpis.map(k => {
       const v = kpiReal(p, k, m), pr = kpiProj(p, k, m), a = ating(k, v), ap = ating(k, pr);
@@ -555,13 +583,25 @@ function vMetas() {
         <td class="dir num">${(k.entrada === 'D' || ehTiny(k)) && k.agreg !== 'media' ? fmtK(k, pr) : '—'}</td><td style="width:22%">${barra(ap)}<small>${P(ap)} na projeção</small></td></tr>`;
     }).join('');
     const det = UI.metasDet === p.id ? detalheLancamentos(p, m) : '';
-    return `<div class="card"><div class="secao-titulo"><div style="display:flex;gap:10px;align-items:center">${av(p)}<div><h3 style="margin:0">${esc(p.nome)}</h3><small>${esc(p.cargo)}</small></div></div>
+    return `<div class="card mt"><div class="secao-titulo"><div style="display:flex;gap:12px;align-items:center">${anelP(p) || av(p)}<div><h3 style="margin:0">${esc(p.nome)}</h3><small>${esc(p.cargo)}</small></div></div>
       <button class="btn peq" data-a="metasDet" data-p="${p.id}">${UI.metasDet === p.id ? 'Fechar lançamentos' : 'Ver/corrigir lançamentos dia a dia'}</button></div>
       <div class="rolagem"><table class="tabela mt"><thead><tr><th>Indicador</th><th class="dir">Meta do mês</th><th class="dir">Realizado</th><th class="cen">%</th><th class="dir">Projeção</th><th>Ritmo</th></tr></thead><tbody>${linhas}</tbody></table></div>${det}</div>`;
   }).join('');
-  return topo('Metas e números', 'Realizado até agora, projeção para o fim do mês no ritmo atual e metas (editáveis aqui mesmo).', navMes()) + cards
+  return topo('Metas e números', 'Realizado até agora, projeção para o fim do mês no ritmo atual e metas (editáveis aqui mesmo).', navMes()) + resumo + cards
     + `<p class="mut mt"><small>A projeção divide o realizado pelos dias trabalhados até agora e multiplica pelos dias de trabalho do mês. As metas valem para todos os meses. Quando mudar a meta, mude no começo do mês.</small></p>`;
 }
+/** Cada indicador com meta e projeção, separado em no ritmo (≥100%), em risco (70–99%) e abaixo (<70%). Exportada para o teste. */
+function metasSituacao(ps, m) {
+  const itens = [];
+  for (const p of ps) for (const k of p.kpis) {
+    if (!+k.meta || k.agreg === 'media') continue;
+    const pr = (k.entrada === 'D' || ehTiny(k)) ? kpiProj(p, k, m) : kpiReal(p, k, m), a = ating(k, pr);
+    if (a != null) itens.push({ p, k, a });
+  }
+  return { itens, ok: itens.filter(x => x.a >= 1), risco: itens.filter(x => x.a >= 0.7 && x.a < 1), abaixo: itens.filter(x => x.a < 0.7) };
+}
+/** Nomes curtos sem repetir; dois com o mesmo primeiro nome (Felipe e Felipe) aparecem com o sobrenome. */
+const nomesMetas = (l, ps) => [...new Set(l.map(x => x.p))].map(p => ps.filter(o => primeiroNome(o) === primeiroNome(p)).length > 1 ? esc(p.nome.split(' ').slice(0, 2).join(' ')) : esc(primeiroNome(p))).join(', ');
 function detalheLancamentos(p, m) {
   const kd = p.kpis.filter(k => k.entrada === 'D' && !ehTiny(k)); if (!kd.length) return '<p class="mut mt">Os indicadores desta pessoa vêm do Tiny: não há lançamento manual.</p>';
   const dias = diasDoMes(m).filter(d => d <= hoje() && (trabalha(p, d) || Object.keys(reg(p.id, d)?.kpi || {}).length));
@@ -595,17 +635,19 @@ function vRemuneracao() {
   return topo('Remuneração por desempenho', `${fmtMes(m)} · fixo + variável pela própria produção + variável pela produção da equipe (supervisores).`, navMes())
     + `<div class="card"><div class="sliders"><div class="seg">${modos.map(([k, n]) => `<button class="${UI.remModo === k ? 'on' : ''}" data-a="remModo" data-v="${k}">${n}</button>`).join('')}</div>
       ${UI.remModo === 'simulacao' ? `<label>Todos atingem <input type="range" min="0" max="150" step="5" value="${UI.simMeta}" data-c="simMeta" data-live="lbMeta"><b id="lbMeta">${UI.simMeta}%</b> da meta</label><label>Checklist cumprido <input type="range" min="0" max="100" step="5" value="${UI.simCheck}" data-c="simCheck" data-live="lbCheck"><b id="lbCheck">${UI.simCheck}%</b></label>` : `<small class="mut">${UI.remModo === 'realizado' ? 'Com os números lançados até agora.' : 'Se o ritmo do mês continuar igual até o fim.'}</small>`}</div></div>
-    <div class="grid g4 mt">
-      <div class="card kpi-card"><div class="rot">Folha total</div><div class="val">${R0(T('total'))}</div><div class="sub">${ps.length} pessoa(s)</div></div>
-      <div class="card kpi-card"><div class="rot">Parte fixa</div><div class="val">${R0(T('fixo'))}</div><div class="sub">${P(T('total') ? T('fixo') / T('total') : 0)} da folha</div></div>
-      <div class="card kpi-card"><div class="rot">Parte variável</div><div class="val c-ok">${R0(T('variavel') + T('equipe'))}</div><div class="sub">${P(T('total') ? (T('variavel') + T('equipe')) / T('total') : 0)} da folha · só existe se houver resultado</div></div>
-      <div class="card kpi-card"><div class="rot">Custo da empresa (c/ encargos)</div><div class="val">${R0(T('custo'))}</div><div class="sub">${fatR ? `${P(T('custo') / fatR)} das vendas (${R0(fatR)})` : 'sem vendas lançadas'}</div></div>
+    <div class="pain-kpis mt">
+      ${painKpi('Folha total', R0(T('total')), `${ps.length} pessoa(s)`, `<div class="pain-pilha"><i class="fixo" style="width:${T('total') ? T('fixo') / T('total') * 100 : 0}%"></i><i class="ok" style="width:${T('total') ? T('variavel') / T('total') * 100 : 0}%"></i><i class="eq" style="width:${T('total') ? T('equipe') / T('total') * 100 : 0}%"></i></div>`, 'destaque')}
+      ${painKpi('Parte fixa', R0(T('fixo')), `${P(T('total') ? T('fixo') / T('total') : 0)} da folha`)}
+      ${painKpi('Parte variável', `<span class="c-ok">${R0(T('variavel') + T('equipe'))}</span>`, `${P(T('total') ? (T('variavel') + T('equipe')) / T('total') : 0)} da folha · só existe se houver resultado`)}
+      ${painKpi('Custo da empresa', R0(T('custo')), fatR ? `com encargos · ${P(T('custo') / fatR)} das vendas (${R0(fatR)})` : 'com encargos · sem vendas lançadas')}
     </div>
-    <div class="card mt rolagem"><table class="tabela"><thead><tr><th>Pessoa</th><th>Vínculo</th><th class="dir">Fixo</th><th class="dir">Variável próprio</th><th class="dir">Vindo da equipe</th><th class="dir">Total</th><th class="dir">Custo empresa</th></tr></thead><tbody>
-      ${linhas.map(({ p, r }) => `<tr class="clic ${p.id === UI.remPessoa ? 'sel' : ''}" data-a="remSel" data-p="${p.id}"><td><div style="display:flex;gap:8px;align-items:center">${av(p)}<div><b>${esc(p.nome)}</b><br><small>${esc(p.cargo)}</small></div></div></td><td>${VINCULO[p.vinculo] || ''}</td><td class="dir">${R0(r.fixo)}</td><td class="dir">${R0(r.variavel)}</td><td class="dir">${r.equipe ? `<b style="color:#2B7BB9">${R0(r.equipe)}</b>` : '—'}</td><td class="dir num"><b>${R0(r.total)}</b></td><td class="dir">${R0(r.custo)}</td></tr>`).join('')}
-    </tbody><tfoot><tr><td colspan="2">Total</td><td class="dir">${R0(T('fixo'))}</td><td class="dir">${R0(T('variavel'))}</td><td class="dir">${R0(T('equipe'))}</td><td class="dir">${R0(T('total'))}</td><td class="dir">${R0(T('custo'))}</td></tr></tfoot></table></div>
+    <div class="card mt rolagem"><table class="tabela"><thead><tr><th>Pessoa</th><th>Vínculo</th><th class="dir">Fixo</th><th class="dir">Variável próprio</th><th class="dir">Vindo da equipe</th><th class="dir">Total</th><th style="width:110px">Composição</th><th class="dir">Custo empresa</th></tr></thead><tbody>
+      ${linhas.map(({ p, r }) => `<tr class="clic ${p.id === UI.remPessoa ? 'sel' : ''}" data-a="remSel" data-p="${p.id}"><td><div style="display:flex;gap:8px;align-items:center">${av(p)}<div><b>${esc(p.nome)}</b><br><small>${esc(p.cargo)}</small></div></div></td><td>${VINCULO[p.vinculo] || ''}</td><td class="dir">${R0(r.fixo)}</td><td class="dir">${R0(r.variavel)}</td><td class="dir">${r.equipe ? `<b style="color:#2B7BB9">${R0(r.equipe)}</b>` : '—'}</td><td class="dir num"><b>${R0(r.total)}</b></td>
+        <td><div class="pain-pilha" title="Fixo ${P(r.total ? r.fixo / r.total : 0)} · própria produção ${P(r.total ? r.variavel / r.total : 0)} · equipe ${P(r.total ? r.equipe / r.total : 0)}"><i class="fixo" style="width:${r.total ? r.fixo / r.total * 100 : 0}%"></i><i class="ok" style="width:${r.total ? r.variavel / r.total * 100 : 0}%"></i><i class="eq" style="width:${r.total ? r.equipe / r.total * 100 : 0}%"></i></div></td><td class="dir">${R0(r.custo)}</td></tr>`).join('')}
+    </tbody><tfoot><tr><td colspan="2">Total</td><td class="dir">${R0(T('fixo'))}</td><td class="dir">${R0(T('variavel'))}</td><td class="dir">${R0(T('equipe'))}</td><td class="dir">${R0(T('total'))}</td><td></td><td class="dir">${R0(T('custo'))}</td></tr></tfoot></table>
+      <div class="legenda"><span><i style="background:#8AA0B4"></i>Fixo</span><span><i style="background:var(--verde)"></i>Própria produção</span><span><i style="background:#2B7BB9"></i>Produção da equipe</span></div></div>
     ${detalhe}
-    <div class="nota-legal mt"><b>⚖ Antes de aplicar: o que a lei permite</b>
+    <details class="nota-legal mt dobra"><summary><b>Antes de aplicar: o que a lei permite</b></summary>
       <ul>
         <li><b>CLT não pode ser 100% variável.</b> O fixo tem que ser pelo menos o piso da categoria (convenção dos comerciários de Campinas). Quem ganha só comissão também tem direito a, no mínimo, o salário mínimo/piso todo mês (CLT art. 78; Lei 8.716/93).</li>
         <li><b>A comissão faz parte do salário</b>: entra em férias, 13º, FGTS e INSS e gera <b>DSR</b>, que o painel já calcula. Comissão que já foi paga não pode ser reduzida depois.</li>
@@ -613,28 +655,43 @@ function vRemuneracao() {
         <li><b>Estagiário recebe bolsa fixa</b> (Lei 11.788/08), definida no termo de compromisso. O bônus é opcional e deve ser pequeno. Se for grande, ou ligado a vendas, o estágio pode ser considerado emprego disfarçado.</li>
         <li>A regra do variável deve estar <b>por escrito</b> e assinada (aditivo ao contrato ou política de remuneração). Se quiser usar <b>PLR</b> (sem encargos), precisa de acordo com o sindicato ou com uma comissão de empregados (Lei 10.101/00).</li>
         <li>Os valores de salário, metas e percentuais aqui são <b>exemplos</b>. Confirme o piso, os encargos e a redação com o seu contador antes de comunicar à equipe.</li>
-      </ul></div>`;
+      </ul></details>`;
 }
 
 // ═══════════════════════════ FEEDBACKS ═══════════════════════════
 const TIPOS_FB = { elogio: '👏 Elogio', orientacao: '🧭 Orientação', ocorrencia: '⚠ Ocorrência', um_a_um: '🗣 1:1', avaliacao: '📋 Avaliação mensal' };
+/** Último 1:1 de cada pessoa da lista (null = nunca teve). Exportada para o teste. */
+function fbUltimo11(pessoas, fbs = D.feedbacks) {
+  return pessoas.map(p => ({ p, d: fbs.filter(f => f.pessoa === p.id && f.tipo === 'um_a_um').map(f => f.data).sort().pop() || null }));
+}
 function vFeedbacks() {
-  const lista = D.feedbacks.filter(f => !UI.fbPessoa || f.pessoa === UI.fbPessoa).sort((a, b) => (b.data + b.id).localeCompare(a.data + a.id));
-  const autores = D.pessoas.filter(p => p.ativo && (supervisores().includes(p) || !p.supervisor));
+  const lista = D.feedbacks.filter(f => (!UI.fbPessoa || f.pessoa === UI.fbPessoa) && (!UI.fbTipo || f.tipo === UI.fbTipo)).sort((a, b) => (b.data + b.id).localeCompare(a.data + a.id));
   // quem não tem equipe registra só elogios a colegas; vê só o que fez e o que recebeu (o banco já filtra)
   const lider = temEquipe(), tiposFb = lider ? TIPOS_FB : { elogio: TIPOS_FB.elogio };
   const alvos = lider ? ativos().filter(p => pessoasQueVejo().includes(p.id) && p.id !== EU.id) : ativos().filter(p => p.id !== EU.id);
   const envolvidos = lider ? D.pessoas : D.pessoas.filter(p => D.feedbacks.some(f => f.pessoa === p.id || f.autor === p.id));
+  const h = hoje(), ini30 = addDias(h, -29), ult30 = D.feedbacks.filter(f => f.data >= ini30 && f.data <= h);
+  let resumo = '';
+  if (lider) {
+    const u11 = fbUltimo11(alvos).sort((a, b) => (a.d || '').localeCompare(b.d || ''));
+    const atrasados = u11.filter(x => !x.d || x.d < ini30);
+    const cls = { elogio: 'ok', orientacao: '', ocorrencia: 'ruim', um_a_um: 'eq', avaliacao: 'med' };
+    resumo = `<div class="grid g2 mb">
+      <div class="card pain-card"><div class="secao-titulo"><h2>Últimos 30 dias</h2><small>${ult30.length} registro(s) · clique para filtrar</small></div>
+        ${painDist(Object.entries(TIPOS_FB).map(([k, n]) => ({ rot: n, v: ult30.filter(f => f.tipo === k).length, cls: cls[k], a: `data-a="fbTipo" data-v="${UI.fbTipo === k ? '' : k}"` })))}</div>
+      <div class="card pain-card"><div class="secao-titulo"><h2>Conversa 1:1</h2><small>${atrasados.length ? `${atrasados.length} pessoa(s) sem 1:1 há mais de 30 dias` : 'todos com 1:1 nos últimos 30 dias'}</small></div>
+        ${u11.length ? `<div class="fb-11">${u11.slice(0, 8).map(x => { const dias = x.d ? Math.round((pd(h) - pd(x.d)) / 864e5) : null;
+          return `<button class="fb-11-l ${dias == null || dias > 30 ? 'atrasado' : ''}" data-a="fbNovo11" data-p="${x.p.id}" title="Registrar um 1:1 com ${esc(x.p.nome)}">${av(x.p)}<span>${esc(x.p.nome)}</span><small>${dias == null ? 'nunca teve' : dias === 0 ? 'hoje' : `há ${dias} dia(s)`}</small></button>`; }).join('')}${u11.length > 8 ? `<small class="mut">e mais ${u11.length - 8} pessoa(s)</small>` : ''}</div>` : '<div class="vazio">Ninguém na sua equipe.</div>'}</div></div>`;
+  }
   return topo('Feedbacks e ocorrências', lider ? 'Histórico de 1:1, elogios, orientações e ocorrências. Ajuda na avaliação mensal e protege a empresa.' : 'Os feedbacks que você recebeu e os elogios que você fez aos colegas.')
-    + `<div class="grid g2"><div class="card"><h2>${lider ? 'Novo registro' : 'Elogiar um colega'}</h2>
-      <div class="grid g2" style="gap:10px"><label class="campo">Sobre quem<select id="fbPessoa">${optPessoas(UI.fbPessoa, alvos)}</select></label>
-      
-      <label class="campo">Tipo<select id="fbTipo">${Object.entries(tiposFb).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label>
+    + resumo + `<div class="grid g2"><div class="card"><h2>${lider ? 'Novo registro' : 'Elogiar um colega'}</h2>
+      <div class="grid g2" style="gap:10px"><label class="campo">Sobre quem<select id="fbPessoa">${optPessoas(UI.fbNovoPessoa || UI.fbPessoa, alvos)}</select></label>
+      <label class="campo">Tipo<select id="fbTipo">${Object.entries(tiposFb).map(([k, v]) => `<option value="${k}" ${UI.fbNovoTipo === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
       <label class="campo">Data<input type="date" id="fbData" value="${hoje()}"></label></div>
       <label class="campo mt">O que aconteceu / o que foi combinado<textarea id="fbTexto" rows="4" placeholder="Ex.: Combinamos que os orçamentos vão sair no mesmo dia. Próxima conversa em 7 dias."></textarea></label>
       <div class="mt"><button class="btn pri" data-a="fbAdd">Salvar registro</button></div></div>
-    <div class="card"><div class="secao-titulo"><h2>Histórico</h2><select data-c="fbFiltro">${optPessoas(UI.fbPessoa, envolvidos, 'Todas as pessoas')}</select></div>
-      ${lista.length ? lista.map(f => { const p = pessoa(f.pessoa), a = pessoa(f.autor); return `<div class="feedback"><div class="meta">${p ? av(p) : ''}<b style="color:var(--txt)">${esc(p?.nome || '?')}</b><span class="tag">${TIPOS_FB[f.tipo] || f.tipo}</span><span>${fmtCurta(f.data)}/${f.data.slice(0, 4)}</span>${a ? `<span>por ${esc(a.nome)}</span>` : ''}${f.autor === EU.id || ehDono() ? `<button class="icone-btn" style="margin-left:auto" title="Apagar" data-a="fbDel" data-id="${f.id}">🗑</button>` : ''}</div><p>${esc(f.texto)}</p></div>`; }).join('') : '<div class="vazio">Nenhum registro ainda.</div>'}
+    <div class="card"><div class="secao-titulo"><h2>Histórico</h2><span class="acoes"><select data-c="fbFiltro">${optPessoas(UI.fbPessoa, envolvidos, 'Todas as pessoas')}</select>${lider ? `<select data-c="fbTipoFiltro"><option value="">Todos os tipos</option>${Object.entries(TIPOS_FB).map(([k, v]) => `<option value="${k}" ${UI.fbTipo === k ? 'selected' : ''}>${v}</option>`).join('')}</select>` : ''}</span></div>
+      ${lista.length ? lista.map(f => { const p = pessoa(f.pessoa), a = pessoa(f.autor); return `<div class="feedback"><div class="meta">${p ? av(p) : ''}<b style="color:var(--txt)">${esc(p?.nome || '?')}</b><span class="tag">${TIPOS_FB[f.tipo] || f.tipo}</span><span>${fmtCurta(f.data)}/${f.data.slice(0, 4)}</span>${a ? `<span>por ${esc(a.nome)}</span>` : ''}${f.autor === EU.id || ehDono() ? `<button class="icone-btn" style="margin-left:auto" title="Apagar" data-a="fbDel" data-id="${f.id}">🗑</button>` : ''}</div><p>${esc(f.texto)}</p></div>`; }).join('') : `<div class="vazio">${UI.fbPessoa || UI.fbTipo ? 'Nenhum registro com esse filtro.' : 'Nenhum registro ainda.'}</div>`}
     </div></div>`;
 }
 
@@ -743,7 +800,7 @@ function vConfig() {
     <div class="card"><h2>Backup</h2><p class="explica">Os dados ficam no banco da Intranet (Supabase, em São Paulo). Dá para baixar uma cópia de tudo o que está carregado agora, em JSON.</p>
       <div class="acoes"><button class="btn" data-a="exportar">⬇ Baixar cópia</button></div></div></div>`;
   }
-  return topo('Configurações', 'Pessoas, logins, tarefas, metas, regras de ganho, solicitações e integração com o Tiny.') + `<div class="cfg-tabs">${tabs.map(([k, n]) => `<button class="btn ${UI.cfgTab === k ? 'on' : ''}" data-a="cfgTab" data-v="${k}">${n}</button>`).join('')}</div>` + corpo;
+  return topo('Configurações', 'Pessoas, logins, tarefas, metas, regras de ganho, solicitações e integração com o Tiny.') + `<div class="subabas">${tabs.map(([k, n]) => `<button class="${UI.cfgTab === k ? 'on' : ''}" data-a="cfgTab" data-v="${k}">${n}</button>`).join('')}</div>` + corpo;
 }
 
 // ═══════════════════════════ AJUDA ═══════════════════════════

@@ -611,7 +611,7 @@ const A = {
   remModo: el => { UI.remModo = el.dataset.v; render(); },
   remSel: el => { UI.remPessoa = el.dataset.p; render(); },
   metasDet: el => { UI.metasDet = UI.metasDet === el.dataset.p ? '' : el.dataset.p; render(); },
-  print: () => window.print(),
+  print: () => { document.querySelectorAll('details.dobra:not([open])').forEach(d => { d.open = true; d.dataset.reabrir = '1'; }); window.print(); document.querySelectorAll('details[data-reabrir]').forEach(d => { d.open = false; delete d.dataset.reabrir; }); },   // abre o que está recolhido para sair no papel
   nota: el => {
     const r = reg(el.dataset.p, el.dataset.d, true), atual = r.notas[el.dataset.t] || '';
     const txt = prompt('Observação sobre esta tarefa (deixe vazio para apagar):', atual);
@@ -620,12 +620,14 @@ const A = {
     marcar('dia', el.dataset.p, el.dataset.d); render();
   },
   trabalhou: el => { reg(el.dataset.p, el.dataset.d, true).status = 'extra'; marcar('dia', el.dataset.p, el.dataset.d); render(); },
+  fbTipo: el => { UI.fbTipo = el.dataset.v || ''; render(); },
+  fbNovo11: el => { UI.fbNovoPessoa = el.dataset.p; UI.fbNovoTipo = 'um_a_um'; render(); setTimeout(() => { const t = $('#fbTexto'); if (t) { t.scrollIntoView({ block: 'center' }); t.focus(); } }, 0); },
   fbAdd: async () => {
     const texto = $('#fbTexto').value.trim(); if (!texto) { avisar('Escreva o que aconteceu.'); return; }
     try {
       const n = await ok(sb.from('feedbacks').insert({ pessoa_id: $('#fbPessoa').value, autor_id: EU.id, tipo: $('#fbTipo').value, data: $('#fbData').value || hoje(), texto }).select().single());
       D.feedbacks.unshift({ id: n.id, pessoa: n.pessoa_id, autor: n.autor_id, tipo: n.tipo, data: n.data, texto: n.texto });
-      UI.fbPessoa = n.pessoa_id; render(); avisar('Registro salvo.');
+      UI.fbPessoa = n.pessoa_id; UI.fbNovoPessoa = UI.fbNovoTipo = ''; render(); avisar('Registro salvo.');
     } catch (e) { avisar(e.message); }
   },
   fbDel: async el => { if (!confirm('Apagar este registro?')) return; try { await ok(sb.from('feedbacks').delete().eq('id', el.dataset.id)); D.feedbacks = D.feedbacks.filter(f => f.id !== el.dataset.id); render(); } catch (e) { avisar(e.message); } },
@@ -724,6 +726,7 @@ const C = {
   simMeta: el => { UI.simMeta = +el.value; render(); },
   simCheck: el => { UI.simCheck = +el.value; render(); },
   fbFiltro: el => { UI.fbPessoa = el.value; render(); },
+  fbTipoFiltro: el => { UI.fbTipo = el.value; render(); },
   cfgPessoa: el => { UI.cfgPessoa = el.value; render(); },
   set: el => {
     const t = el.dataset.t; const v = t === 'bool' ? el.checked : t === 'num' ? numOuVazio(el.value) : el.value;

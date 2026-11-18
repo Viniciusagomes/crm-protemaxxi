@@ -1341,3 +1341,37 @@ html.side-mini nav button.grupo > * { display: none; }
 /* Meu dia em 3 telas (18/11) */
 .pain-mini-l { font-size: 12.5px; color: var(--txt3); margin-top: 8px; } .pain-kpi.destaque .pain-mini-l { color: #B9C7D3; }
 .pain-dia + .pain-kpis { margin-top: 16px; }
+
+/* ─── Outras páginas (18/11): distribuição, checklist da semana em %, composição e blocos recolhidos ─── */
+.pain-dist { display: grid; gap: 9px; }
+.pain-dist-l { display: grid; grid-template-columns: minmax(90px, 160px) minmax(0, 1fr) auto; gap: 12px; align-items: center; border-radius: 8px; }
+.pain-dist-l.clic { cursor: pointer; } .pain-dist-l.clic:hover .pain-dist-r { color: var(--txt); }
+.pain-dist-r { font-size: 13px; color: var(--txt2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pain-dist-b { height: 10px; border-radius: 99px; background: var(--card2); overflow: hidden; }
+.pain-dist-b i { display: block; height: 100%; border-radius: 99px; background: #8AA0B4; }
+.pain-dist-b i.ok { background: var(--ok); } .pain-dist-b i.med { background: var(--med); } .pain-dist-b i.ruim { background: var(--ruim); } .pain-dist-b i.eq { background: #2B7BB9; }
+.pain-dist-v { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; } .pain-dist-v small { color: var(--txt3); font-size: 12px; margin-left: 6px; }
+.pain-semana.pct { height: 96px; } .pain-semana.pct > div { grid-template-rows: auto 1fr auto; }
+.pain-semana.pct em { font: 700 11px Archivo, system-ui, sans-serif; font-style: normal; color: var(--txt2); }
+.pain-semana.pct i { align-self: end; background: var(--ok); opacity: .55; } .pain-semana.pct .hoje i { opacity: 1; }
+.pain-semana.pct i.med { background: var(--med); } .pain-semana.pct i.ruim { background: var(--ruim); } .pain-semana.pct i.nulo { background: var(--nulo); }
+.pain-pilha { display: flex; height: 8px; border-radius: 99px; overflow: hidden; background: var(--card2); margin-top: 12px; gap: 2px; }
+td .pain-pilha { margin-top: 0; }
+.pain-pilha i { display: block; height: 100%; } .pain-pilha i.ok { background: var(--ok); } .pain-pilha i.med { background: var(--med); } .pain-pilha i.ruim { background: var(--ruim); }
+.pain-pilha i.fixo { background: #8AA0B4; } .pain-pilha i.eq { background: #2B7BB9; }
+.pain-kpi.pede { border-color: color-mix(in srgb, var(--ruim) 45%, var(--borda)); } .pain-kpi.pede .pain-kpi-v { color: var(--ruim); }
+.pain-nomes { display: block; margin-top: 8px; font-size: 12px; color: var(--txt3); }
+.pain-kpi-v small { font-size: 15px; font-weight: 600; }
+details.dobra > summary { cursor: pointer; list-style: none; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+details.dobra > summary::-webkit-details-marker { display: none; }
+details.dobra > summary::before { content: ''; width: 7px; height: 7px; border-right: 2px solid var(--txt3); border-bottom: 2px solid var(--txt3); transform: rotate(-45deg); transition: transform .15s; align-self: center; }
+details.dobra[open] > summary::before { transform: rotate(45deg); }
+details.dobra > summary b { font-size: 16px; } details.dobra > summary small { color: var(--txt3); }
+.mb { margin-bottom: 16px; }
+.fb-11 { display: grid; gap: 4px; }
+.fb-11-l { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; background: none; border: 0; border-radius: 8px; padding: 6px 8px; text-align: left; font: inherit; color: var(--txt); cursor: pointer; }
+.fb-11-l:hover { background: var(--card2); } .fb-11-l .avatar { width: 28px; height: 28px; font-size: 11px; }
+.fb-11-l small { color: var(--txt3); } .fb-11-l.atrasado small { color: var(--ruim); font-weight: 600; }
+@media (max-width: 640px) { .pain-dist-l { grid-template-columns: minmax(70px, 110px) minmax(0, 1fr) auto; gap: 8px; } }
+@media print { details.dobra > summary::before { display: none; } }
+.pain-anel-peq .pain-anel-txt b { font-size: 13px; }
