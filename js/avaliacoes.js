@@ -19,6 +19,13 @@ async function carregarAva(forcar) {
   } finally { AVA.carregando = false; }
 }
 
+/** Quantas notas de 1 a 5, em barras: mostra de onde vem a média. */
+function distNotas(notas) {
+  if (!notas.length) return '';
+  const q = [5, 4, 3, 2, 1].map(n => ({ n, q: notas.filter(a => a.nota === n).length })), max = Math.max(1, ...q.map(x => x.q));
+  return `<div class="card mt"><div class="secao-titulo"><h2>Distribuição das notas</h2><small>${notas.length} avaliação(ões) com nota</small></div><div class="dist-notas">${q.map(x =>
+    `<div class="dist-l"><span>${x.n} ★</span><div class="dist-b"><i class="${x.n >= 4 ? 'ok' : x.n === 3 ? 'med' : 'ruim'}" style="width:${x.q / max * 100}%"></i></div><b>${x.q}</b><small>${P(x.q / notas.length)}</small></div>`).join('')}</div></div>`;
+}
 function vAvaliacoes() {
   if (!AVA.lista) { if (!AVA.carregando) carregarAva().then(render).catch(e => avisar(e.message)); return topo('Avaliações', '') + '<div class="card vazio">Carregando…</div>'; }
   const l = AVA.lista, c = AVA.cfg || {}, d30 = new Date(Date.now() - 30 * 864e5).toISOString();
@@ -44,7 +51,8 @@ function vAvaliacoes() {
       <div class="card kpi-card"><div class="rot">Convites (30 dias)</div><div class="val">${mes.length}</div><div class="sub">${P(mes.length ? resp.length / mes.length : 0)} responderam</div></div>
       <div class="card kpi-card"><div class="rot">Notas 4 e 5</div><div class="val c-ok">${P(notas.length ? notas.filter(a => a.nota >= 4).length / notas.length : 0)}</div><div class="sub">${notas.filter(a => a.clicou_google).length} clicaram em avaliar no Google</div></div>
       <div class="card kpi-card"><div class="rot">Para tratar</div><div class="val ${tratar.length ? 'c-ruim' : 'c-ok'}">${tratar.length}</div><div class="sub">notas 1 a 3 sem retorno</div></div></div>
-    ${tratar.length ? `<div class="card mt"><div class="secao-titulo"><h2>⚠️ Clientes insatisfeitos: entrar em contato</h2></div>${tratar.map(a => `<div class="atv"><div style="flex:1">${estrelas(a.nota)} <b>${esc(a.cliente_nome || '')}</b> · <small>pedido ${esc(a.pedido_numero || '')} · ${esc(nomeVendedor(a.vendedor_id))}</small><br>${a.comentario ? `<span>“${esc(a.comentario)}”</span>` : '<small class="mut">(não escreveu comentário)</small>'}</div>
+    ${distNotas(notas)}
+    ${tratar.length ? `<div class="card mt"><div class="secao-titulo"><h2>Clientes insatisfeitos: entrar em contato</h2></div>${tratar.map(a => `<div class="atv"><div style="flex:1">${estrelas(a.nota)} <b>${esc(a.cliente_nome || '')}</b> · <small>pedido ${esc(a.pedido_numero || '')} · ${esc(nomeVendedor(a.vendedor_id))}</small><br>${a.comentario ? `<span>“${esc(a.comentario)}”</span>` : '<small class="mut">(não escreveu comentário)</small>'}</div>
         ${a.fone ? `<a class="btn peq" href="${linkWa(a.fone)}" target="_blank" rel="noopener">💬 WhatsApp</a>` : ''}<button class="btn peq pri" data-a="avaTratar" data-id="${a.id}">✔ Tratado</button></div>`).join('')}</div>` : ''}
     ${zap.length ? `<div class="card mt"><div class="secao-titulo"><h2>💬 Convites para enviar pelo WhatsApp</h2><small>clientes sem e-mail · um toque abre o WhatsApp com a mensagem pronta</small></div>
       ${zap.map(a => `<div class="atv"><div style="flex:1"><b>${esc(a.cliente_nome || '')}</b><br><small>${esc(a.fone || '')} · pedido ${esc(a.pedido_numero || '')} · ${esc(nomeVendedor(a.vendedor_id))}${a.preparado_em ? '<br>Mensagem preparada · envio ainda não confirmado' : ''}</small></div><button class="btn peq pri" data-a="avaWa" data-id="${a.id}">${a.preparado_em ? 'Abrir novamente' : 'Preparar mensagem'}</button>${a.preparado_em ? `<button class="btn peq" data-a="avaConfirmar" data-id="${a.id}">Confirmar que enviei</button>` : ''}<button class="btn peq" data-a="avaPular" data-id="${a.id}">Pular</button></div>`).join('')}</div>` : ''}

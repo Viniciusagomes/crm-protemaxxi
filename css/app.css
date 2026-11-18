@@ -1327,3 +1327,13 @@ html.side-mini nav button.grupo > * { display: none; }
 .sit-resumo button:hover { border-color: var(--borda-forte); } .sit-resumo button.on { border-color: var(--verde); box-shadow: 0 0 0 1px var(--verde); background: var(--verde-claro); }
 .sit-resumo span { font-size: 12px; color: var(--txt2); font-weight: 600; } .sit-resumo b { font: 800 18px Archivo, sans-serif; font-variant-numeric: tabular-nums; } .sit-resumo small { color: var(--txt3); font-size: 12px; font-variant-numeric: tabular-nums; }
 @media (max-width: 640px) { .funil-l { grid-template-columns: 1fr; gap: 4px; } .funil-v { text-align: left; } .faixas-leg { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ─── Solicitações e Avaliações (17/11) ─── */
+.sol-resumo { margin-bottom: 14px; } .sol-resumo .pain-sts { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.subabas .badge { margin-left: 2px; }
+.dist-notas { display: grid; gap: 8px; }
+.dist-l { display: grid; grid-template-columns: 44px minmax(0, 1fr) 40px 44px; gap: 10px; align-items: center; font-variant-numeric: tabular-nums; }
+.dist-l span { font-weight: 700; color: #C98A00; } .dist-l b { text-align: right; } .dist-l small { color: var(--txt3); text-align: right; }
+.dist-b { height: 10px; border-radius: 99px; background: var(--card2); overflow: hidden; }
+.dist-b i { display: block; height: 100%; border-radius: 99px; background: var(--ok); } .dist-b i.med { background: var(--med); } .dist-b i.ruim { background: var(--ruim); }
+@media (max-width: 640px) { .sol-resumo .pain-sts { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 14px; } }
