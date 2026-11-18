@@ -37,3 +37,11 @@ O arquivo da migration entra num PR pequeno logo depois, com a versão em que fo
   - o Pedro não consegue alterar pessoa;
   - o dono salva (`update ... returning id`), cria e apaga pessoa normalmente.
 - Edge Functions conferidas: nenhuma lê `email`/`permissoes` com o login do usuário (usam RPC `SECURITY DEFINER` ou a chave de serviço).
+
+## Passo 2 aplicado (18/11)
+- Migration `20261118184807_pessoas_colunas_fechadas`, aplicada depois que a tela nova (#63) entrou no ar.
+- Conferido no site como dono:
+  - `select('id,email')` e `select('*')` em `pessoas` agora dão "permission denied";
+  - a tela carrega as 12 pessoas e os 9 e-mails pela função;
+  - salvar pessoa (update + `select('id')`) funciona.
+- **Para quem mexer depois:** não use `select('*')` nem `upsert` em `pessoas`. Leia `PESSOAS_COLS` e use `pessoasComPrivado()` (o teste `pessoas-privado.cjs` barra isso).
