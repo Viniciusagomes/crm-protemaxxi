@@ -73,8 +73,8 @@ assert.deepEqual(json('paraJuntar(CRM.neg[1]).map(j=>j.tiny.id)'), [70]);
 assert.ok(run('alertasNegocio(CRM.neg[0])').includes('Juntar com a campanha?'));
 
 // Número escrito no nome do cliente: não é oferecido se estiver marcado como errado.
-run(`D.clientes=[]; TELF.lista=[{cliente_chave:'k9',telefone:'5519981664877',errado_em:'2026-10-28T10:00:00Z'}];`);
-assert.equal(run(`foneNegocio({cliente_chave:'k9',cliente_nome:'19 98166-4877 ~Fernanda'})`), '');
-assert.equal(run(`foneNegocio({cliente_chave:'k8',cliente_nome:'19 98166-4877 ~Fernanda'})`), '19981664877');
+run(`D.clientes=[]; TELF.lista=[{cliente_chave:'k9',telefone:'5519900001234',errado_em:'2026-10-28T10:00:00Z'}];`);
+assert.equal(run(`foneNegocio({cliente_chave:'k9',cliente_nome:'19 90000-1234 ~Maria'})`), '');
+assert.equal(run(`foneNegocio({cliente_chave:'k8',cliente_nome:'19 90000-1234 ~Maria'})`), '19900001234');
 
 console.log('OK: dia útil, falta no negócio, recuperar orçamentos, reagendamento e prospecção → negócio.');

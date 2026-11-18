@@ -32,14 +32,14 @@ async function carregarCRM(forcar) {
     CRM.neg = neg.filter(n => !n.juntado_a); CRM.atv = atv; CRM.revisoes = revisoes; CRM.em = Date.now();
   } finally { CRM.carregando = false; }
 }
-/** Telefone do negócio: o da ficha do cliente ou o que veio escrito no nome do contato do Tiny ("19 98166-4877 ~Fernanda"). */
+/** Telefone do negócio: o da ficha do cliente ou o que veio escrito no nome do contato do Tiny ("19 90000-1234 ~Maria"). */
 /** Botão + das tarefas: contato do cliente (celular, telefone, e-mail) com atalhos para WhatsApp, ligar e e-mail. */
 async function atvContato(id) {
   const a = (CRM.atv || []).find(x => String(x.id) === String(id));
   modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>${esc(a?.cliente_nome || 'Contato do cliente')}</h2><p class="mut">Carregando o contato…</p>`);
   const { data: c, error } = await sb.rpc('contato_atividade', { p_atividade: Number(id) });
   if (error || !c) return modal(`<button class="btn peq fechar" data-a="fecharModal">✕</button><h2>Contato do cliente</h2><div class="alerta med"><span class="ic">!</span><span>${esc(error?.message || 'Não encontrei o contato desta tarefa.')}</span></div>`);
-  // contato escrito no próprio nome (ex.: "19 99547-8814 ~Valdecir"): usa como celular, se não foi marcado como errado
+  // contato escrito no próprio nome (ex.: "19 90000-5678 ~João"): usa como celular, se não foi marcado como errado
   const achado = ((c.nome || '').match(/(\+?55\s*)?\(?\d{2}\)?\s*9?\d{4}[-\s]?\d{4}/) || [''])[0];
   const doNome = achado && !(c.errados || []).includes(foneNorm(achado)) ? achado : '';
   const cel = c.celular || doNome, dig = s => String(s || '').replace(/\D/g, '');
