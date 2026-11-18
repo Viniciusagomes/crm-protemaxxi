@@ -88,10 +88,10 @@ function painAtencao(h = hoje()) {
   if (solAtr.length > 3) l.push({ n: 3, ic: 'solicitacoes', txt: `Mais ${solAtr.length - 3} solicitação(ões) atrasada(s)`, a: 'data-a="nav" data-v="solicitacoes"' });
   if (typeof CRM !== 'undefined' && CRM.atv) {
     const atr = CRM.atv.filter(a => a.pessoa_id === EU.id && atvPendente(a) && a.quando < h);
-    if (atr.length) l.push({ n: 3, ic: 'relogio', txt: `<b>${atr.length}</b> atividade(s) atrasada(s) no Meu dia`, a: 'data-a="nav" data-v="meudia"' });
+    if (atr.length) l.push({ n: 3, ic: 'relogio', txt: `<b>${atr.length}</b> atividade(s) atrasada(s) na fila`, a: 'data-a="nav" data-v="fila"' });
   }
   const fup = followupsHoje(ehDono() ? null : EU.id).filter(i => i.proximo_contato < h);
-  if (fup.length) l.push({ n: 2, ic: 'repetir', txt: `<b>${fup.length}</b> retorno(s) de cliente vencido(s)`, a: 'data-a="nav" data-v="meudia"' });
+  if (fup.length) l.push({ n: 2, ic: 'repetir', txt: `<b>${fup.length}</b> retorno(s) de cliente vencido(s)`, a: 'data-a="nav" data-v="fila"' });
   const solNovas = sol.filter(s => !(s.prazo && s.prazo < h));
   if (solNovas.length) l.push({ n: 1, ic: 'solicitacoes', txt: `<b>${solNovas.length}</b> solicitação(ões) esperando você`, a: 'data-a="nav" data-v="solicitacoes"' });
   if (ehDono()) for (const x of alertas().slice(0, 4)) l.push({ n: x.n >= 3 ? 3 : x.n >= 2 ? 2 : 1, ic: x.n >= 3 ? 'alerta' : 'clientes', txt: x.t, a: x.p ? `data-a="abrirPessoa" data-p="${x.p.id}" data-d="${x.d || ''}"` : x.view ? `data-a="nav" data-v="${x.view}"` : '' });
@@ -108,11 +108,11 @@ function painAFazer(h = hoje()) {
   if (typeof CRM !== 'undefined' && CRM.atv) {
     const deHoje = CRM.atv.filter(a => a.pessoa_id === EU.id && !a.arquivada_em && (a.quando === h || (a.feito && (a.feito_em || '').slice(0, 10) === h)));
     const feitas = deHoje.filter(a => a.feito).length;
-    if (deHoje.length) l.push({ ic: 'meudia', nome: 'Atividades de hoje', frac: feitas / deHoje.length, txt: `${feitas} de ${deHoje.length}`, v: 'meudia' });
+    if (deHoje.length) l.push({ ic: 'meudia', nome: 'Atividades de hoje', frac: feitas / deHoje.length, txt: `${feitas} de ${deHoje.length}`, v: 'fila' });
   }
   const fus = followupsHoje(ehDono() ? null : EU.id).filter(i => i.proximo_contato === h);
-  if (fus.length) l.push({ ic: 'repetir', nome: 'Retornos de clientes', frac: null, txt: `${fus.length} para hoje`, v: 'meudia' });
-  if (EU.tiny && typeof PRO !== 'undefined' && PRO.resumoDia === h && !PRO.resumoErro) { const pr = resumoPro(PRO.resumo.filter(x => x.pessoa_id === EU.id)); if (pr?.total) l.push({ ic: 'telefone', nome: 'Prospecção', frac: pr.contatos / pr.total, txt: `${pr.contatos} de ${pr.total} contatos`, v: 'meudia' }); }
+  if (fus.length) l.push({ ic: 'repetir', nome: 'Retornos de clientes', frac: null, txt: `${fus.length} para hoje`, v: 'fila' });
+  if (EU.tiny && typeof PRO !== 'undefined' && PRO.resumoDia === h && !PRO.resumoErro) { const pr = resumoPro(PRO.resumo.filter(x => x.pessoa_id === EU.id)); if (pr?.total) l.push({ ic: 'telefone', nome: 'Prospecção', frac: pr.contatos / pr.total, txt: `${pr.contatos} de ${pr.total} contatos`, v: 'fila' }); }
   const sol = minhasPendentes().length; if (sol) l.push({ ic: 'solicitacoes', nome: 'Solicitações para você', frac: null, txt: `${sol} em aberto`, v: 'solicitacoes' });
   return l;
 }
@@ -159,7 +159,7 @@ function vInicio() {
     + `<div class="pain-grade ${grafico ? '' : 'so'}">${grafico ? `<div class="pain-col">${grafico}${equipe}</div>` : ''}
       <div class="pain-col">
         <div class="card pain-card"><div class="secao-titulo"><h2>Precisa da sua atenção</h2>${at.length ? `<span class="pain-n">${at.length}</span>` : ''}</div>${painAtencaoHtml(at)}</div>
-        <div class="card pain-card"><div class="secao-titulo"><h2>A fazer hoje</h2><a href="#/meudia">abrir Meu dia</a></div>${painAFazerHtml(fz)}</div>
+        <div class="card pain-card"><div class="secao-titulo"><h2>A fazer hoje</h2><a href="#/fila">abrir a fila</a></div>${painAFazerHtml(fz)}</div>
         ${extra.length ? `<div class="pain-mini">${extra.join('')}</div>` : ''}
       </div></div>`;
 }

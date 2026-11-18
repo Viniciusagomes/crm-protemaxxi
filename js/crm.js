@@ -513,9 +513,10 @@ function blocoProspeccaoDia(quem) {
         <div class="pro-res" style="width:100%">${rapidos.map(k => `<button class="chip" data-a="proRes" data-id="${x.id}" data-v="${k}">${RES_PRO[k]}</button>`).join('')}</div></div>`; }).join('')}</div>`;
 }
 
-function vMeuDia() {
+/** Fila e leads: a lista de trabalho do dia (fila, leads, campanhas, prospecção e próximos 7 dias). */
+function vFilaDia() {
   if (!EU.tiny && !ehDono() && !EU.permissoes?.vendas_todas) return vMeuDiaOp();
-  if (!CRM.neg) { if (!CRM.carregando) carregarCRM().then(render).catch(e => avisar(e.message)); return topo('Meu dia', '') + `<div class="card">${esqueleto(6, 3)}</div>`; }
+  if (!CRM.neg) { if (!CRM.carregando) carregarCRM().then(render).catch(e => avisar(e.message)); return topo('Fila e leads', '') + `<div class="card">${esqueleto(6, 3)}</div>`; }
   const vends = vendCRM();
   if (!UI.diaPessoa || !(vends.some(v => v.id === UI.diaPessoa) || UI.diaPessoa === EU.id)) UI.diaPessoa = EU.id;
   const quem = UI.diaPessoa, h = hoje();
@@ -536,11 +537,9 @@ function vMeuDia() {
     <div style="flex:1"><b>${TIPOS_ATV[a.tipo] || a.tipo}</b> · ${esc(a.titulo)}<br><small>${a.cliente_nome ? esc(a.cliente_nome) + ' · ' : ''}${fmtCurta(a.quando)}${a.quando < h ? ' · atrasada' : ''}${a.automatica ? ' · automática' : ''}</small></div>
     ${a.negocio_id || a.cliente_chave || a.cliente_nome ? `<button class="btn peq" data-a="atvContato" data-id="${a.id}" title="Contato do cliente: celular e e-mail">+</button>` : ''}
     ${a.negocio_id ? `<button class="btn peq" data-a="crmAbrir" data-id="${a.negocio_id}">Negócio</button>` : a.cliente_chave ? `<button class="btn peq" data-a="verCliente" data-chave="${esc(a.cliente_chave)}">Cliente</button>` : ''}</div>`;
-  return topo('Meu dia', `${fmtData(h)} · tudo o que precisa ser feito hoje, num lugar só`, `<button class="btn" data-a="crmAtualizar">↻ Atualizar</button><button class="btn pri" data-a="crmNovo">+ Novo negócio</button>`)
+  return topo('Fila e leads', `${fmtData(h)} · clientes para atender hoje, do mais urgente para o menos`, `<button class="btn" data-a="crmAtualizar">↻ Atualizar</button><button class="btn pri" data-a="crmNovo">+ Novo negócio</button>`)
     + `<div class="pain-avisos">${avisoBoletos()}${avisoAssistencia()}</div>` + `${vends.length > 1 || ehDono() ? `<div class="chips" style="margin-bottom:12px">${[...new Map([[EU.id, EU], ...vends.map(v => [v.id, v])]).values()].map(v => `<button class="chip ${quem === v.id ? 'on' : ''}" data-a="diaPessoa" data-v="${v.id}">${esc(v.nome)}</button>`).join('')}</div>` : ''}
-    ${painDiaResumo(quem, { atrasadas: atrasadas.length, deHoje: deHoje.length, fups: fups.length, feitasHoje, semAtv: semAtv.length, pro })}
-    ${cardChecklistHoje(pessoa(quem))}${cardCalendario(pessoa(quem))}
-    <div class="seg pain-vistas mt"><button class="${vista === 'fila' ? 'on' : ''}" data-a="diaVista" data-v="fila">Fila de hoje <b>${fila.length}</b></button><button class="${vista === 'leads' ? 'on' : ''}" data-a="diaVista" data-v="leads">Leads Google/Meta <b>${leads.length}</b></button><button class="${vista === 'campanhas' ? 'on' : ''}" data-a="diaVista" data-v="campanhas">Leads de campanhas <b>${nCamp}</b></button></div>
+    <div class="seg pain-vistas"><button class="${vista === 'fila' ? 'on' : ''}" data-a="diaVista" data-v="fila">Fila de hoje <b>${fila.length}</b></button><button class="${vista === 'leads' ? 'on' : ''}" data-a="diaVista" data-v="leads">Leads Google/Meta <b>${leads.length}</b></button><button class="${vista === 'campanhas' ? 'on' : ''}" data-a="diaVista" data-v="campanhas">Leads de campanhas <b>${nCamp}</b></button></div>
     ${vista === 'leads' ? `<div class="card mt"><div class="secao-titulo"><h2>Leads Google/Meta</h2><small>${leads.length} lead(s) · do mais antigo para o mais novo</small></div>
       <p class="explica" style="margin:0">Quem pediu contato pelos anúncios. Responda rápido: a chance de venda cai a cada dia.</p>${leads.map(cartaoFila).join('') || '<div class="vazio">Nenhum lead pendente.</div>'}</div>` : vista === 'campanhas' ? blocoCampanhasDia(quem) : `
     <div class="card mt"><div class="secao-titulo"><h2>Fila de hoje</h2><small>${fila.length} cliente(s) · um cartão por cliente, do mais urgente para o menos</small></div>
@@ -550,6 +549,66 @@ function vMeuDia() {
     <div class="card mt"><div class="secao-titulo"><h2>Próximos 7 dias</h2><small>${proximas.length} atividade(s)</small></div>${proximas.length ? [...new Set(proximas.map(a => a.quando))].sort().map(d => `<div class="pain-agd-dia"><span>${fmtData(d)}</span><small>${proximas.filter(a => a.quando === d).length}</small></div>${proximas.filter(a => a.quando === d).map(linhaA).join('')}`).join('') : '<div class="vazio">Nada agendado para a semana.</div>'}</div>
     ${revisar.length ? `<div class="card mt"><h2>Follow-ups de negócios encerrados: revisar</h2><p class="mut">Confirme se ainda há uma ação válida. Pós-vendas continuam na rotina.</p>${revisar.map(a => `<div class="atv"><div style="flex:1"><b>${esc(a.cliente_nome || '')}</b><br>${esc(a.titulo)}</div><button class="btn peq" data-a="atvRevisada" data-id="${a.id}" data-manter="sim">Manter atividade</button><button class="btn peq" data-a="atvRevisada" data-id="${a.id}">Arquivar</button></div>`).join('')}</div>` : ''}
     ${arquivadas.length ? `<details class="card mt"><summary>Atividades arquivadas (${arquivadas.length})</summary>${arquivadas.map(a => `<div class="atv"><div><b>${esc(a.cliente_nome || '')}</b> · ${esc(a.titulo)}<br><small>${esc(a.arquivada_motivo || '')} · ${fmtCurta(a.arquivada_em.slice(0,10))}</small></div>${a.negocio_id ? `<button class="btn peq" data-a="crmAbrir" data-id="${a.negocio_id}">Histórico</button>` : ''}</div>`).join('')}</details>` : ''}`;
+}
+
+/** Meu dia (resumo): como está o dia e o mês da pessoa, em números; o trabalho em si fica em "Fila e leads". */
+function vMeuDia() {
+  if (!EU.tiny && !ehDono() && !EU.permissoes?.vendas_todas) return vMeuDiaOp();
+  if (!CRM.neg) { if (!CRM.carregando) carregarCRM().then(render).catch(e => avisar(e.message)); return topo('Meu dia', '') + `<div class="card">${esqueleto(6, 3)}</div>`; }
+  const vends = vendCRM();
+  if (!UI.diaPessoa || !(vends.some(v => v.id === UI.diaPessoa) || UI.diaPessoa === EU.id)) UI.diaPessoa = EU.id;
+  const quem = UI.diaPessoa, p = pessoa(quem) || EU, h = hoje(), m = mesDe(h);
+  const atvs = (CRM.atv || []).filter(a => a.pessoa_id === quem && atvPendente(a));
+  const atrasadas = atvs.filter(a => a.quando < h), deHoje = atvs.filter(a => a.quando === h);
+  const fups = followupsHoje(quem);
+  const semAtv = CRM.neg.filter(n => n.pessoa_id === quem && !['ganho', 'perdido'].includes(n.etapa) && !atvAbertas(n).length);
+  const feitasHoje = (CRM.atv || []).filter(a => a.pessoa_id === quem && a.feito && (a.feito_em || '').slice(0, 10) === h).length;
+  const pro = campanhaHoje(quem);
+  // vendas (Tiny) e propostas (negócios do funil) do mês
+  const r = p.tiny ? painResumo(x => x.vendedor_id === p.tiny, h) : null, kFat = kpiDe(p, 'fat');
+  const negMes = CRM.neg.filter(n => n.pessoa_id === quem && String(n.criado_em).slice(0, 7) === m);
+  const fechMes = CRM.neg.filter(n => n.pessoa_id === quem && n.fechado_em && String(n.fechado_em).slice(0, 7) === m);
+  const ganhos = fechMes.filter(n => n.etapa === 'ganho'), perdidos = fechMes.filter(n => n.etapa === 'perdido');
+  const abertos = CRM.neg.filter(n => n.pessoa_id === quem && !['ganho', 'perdido'].includes(n.etapa));
+  // atendimento no WhatsApp (busca no banco, guarda 2 minutos)
+  const at = diaAtendimento(quem);
+  const tempo = v => v == null ? '—' : v < 60 ? `${v} min` : `${Math.floor(v / 60)} h ${v % 60 ? (v % 60) + ' min' : ''}`.trim();
+  const kpis = `<div class="pain-kpis">
+    ${painKpi('Vendas no mês', r ? R0(r.mes) : '—', r ? painDelta(r.mes, r.antMesmo) : 'sem vendedor no Tiny', r ? painSpark(r.ult30) : '', 'destaque')}
+    ${painKpi('Projeção e meta', r ? R0(r.proj) : '—', r && kFat?.meta ? `${P(r.proj / kFat.meta)} da meta de ${R0(kFat.meta)}` : r ? `${r.pedidos} pedido(s) · ticket ${R0(r.ticket)}` : '',
+      r && kFat?.meta ? `<div class="pain-meta"><i class="${classe(r.proj / kFat.meta)}" style="width:${Math.min(1, r.mes / kFat.meta) * 100}%"></i><em style="left:${Math.min(1, r.du / Math.max(r.duT, 1)) * 100}%"></em></div>` : '')}
+    ${painKpi('Propostas no mês', String(negMes.length), `${R0(soma(negMes.map(n => +n.valor)))} · ${ganhos.length} ganha(s), ${perdidos.length} perdida(s)`, `<div class="pain-mini-l">${abertos.length} em aberto no funil · ${R0(soma(abertos.map(n => +n.valor)))}</div>`)}
+    ${painKpi('Atendimento WhatsApp', at ? String(at.conversas_hoje) : '…', at ? `conversa(s) hoje · resposta em ${tempo(at.tempo_hoje_min)}` : 'carregando',
+      at ? `<div class="pain-mini-l ${at.esperando ? 'c-med' : ''}">${at.esperando ? `${at.esperando} cliente(s) esperando resposta` : 'ninguém esperando'} · média 7 dias ${tempo(at.tempo_medio_min)}</div>` : '')}</div>`;
+  const linhaCurta = a => `<button class="pain-item ${a.quando < h ? 'n3' : 'n1'}" data-a="nav" data-v="fila"><span class="pain-ic">${icone(a.quando < h ? 'relogio' : 'meudia', 16)}</span><span class="pain-txt"><b>${esc(a.cliente_nome || a.titulo)}</b> <small>${esc((TIPOS_ATV[a.tipo] || a.tipo).replace(/^\S+\s/, ''))} · ${a.quando < h ? 'atrasada desde ' + fmtCurta(a.quando) : 'hoje'}</small></span><span class="pain-seta">${icone('seta', 14)}</span></button>`;
+  const pc = typeof pctDia === 'function' && (p.tarefas || []).length ? pctDia(p, h) : null;
+  return topo('Meu dia', `${fmtData(h)} · como está o seu dia e o seu mês`, `<button class="btn" data-a="crmAtualizar">↻ Atualizar</button><button class="btn pri" data-a="nav" data-v="fila">Abrir a fila de hoje</button>`)
+    + `<div class="pain-avisos">${avisoBoletos()}${avisoAssistencia()}</div>`
+    + (vends.length > 1 || ehDono() ? `<div class="chips" style="margin-bottom:12px">${[...new Map([[EU.id, EU], ...vends.map(v => [v.id, v])]).values()].map(v => `<button class="chip ${quem === v.id ? 'on' : ''}" data-a="diaPessoa" data-v="${v.id}">${esc(v.nome)}</button>`).join('')}</div>` : '')
+    + painDiaResumo(quem, { atrasadas: atrasadas.length, deHoje: deHoje.length, fups: fups.length, feitasHoje, semAtv: semAtv.length, pro })
+    + kpis
+    + `<div class="pain-grade"><div class="pain-col">
+        <div class="card pain-card"><div class="secao-titulo"><h2>Para fazer agora</h2><a href="#/fila">abrir a fila</a></div>
+          ${[...atrasadas, ...deHoje].length ? `<div class="pain-lista">${[...atrasadas, ...deHoje].slice(0, 8).map(linhaCurta).join('')}</div>${atrasadas.length + deHoje.length > 8 ? `<p class="mut" style="margin:8px 0 0">e mais ${atrasadas.length + deHoje.length - 8} na fila</p>` : ''}` : `<div class="pain-ok">${icone('check', 22)}<div><b>Nada atrasado nem marcado para hoje</b><small>Veja os leads e a prospecção na fila.</small></div></div>`}</div>
+        ${r ? `<div class="card pain-card"><div class="secao-titulo"><h2>Ritmo do mês</h2><a href="#/vendas">painel de vendas</a></div><p class="pain-frase">${painFrase(r, kFat?.meta || 0)}</p>${painRitmo(r, kFat?.meta || 0)}</div>` : ''}
+      </div><div class="pain-col">
+        <div class="card pain-card"><div class="secao-titulo"><h2>Checklist de hoje</h2><a href="#/checklist">abrir</a></div>
+          ${pc == null ? '<p class="mut" style="margin:0">Sem tarefas para hoje.</p>' : `<div class="pain-fz-c"><b>${P(pc)} feito</b><span class="pain-fz-b"><i class="${classe(pc)}" style="width:${Math.min(1, pc) * 100}%"></i></span></div>`}</div>
+        ${cardCalendario(p)}
+      </div></div>`;
+}
+/** Atendimento do WhatsApp da pessoa (RPC painel_atendimento), com cache de 2 minutos. */
+function diaAtendimento(quem) {
+  const c = (diaAtendimento.cache ||= {})[quem];
+  if (c && Date.now() - c.em < 120e3) return c.dados;
+  if (!c?.carregando) {
+    diaAtendimento.cache[quem] = { ...(c || {}), carregando: true, em: c?.em || 0 };
+    sb.rpc('painel_atendimento', { p_pessoa: quem, p_dias: 7 }).then(({ data, error }) => {
+      diaAtendimento.cache[quem] = { dados: error ? { conversas_hoje: 0, esperando: 0, tempo_hoje_min: null, tempo_medio_min: null } : data, em: Date.now() };
+      if (UI.view === 'meudia') render();
+    });
+  }
+  return c?.dados || null;
 }
 
 // ─── Linha do tempo do cliente (ficha) ───
