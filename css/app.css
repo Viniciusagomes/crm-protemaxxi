@@ -1344,7 +1344,7 @@ html.side-mini nav button.grupo > * { display: none; }
 
 /* ─── Outras páginas (18/11): distribuição, checklist da semana em %, composição e blocos recolhidos ─── */
 .pain-dist { display: grid; gap: 9px; }
-.pain-dist-l { display: grid; grid-template-columns: minmax(90px, 160px) minmax(0, 1fr) auto; gap: 12px; align-items: center; border-radius: 8px; }
+.pain-dist-l { display: grid; grid-template-columns: minmax(90px, 160px) minmax(0, 1fr) minmax(96px, auto); gap: 14px; align-items: center; border-radius: 8px; }
 .pain-dist-l.clic { cursor: pointer; } .pain-dist-l.clic:hover .pain-dist-r { color: var(--txt); }
 .pain-dist-r { font-size: 13px; color: var(--txt2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pain-dist-b { height: 10px; border-radius: 99px; background: var(--card2); overflow: hidden; }
@@ -1385,3 +1385,10 @@ details.dobra > summary b { font-size: 16px; } details.dobra > summary small { c
 .tr-barras i { display: block; width: 100%; border-radius: 3px 3px 0 0; background: color-mix(in srgb, var(--verde) 25%, transparent); }
 .tr-barras .conv i { background: var(--verde); }
 .tr-eixo { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--txt3); margin-top: 6px; }
+/* Contas a pagar (18/11) */
+.cpa-drop { position: relative; border: 2px dashed var(--borda-forte); border-radius: 12px; padding: 22px; text-align: center; color: var(--txt2); background: var(--card2); }
+.cpa-drop.sobre { border-color: var(--verde); background: color-mix(in srgb, var(--verde) 8%, var(--card)); }
+.cpa-drop input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.cpa-acoes { white-space: nowrap; } .cpa-acoes .btn { margin-left: 4px; }
+.em-contas { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+@media (max-width: 640px) { .cpa-acoes { white-space: normal; } .cpa-acoes .btn { margin: 2px; } }

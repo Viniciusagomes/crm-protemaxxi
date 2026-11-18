@@ -106,7 +106,8 @@ function emAPagar() {
         ${b.email_id ? `<button class="btn peq" data-a="emAbrir" data-id="${b.email_id}">Ver e-mail</button>` : ''}
         <button class="btn pri peq" data-a="emBolPago" data-id="${b.id}">✓ Pago</button> <button class="btn peq" data-a="emBolIgnorar" data-id="${b.id}" title="Duplicado, cancelado ou não é nosso">Ignorar</button></td></tr>`;
   const semNota = ab.filter(b => !b.nf_numero).length;
-  return `<div class="pain-kpis">${painKpi('A pagar', R(soma(ab.map(b => +b.valor || 0))), `${ab.length} boleto(s) em aberto`, '', 'destaque')}
+  return `${typeof veContas === 'function' && veContas() ? `<div class="card mb em-contas"><span>Os boletos daqui, as planilhas dos fornecedores e as contas lançadas à mão ficam juntos em <b>Contas a pagar</b>.</span><button class="btn pri peq" data-a="nav" data-v="contas">Abrir Contas a pagar</button></div>` : ''}
+    <div class="pain-kpis">${painKpi('A pagar', R(soma(ab.map(b => +b.valor || 0))), `${ab.length} boleto(s) em aberto`, '', 'destaque')}
       ${painKpi('Vence em 7 dias', R(soma(prox.map(b => +b.valor || 0))), `${prox.length} boleto(s)`)}
       ${painKpi('Vencidos', `<span class="${venc.length ? 'c-ruim' : 'c-ok'}">${R(soma(venc.map(b => +b.valor || 0)))}</span>`, venc.length ? `${venc.length} boleto(s): confira se já foram pagos` : 'nenhum vencido', '', venc.length ? 'pede' : '')}
       ${painKpi('Sem nota ligada', `<span class="${semNota ? 'c-med' : 'c-ok'}">${semNota}</span>`, semNota ? 'ligue a nota antes de pagar' : 'todos com nota')}</div>
