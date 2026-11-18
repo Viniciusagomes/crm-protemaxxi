@@ -1337,3 +1337,7 @@ html.side-mini nav button.grupo > * { display: none; }
 .dist-b { height: 10px; border-radius: 99px; background: var(--card2); overflow: hidden; }
 .dist-b i { display: block; height: 100%; border-radius: 99px; background: var(--ok); } .dist-b i.med { background: var(--med); } .dist-b i.ruim { background: var(--ruim); }
 @media (max-width: 640px) { .sol-resumo .pain-sts { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 14px; } }
+
+/* Meu dia em 3 telas (18/11) */
+.pain-mini-l { font-size: 12.5px; color: var(--txt3); margin-top: 8px; } .pain-kpi.destaque .pain-mini-l { color: #B9C7D3; }
+.pain-dia + .pain-kpis { margin-top: 16px; }

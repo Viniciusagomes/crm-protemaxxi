@@ -4,7 +4,7 @@
 // ═══════════════════════════ menu ═══════════════════════════
 // Abas que moram dentro de outra: no menu aparece só a principal; dentro dela, uma barra de sub-abas (o endereço antigo continua valendo).
 const MENU_GRUPOS = {
-  meudia: [['meudia', 'Meu dia'], ['checklist', 'Checklist do dia']],
+  meudia: [['meudia', 'Meu dia'], ['fila', 'Fila e leads'], ['checklist', 'Checklist']],
   vendas: [['vendas', 'Painel de vendas'], ['pedidos', 'Pedidos'], ['situacao', 'Situação dos pedidos'], ['monitoria', 'Monitoria de preços']],
   visaoestoque: [['visaoestoque', 'Visão geral'], ['estoque', 'Estoque'], ['abrirTV', 'TV do estoque']],
   compras: [['compras', 'Compras e fornecedores'], ['cadastroprod', 'Cadastro de produtos']],
@@ -17,7 +17,7 @@ const MENU_NOME = { visaoestoque: 'Estoque', compras: 'Compras e produtos', meud
 function abaVisivel(k) {
   if (!podeAba(k) || (SO_DONO.includes(k) && !ehDono())) return false;
   const regra = { monitoria: veMonitoria, avaliacoes: () => veTudoVendas() || !!EU.tiny, ml: veML, trafego: veTrafego, compras: veCompras, atendimento: veAtendimento, emails: veEmails,
-    calendario: () => calPessoas().length > 0, supervisao: temEquipe, visaoestoque: veExp, expedicao: veExp, estoque: veExp, abrirTV: veExp }[k];
+    calendario: () => calPessoas().length > 0, fila: () => !!EU.tiny || ehDono() || !!EU.permissoes?.vendas_todas, supervisao: temEquipe, visaoestoque: veExp, expedicao: veExp, estoque: veExp, abrirTV: veExp }[k];
   return regra ? !!regra() : true;
 }
 /** Grupo a que a aba pertence (ou ela mesma). */
@@ -29,7 +29,7 @@ function subAbas(k) {
 }
 function badgeAba(k) {
   const b = {
-    meudia: () => CRM.atv ? CRM.atv.filter(a => a.pessoa_id === EU.id && atvPendente(a) && a.quando <= hoje()).length : 0,
+    fila: () => CRM.atv ? CRM.atv.filter(a => a.pessoa_id === EU.id && atvPendente(a) && a.quando <= hoje()).length : 0,   // o número fica na fila, onde está o trabalho
     situacao: () => SIT.lista ? SIT.lista.filter(p => !p.removido && passosPedido(p).estado === 'problema').length : 0,
     boletos: () => BOL.lista ? (ehDono() ? bolAbertos() : meusBoletos()).length : 0,
     avaliacoes: () => ehDono() && AVA.lista ? AVA.lista.filter(a => a.nota && a.nota <= 3 && !a.tratado).length : 0,
@@ -91,7 +91,7 @@ function menuCat(nome) {
   const nav = document.getElementById('nav'); if (nav) nav.innerHTML = menu();
 }
 const VIEWS_FN = {
-  inicio: () => vInicio(), vendas: () => vVendas(), ml: () => vML(), trafego: () => vTrafego(), pedidos: () => vPedidos(), clientes: () => vClientes(),
+  inicio: () => vInicio(), fila: () => vFilaDia(), vendas: () => vVendas(), ml: () => vML(), trafego: () => vTrafego(), pedidos: () => vPedidos(), clientes: () => vClientes(),
   solicitacoes: () => vIntranet(), suporte: () => vAssistencia(), expedicao: () => vExpedicao(), estoque: () => vEstoque(), visaoestoque: () => vVisaoEstoque(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(), creditos: () => vCreditos(), brindes: () => vBrindes(), crm: () => vCRM(), meudia: () => vMeuDia(), situacao: () => vSituacao(), boletos: () => vBoletos(), emails: () => vEmails(), avaliacoes: () => vAvaliacoes(), compras: () => vCompras(), cadastroprod: () => vCadastroProd(), atendimento: () => vAtendimento(),
   checklist: () => vChecklist(), calendario: () => vCalendario(), supervisao: () => vSupervisao(), geral: () => vGeral(), metas: () => vMetas(),
   remuneracao: () => vRemuneracao(), feedbacks: () => vFeedbacks(), config: () => vConfig(), ajuda: () => vAjuda(),
@@ -102,7 +102,7 @@ const SO_DONO = ['config', 'geral', 'logs', 'cadastroprod'];
  *  supervisor: tudo da própria área + supervisão da equipe. Remuneração, avaliações e configurações ficam só com o dono. */
 function abasDoPerfil() {
   if (!EU || ehDono()) return null;
-  const P = EU.permissoes || {}, s = new Set(['inicio', 'meudia', 'pedidos', 'clientes', 'solicitacoes', 'feedbacks', 'ajuda']);
+  const P = EU.permissoes || {}, s = new Set(['inicio', 'meudia', 'fila', 'pedidos', 'clientes', 'solicitacoes', 'feedbacks', 'ajuda']);
   const add = (...ks) => ks.forEach(k => s.add(k));
   const comercial = !!EU.tiny || !!P.vendas_todas;
   if (comercial) add('crm', 'vendas', 'situacao', 'boletos');

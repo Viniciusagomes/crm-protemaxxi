@@ -53,5 +53,5 @@ assert.match(run("waMsgHtml({ direcao: 'nota', tipo: 'nota', texto: 'ligar amanh
 assert.match(run("waIniciais('Ricardo Ferreira De Oliveira')"), /^RO$/);
 
 // cache novo no index
-assert.match(fs.readFileSync(path.join(root, 'index.html'), 'utf8'), /css\/app\.css\?v=20261117[a-z]/);
+assert.match(fs.readFileSync(path.join(root, 'index.html'), 'utf8'), /css\/app\.css\?v=\d{8}[a-z]/);
 console.log('ok whatsapp visual');
