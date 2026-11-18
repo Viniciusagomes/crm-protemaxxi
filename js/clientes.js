@@ -27,7 +27,7 @@ function vClientes() {
   UI.cliAba ||= 'carteira';
   const abasCli = [['carteira', 'Carteira'], ['melhores', 'Melhores clientes'], ['prospeccao', 'Prospecção de hoje'], ['agenda', 'Agenda WhatsApp'], ['parecidos', 'Cadastros parecidos']];
   const cab = topo('Clientes', `${D.clientes.length} clientes com compra nos últimos 12 meses · ${infoSync()}`, '<button class="btn" data-a="recarregarClientes">↻ Recarregar</button>')
-    + `<div class="chips" style="margin-bottom:14px">${abasCli.map(([k, n]) => `<button class="chip ${UI.cliAba === k ? 'on' : ''}" data-a="cliAba" data-v="${k}">${n}</button>`).join('')}</div>`;
+    + `<div class="subabas">${abasCli.map(([k, n]) => `<button class="${UI.cliAba === k ? 'on' : ''}" data-a="cliAba" data-v="${k}">${n}</button>`).join('')}</div>`;
   if (UI.cliAba === 'melhores') return cab + abaMelhores();
   if (UI.cliAba === 'prospeccao') return cab + abaProspeccao();
   if (UI.cliAba === 'agenda') return cab + abaAgenda();

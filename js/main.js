@@ -419,6 +419,7 @@ const A = {
   menuCel: () => document.body.classList.toggle('menu-aberto'),
   recolherMenu: () => recolherMenu(),
   menuCat: el => menuCat(el.dataset.c),
+  pedSitRapido: el => { UI.pedSit = UI.pedSit === el.dataset.v ? '' : el.dataset.v; render(); },
   alternarLetra: () => alternarLetra(),
   instalarApp: () => instalarApp(),
   crmAtualizar: () => Promise.all([carregarCRM(true), carregarResumoPro(true)]).then(render).catch(e => avisar(e.message)),

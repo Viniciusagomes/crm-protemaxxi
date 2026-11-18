@@ -1305,3 +1305,25 @@ nav .menu-sub button.on::before { content: ""; width: 6px; height: 6px; border-r
 html.side-mini nav .menu-cat .menu-cat-itens { display: flex; } html.side-mini nav .menu-sub { display: none; }
 html.side-mini nav button.grupo { font-size: 0; padding: 0; height: 1px; margin: 8px 10px; background: rgba(255,255,255,.08); pointer-events: none; }
 html.side-mini nav button.grupo > * { display: none; }
+
+/* ─── Páginas de vendas (17/11): funil desenhado, idade do negócio, atraso por faixa, pedidos por situação ─── */
+.subabas + .filtros { margin-top: 0; }
+.kcard-idade { font-size: 11.5px; color: var(--txt3); margin-left: auto; margin-right: 8px; font-variant-numeric: tabular-nums; }
+.kcard-idade.velho { color: var(--med); font-weight: 600; }
+.funil-des { display: grid; gap: 10px; }
+.funil-l { display: grid; grid-template-columns: 160px minmax(0, 1fr) 140px; gap: 12px; align-items: center; }
+.funil-n { font-weight: 600; font-size: 14px; }
+.funil-b { height: 22px; display: flex; justify-content: center; background: var(--card2); border-radius: 6px; overflow: hidden; }
+.funil-b i { display: block; height: 100%; border-radius: 6px; background: var(--verde); opacity: .85; }
+.funil-v { text-align: right; font-variant-numeric: tabular-nums; } .funil-v b { display: block; } .funil-v small { color: var(--txt3); font-size: 12px; }
+.faixas-barra { display: flex; gap: 3px; height: 14px; border-radius: 99px; overflow: hidden; background: var(--card2); }
+.faixas-barra i { display: block; height: 100%; } .faixas-barra i.med { background: var(--med); } .faixas-barra i.ruim { background: var(--ruim); }
+.faixas-barra i:nth-child(1) { opacity: .55; } .faixas-barra i:nth-child(3) { opacity: .8; }
+.faixas-leg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.faixas-leg div { display: grid; gap: 2px; } .faixas-leg span { font-size: 12px; color: var(--txt3); text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }
+.faixas-leg b { font: 800 18px Archivo, sans-serif; font-variant-numeric: tabular-nums; } .faixas-leg small { color: var(--txt3); }
+.sit-resumo { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 14px; }
+.sit-resumo button { display: grid; gap: 1px; text-align: left; background: var(--card); border: 1px solid var(--borda); border-radius: 10px; padding: 8px 12px; cursor: pointer; min-width: 120px; }
+.sit-resumo button:hover { border-color: var(--borda-forte); } .sit-resumo button.on { border-color: var(--verde); box-shadow: 0 0 0 1px var(--verde); background: var(--verde-claro); }
+.sit-resumo span { font-size: 12px; color: var(--txt2); font-weight: 600; } .sit-resumo b { font: 800 18px Archivo, sans-serif; font-variant-numeric: tabular-nums; } .sit-resumo small { color: var(--txt3); font-size: 12px; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) { .funil-l { grid-template-columns: 1fr; gap: 4px; } .funil-v { text-align: left; } .faixas-leg { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
