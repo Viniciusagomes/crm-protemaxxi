@@ -5,7 +5,7 @@ const assert=require('assert/strict');
 const repo=path.join(__dirname,'..');
 async function scenario(mailConfig,person){
   const tables={pessoas:[{id:person,user_id:'test-user',nome:person,cargo:'Suporte',papel:person==='dono'?'dono':'supervisor',ativo:true,permissoes:person==='marcos'?{suporte:true}:{} }],config:mailConfig?[{chave:'caixa_emails',valor:mailConfig}]:[]};
-  const client={from:table=>{const q={then:(resolve,reject)=>Promise.resolve({data:tables[table]||[],error:null}).then(resolve,reject)};for(const method of ['select','order','gte','range'])q[method]=()=>q;return q;},auth:{getUser:async()=>({data:{user:{id:'test-user'}}})}};
+  const client={from:table=>{const q={then:(resolve,reject)=>Promise.resolve({data:tables[table]||[],error:null}).then(resolve,reject)};for(const method of ['select','order','gte','range'])q[method]=()=>q;return q;},auth:{getUser:async()=>({data:{user:{id:'test-user'}}})},rpc:async name=>({data:name==='pessoas_privado'?tables.pessoas.map(p=>({id:p.id,email:'',permissoes:p.permissoes})):null,error:null})};
   const ctx=vm.createContext({console,Date,Set,Map,window:{addEventListener:()=>{},CRM_CONFIG:{url:'local',anonKey:'local'},supabase:{createClient:()=>client}},localStorage:{getItem:()=>null,setItem:()=>{}},document:{querySelector:()=>null}});
   for(const file of ['util.js','dados.js','emails.js'])vm.runInContext(fs.readFileSync(path.join(repo,'js',file),'utf8'),ctx,{filename:file});
   vm.runInContext('carregarPedidos=async()=>{}; carregarBonif=async()=>{}; globalThis.carregarSolicitacoes=async()=>{};globalThis.carregarInteracoes=async()=>{};',ctx);

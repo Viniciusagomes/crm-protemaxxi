@@ -30,11 +30,23 @@ const mapaPessoa = r => ({
   ativo: r.ativo, inicio: r.inicio || '', cor: r.cor, tiny: r.tiny_vendedor_id || '', user_id: r.user_id, email: r.email || '',
   permissoes: r.permissoes || {}, ordem: r.ordem, tarefas: [], kpis: [], regras: [],
 });
+/** Colunas de pessoas que todo colaborador lê. E-mail e permissões vêm de pessoas_privado(), que entrega só o que cada
+ *  um pode ver (o próprio e-mail; permissões próprias e da equipe; o dono vê tudo). A tabela não libera essas duas colunas. */
+const PESSOAS_COLS = 'id,nome,cargo,papel,supervisor_id,vinculo,dias,ativo,inicio,cor,tiny_vendedor_id,user_id,ordem';
+/** Junta as linhas da tabela com o que pessoas_privado() devolve. Exportada para o teste. */
+function juntarPrivado(linhas, priv) {
+  const m = Object.fromEntries((priv || []).map(x => [x.id, x]));
+  return linhas.map(r => ({ ...r, email: m[r.id]?.email || '', permissoes: m[r.id]?.permissoes || {} }));
+}
+async function pessoasComPrivado() {
+  const [linhas, priv] = await Promise.all([ok(sb.from('pessoas').select(PESSOAS_COLS).order('ordem')), ok(sb.rpc('pessoas_privado'))]);
+  return juntarPrivado(linhas, priv);
+}
 async function carregarTudo() {
   const inicioReg = addDias(`${addMes(mesDe(hoje()), -3)}-01`, 0);
   const inicioVendas = `${addMes(mesDe(hoje()), -13)}-01`;
   const [pessoas, tarefasR, kpisR, regrasR, cfg, rdia, rsem, rmes, fbs, vend, est] = await Promise.all([
-    ok(sb.from('pessoas').select('*').order('ordem')),
+    pessoasComPrivado(),
     todas(() => sb.from('tarefas').select('*').order('ordem')),
     ok(sb.from('kpis').select('*').order('ordem')),
     ok(sb.from('regras').select('*').order('ordem')),
@@ -150,8 +162,12 @@ const GRAVAR = {
   mes: async (pid, m) => { const r = D.mes[pid]?.[m] || {}; await ok(sb.from('registros_mes').upsert({ pessoa_id: pid, mes: m, checks: r.checks || {}, kpi: r.kpi || {} })); },
   pessoa: async (pid) => {
     const p = pessoa(pid); if (!p) return;
-    await ok(sb.from('pessoas').upsert({ id: p.id, nome: p.nome, cargo: p.cargo, papel: p.papel, supervisor_id: p.supervisor || null, vinculo: p.vinculo,
-      dias: p.dias, ativo: p.ativo, inicio: p.inicio || null, cor: p.cor, tiny_vendedor_id: p.tiny || null, permissoes: p.permissoes || {}, ordem: D.pessoas.indexOf(p) }));
+    // atualiza e, se a pessoa ainda não existe no banco, insere. Sem upsert: o upsert precisaria ler as permissões de volta,
+    // e a tabela não libera essa coluna para leitura (fica em pessoas_privado)
+    const linha = { nome: p.nome, cargo: p.cargo, papel: p.papel, supervisor_id: p.supervisor || null, vinculo: p.vinculo,
+      dias: p.dias, ativo: p.ativo, inicio: p.inicio || null, cor: p.cor, tiny_vendedor_id: p.tiny || null, permissoes: p.permissoes || {}, ordem: D.pessoas.indexOf(p) };
+    const atualizadas = await ok(sb.from('pessoas').update(linha).eq('id', p.id).select('id'));
+    if (!atualizadas?.length) await ok(sb.from('pessoas').insert({ id: p.id, ...linha }));
     await ok(sb.from('tarefas').delete().eq('pessoa_id', pid));
     if (p.tarefas.length) await ok(sb.from('tarefas').insert(p.tarefas.map((t, i) => ({ id: t.id, pessoa_id: pid, titulo: t.titulo, freq: t.freq, bloco: t.bloco || 'dia', dia_semana: +t.diaSemana || 5, dia_mes: +t.diaMes || 5, conferir: t.conferir || '', critica: !!t.critica, ordem: i }))));
     await ok(sb.from('kpis').delete().eq('pessoa_id', pid));
