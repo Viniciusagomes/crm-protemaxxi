@@ -77,7 +77,7 @@ function vEmails() {
   if (!minhas.includes(EM.caixa)) EM.caixa = 'todos';
   const daCaixa = emListaDaCaixa;
   const chips = minhas.map(c => { const n = c === 'arquivados' ? daCaixa(c).length : daCaixa(c).filter(e => e.direcao === 'entrada' && !e.lido_em).length;
-    return `<button class="btn peq ${EM.caixa === c ? 'pri' : ''}" data-a="emCaixa" data-v="${c}">${EM_CAIXAS[c][0]} ${EM_CAIXAS[c][1]}${n ? ` <b>${n}</b>` : ''}</button>`; }).join('');
+    return `<button class="${EM.caixa === c ? 'on' : ''}" data-a="emCaixa" data-v="${c}">${EM_CAIXAS[c][1]}${n ? `<span class="badge">${n}</span>` : ''}</button>`; }).join('');
   const lista = daCaixa(EM.caixa);
   const linha = e => `<div class="item-lista em-item ${EM.sel === e.id ? 'on' : ''} ${e.direcao === 'entrada' && !e.lido_em ? 'nao-lido' : ''}" data-a="emAbrir" data-id="${e.id}">
       <div class="secao-titulo" style="margin:0"><b>${esc(e.direcao === 'saida' ? 'Para: ' + (e.para || '') : (e.de_nome || e.de || ''))}</b><small class="mut">${dataHora(e.recebido_em)}</small></div>
@@ -87,7 +87,7 @@ function vEmails() {
   const config = !EM.lista.some(e => e.direcao === 'entrada') ? `<div class="card mt"><h2>Ainda não chegou nenhum e-mail</h2><p class="explica">Os endereços <b>boletos@</b>, <b>nfe@</b> e <b>os.intelbras@</b>portalprotemaxxi.com.br começam a funcionar depois do passo a passo no Cloudflare
     (arquivo <code>crm-protemaxxi/cloudflare/PASSO-A-PASSO-EMAIL.md</code>). Os enviados pela Intranet (avisos de OS e convites de avaliação) aparecem em "Enviados".</p></div>` : '';
   return topo('Caixa de e-mails', 'Tudo que chega em @portalprotemaxxi.com.br e o que a Intranet envia', `<button class="btn" data-a="emAtualizar">↻ Atualizar</button>`)
-    + `<div class="acoes mt">${chips}</div>${config}${pagar}
+    + `<div class="subabas">${chips}</div>${config}${pagar}
     <div class="grid g2 mt em-grid"><div class="card"><div class="secao-titulo"><h2>${EM_CAIXAS[EM.caixa][1]}</h2><small>${lista.length} e-mail(s) · ${EM.caixa === 'arquivados' ? 'todos os arquivados disponíveis' : 'últimos 120 dias'}</small></div>
         <input type="search" placeholder="Buscar remetente, assunto…" data-filtro="emLista" style="width:100%;margin:6px 0">
         <div id="emLista" class="em-lista">${lista.map(linha).join('') || '<div class="vazio">Nada por aqui.</div>'}</div></div>
@@ -105,10 +105,12 @@ function emAPagar() {
       <td class="dir"><button class="btn peq" data-a="emCopiar" data-v="${esc(b.linha)}" title="Copiar a linha digitável">📋 Linha</button>
         ${b.email_id ? `<button class="btn peq" data-a="emAbrir" data-id="${b.email_id}">Ver e-mail</button>` : ''}
         <button class="btn pri peq" data-a="emBolPago" data-id="${b.id}">✓ Pago</button> <button class="btn peq" data-a="emBolIgnorar" data-id="${b.id}" title="Duplicado, cancelado ou não é nosso">Ignorar</button></td></tr>`;
-  return `<div class="grid g3 mt"><div class="card kpi-card"><div class="rot">A pagar</div><div class="val">${R(soma(ab.map(b => +b.valor || 0)))}</div><div class="sub">${ab.length} boleto(s)</div></div>
-      <div class="card kpi-card"><div class="rot">Vence em 7 dias</div><div class="val">${R(soma(prox.map(b => +b.valor || 0)))}</div><div class="sub">${prox.length} boleto(s)</div></div>
-      <div class="card kpi-card"><div class="rot">Vencidos</div><div class="val ${venc.length ? 'c-ruim' : ''}">${R(soma(venc.map(b => +b.valor || 0)))}</div><div class="sub">${venc.length} boleto(s)</div></div></div>
-    <div class="card mt"><div class="secao-titulo"><h2>Boletos a pagar</h2><small>lidos dos e-mails · confira os alertas antes de pagar</small></div>
+  const semNota = ab.filter(b => !b.nf_numero).length;
+  return `<div class="pain-kpis">${painKpi('A pagar', R(soma(ab.map(b => +b.valor || 0))), `${ab.length} boleto(s) em aberto`, '', 'destaque')}
+      ${painKpi('Vence em 7 dias', R(soma(prox.map(b => +b.valor || 0))), `${prox.length} boleto(s)`)}
+      ${painKpi('Vencidos', `<span class="${venc.length ? 'c-ruim' : 'c-ok'}">${R(soma(venc.map(b => +b.valor || 0)))}</span>`, venc.length ? `${venc.length} boleto(s): confira se já foram pagos` : 'nenhum vencido', '', venc.length ? 'pede' : '')}
+      ${painKpi('Sem nota ligada', `<span class="${semNota ? 'c-med' : 'c-ok'}">${semNota}</span>`, semNota ? 'ligue a nota antes de pagar' : 'todos com nota')}</div>
+    <div class="card"><div class="secao-titulo"><h2>Boletos a pagar</h2><small>lidos dos e-mails · confira os alertas antes de pagar</small></div>
       ${ab.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Beneficiário</th><th class="dir">Vencimento</th><th class="dir">Valor</th><th></th></tr></thead><tbody>${ab.map(linha).join('')}</tbody></table></div>` : '<div class="vazio">Nenhum boleto em aberto.</div>'}</div>`;
 }
 

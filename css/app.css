@@ -1375,3 +1375,13 @@ details.dobra > summary b { font-size: 16px; } details.dobra > summary small { c
 @media (max-width: 640px) { .pain-dist-l { grid-template-columns: minmax(70px, 110px) minmax(0, 1fr) auto; gap: 8px; } }
 @media print { details.dobra > summary::before { display: none; } }
 .pain-anel-peq .pain-anel-txt b { font-size: 13px; }
+/* sub-abas internas de uma tela que já tem as sub-abas do grupo (Configurações): pílulas, para não parecer uma segunda linha igual */
+.subabas.sec { border-bottom: 0; gap: 6px; margin: 0 0 16px; flex-wrap: wrap; overflow: visible; }
+.subabas.sec button { border: 1px solid var(--borda); border-radius: 99px; margin: 0; padding: 6px 13px; font-size: 13px; background: var(--card); }
+.subabas.sec button.on { background: var(--txt); border-color: var(--txt); color: var(--card); }
+/* Tráfego: gasto por dia */
+.tr-barras { display: flex; align-items: flex-end; gap: 2px; height: 110px; margin-top: 10px; }
+.tr-barras > div { flex: 1; height: 100%; display: flex; align-items: flex-end; }
+.tr-barras i { display: block; width: 100%; border-radius: 3px 3px 0 0; background: color-mix(in srgb, var(--verde) 25%, transparent); }
+.tr-barras .conv i { background: var(--verde); }
+.tr-eixo { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--txt3); margin-top: 6px; }
