@@ -14,7 +14,7 @@ assert.match(eq, /<summary><b>O que cobrar de cada um/, 'referência da Supervis
 assert.match(eq, /navMes\(\)\) \+ resumo \+ cards/, 'resumo nas Metas');
 assert.match(eq, /<th style="width:110px">Composição<\/th>/, 'composição na Remuneração');
 assert.match(eq, /<details class="nota-legal mt dobra">/, 'nota legal recolhida');
-assert.match(eq, /<div class="subabas">\$\{tabs\.map/, 'Configurações com sub-abas no padrão novo');
+assert.match(eq, /<div class="subabas sec">\$\{tabs\.map/, 'Configurações com sub-abas no padrão novo');
 assert.match(main, /fbTipoFiltro: el =>/); assert.match(main, /fbNovo11: el =>/);
 assert.match(main, /details\.dobra:not\(\[open\]\)/, 'imprimir abre o que está recolhido');
 

@@ -800,7 +800,7 @@ function vConfig() {
     <div class="card"><h2>Backup</h2><p class="explica">Os dados ficam no banco da Intranet (Supabase, em São Paulo). Dá para baixar uma cópia de tudo o que está carregado agora, em JSON.</p>
       <div class="acoes"><button class="btn" data-a="exportar">⬇ Baixar cópia</button></div></div></div>`;
   }
-  return topo('Configurações', 'Pessoas, logins, tarefas, metas, regras de ganho, solicitações e integração com o Tiny.') + `<div class="subabas">${tabs.map(([k, n]) => `<button class="${UI.cfgTab === k ? 'on' : ''}" data-a="cfgTab" data-v="${k}">${n}</button>`).join('')}</div>` + corpo;
+  return topo('Configurações', 'Pessoas, logins, tarefas, metas, regras de ganho, solicitações e integração com o Tiny.') + `<div class="subabas sec">${tabs.map(([k, n]) => `<button class="${UI.cfgTab === k ? 'on' : ''}" data-a="cfgTab" data-v="${k}">${n}</button>`).join('')}</div>` + corpo;
 }
 
 // ═══════════════════════════ AJUDA ═══════════════════════════

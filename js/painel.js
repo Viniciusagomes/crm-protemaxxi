@@ -196,12 +196,12 @@ function painDeAlerta(x) {
   const ic = x.view === 'metas' ? 'metas' : x.view === 'config' ? 'clientes' : x.n >= 3 ? 'alerta' : x.n === 1 ? 'busca' : 'relogio';
   return { n: x.n >= 3 ? 3 : x.n >= 2 ? 2 : 1, ic, txt: x.t, a: x.p ? `data-a="abrirPessoa" data-p="${x.p.id}" data-d="${x.d || ''}"${x.view ? ` data-view="${x.view}"` : ''}` : `data-a="nav" data-v="${x.view || 'geral'}"` };
 }
-/** Barras horizontais de distribuição: [{rot, v, sub?, cls?}]. O comprimento é relativo ao maior valor. */
+/** Barras horizontais de distribuição: [{rot (HTML já escapado), v, sub?, cls?, cor? (#hex), a? (atributos do clique)}]. O comprimento é relativo ao maior valor. */
 function painDist(itens, fmt = v => String(v)) {
   const l = itens.filter(x => x && x.v != null), max = Math.max(1e-9, ...l.map(x => Math.abs(x.v)));
   if (!l.length) return '<div class="vazio">Sem dados.</div>';
-  return `<div class="pain-dist">${l.map(x => `<div class="pain-dist-l${x.a ? ' clic' : ''}" ${x.a || ''}><span class="pain-dist-r" title="${esc(String(x.rot).replace(/<[^>]+>/g, ''))}">${x.rot}</span>
-    <span class="pain-dist-b"><i class="${x.cls || ''}" style="width:${Math.max(x.v ? 2 : 0, Math.abs(x.v) / max * 100)}%"></i></span><span class="pain-dist-v"><b>${fmt(x.v)}</b>${x.sub ? `<small>${x.sub}</small>` : ''}</span></div>`).join('')}</div>`;
+  return `<div class="pain-dist">${l.map(x => `<div class="pain-dist-l${x.a ? ' clic' : ''}" ${x.a || ''}><span class="pain-dist-r" title="${String(x.rot).replace(/<[^>]+>/g, '').replace(/"/g, '&quot;')}">${x.rot}</span>
+    <span class="pain-dist-b"><i class="${x.cls || ''}" style="width:${Math.max(x.v ? 2 : 0, Math.abs(x.v) / max * 100)}%${/^#[0-9a-fA-F]{3,8}$/.test(x.cor || '') ? `;background:${x.cor}` : ''}"></i></span><span class="pain-dist-v"><b>${fmt(x.v)}</b>${x.sub ? `<small>${x.sub}</small>` : ''}</span></div>`).join('')}</div>`;
 }
 /** Checklist médio da equipe nos últimos 7 dias (só quem tinha tarefa diária e trabalhava no dia). Exportada para o teste. */
 function painChkSemana(pessoas, h = hoje()) {

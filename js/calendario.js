@@ -102,17 +102,23 @@ function vCalendario() {
   const pid = calQuem(), p = pessoa(pid), mes = UI.calMes || mesDe(hoje()), h = hoje();
   const vista = UI.calVista || (window.innerWidth < 700 ? 'lista' : 'mes');
   const acoes = `<div class="seg"><button class="${vista === 'mes' ? 'on' : ''}" data-a="calVista" data-v="mes">Mês</button><button class="${vista === 'lista' ? 'on' : ''}" data-a="calVista" data-v="lista">Lista</button></div><button class="btn pri" data-a="calNovo" data-d="${mes === mesDe(h) ? h : mes + '-01'}" data-p="${pid}">+ Novo item</button>`;
-  const cab = topo('📅 Calendário de marketing', `O que ${esc(p.nome.split(' ')[0])} tem para fazer a cada dia. Clique no dia para incluir; arraste o item para mudar a data.`, acoes)
+  const cab = topo('Calendário de marketing', `O que ${esc(p.nome.split(' ')[0])} tem para fazer a cada dia. Clique no dia para incluir; arraste o item para mudar a data.`, acoes)
     + (ps.length > 1 ? `<div class="chips" style="margin-bottom:12px">${ps.map(x => `<button class="chip ${x.id === pid ? 'on' : ''}" data-a="calPessoa" data-v="${x.id}">${esc(x.nome)}</button>`).join('')}</div>` : '')
     + `<div class="navdia" style="margin-bottom:12px"><button class="btn peq" data-a="calMes" data-v="-1">◀</button><span class="data">${fmtMes(mes)}</span><button class="btn peq" data-a="calMes" data-v="1">▶</button>${mes !== mesDe(h) ? '<button class="btn peq" data-a="calMes" data-v="0">Mês atual</button>' : ''}</div>`;
   if (CAL.erro) return cab + `<div class="card vazio">Não consegui abrir o calendário: ${esc(CAL.erro)}<br><button class="btn mt" data-a="calRecarregar">Tentar de novo</button></div>`;
   if (CAL.mes !== mes || !calCarregado(mes + '-01')) { calGarantir(mes); return cab + '<div class="card vazio">Carregando…</div>'; }
   const doMes = CAL.itens.filter(i => i.pessoa_id === pid && mesDe(i.data) === mes);
-  const kpi = (rot, val, cor) => `<div class="card kpi-card"><div class="rot">${rot}</div><div class="val ${cor || ''}">${val}</div></div>`;
   const atr = CAL.atrasados.filter(i => i.pessoa_id === pid).length;
-  return cab + `<div class="grid g4" style="margin-bottom:12px">${kpi('Itens no mês', doMes.length)}${kpi('Feitos', doMes.filter(i => i.status === 'feito').length, 'c-ok')}
-      ${kpi('Para revisar', doMes.filter(i => i.status === 'revisar').length, 'c-med')}${kpi('Atrasados', atr, atr ? 'c-ruim' : 'c-ok')}</div>
-    ${vista === 'mes' ? `<div class="card cal-card">${gradeCal(pid, mes)}</div><div class="legenda mt">${Object.values(CAL_CANAIS).map(([ic, n, c]) => `<span><i style="background:${c}"></i>${ic} ${n}</span>`).join('')}</div>` : listaCal(pid, mes)}`;
+  const feitos = doMes.filter(i => i.status === 'feito').length, ateHoje = doMes.filter(i => i.data <= h), feitosAteHoje = ateHoje.filter(i => i.status === 'feito').length;
+  const porCanal = Object.entries(CAL_CANAIS).map(([k, [, n, cor]]) => ({ rot: n, v: doMes.filter(i => (i.canal || 'outro') === k).length, cor })).filter(x => x.v).sort((a, b) => b.v - a.v);
+  const resumo = `<div class="pain-kpis">
+      ${painKpi('Feitos no mês', `${feitos}<small class="mut"> de ${doMes.length}</small>`, ateHoje.length ? `${P(feitosAteHoje / ateHoje.length)} do que vencia até hoje` : 'nada vencendo ainda', `<div class="pain-meta"><i class="${classe(doMes.length ? feitos / doMes.length : null)}" style="width:${doMes.length ? feitos / doMes.length * 100 : 0}%"></i></div>`, 'destaque')}
+      ${painKpi('Em produção', String(doMes.filter(i => i.status === 'fazendo').length), 'começados e não terminados')}
+      ${painKpi('Para revisar', `<span class="${doMes.some(i => i.status === 'revisar') ? 'c-med' : ''}">${doMes.filter(i => i.status === 'revisar').length}</span>`, 'esperando o supervisor')}
+      ${painKpi('Atrasados', `<span class="${atr ? 'c-ruim' : 'c-ok'}">${atr}</span>`, atr ? 'de dias que já passaram' : 'nada atrasado', '', atr ? 'pede' : '')}</div>`;
+  return cab + resumo + `
+    ${vista === 'mes' ? `<div class="card cal-card">${gradeCal(pid, mes)}</div>` : listaCal(pid, mes)}
+    ${porCanal.length ? `<div class="card pain-card mt"><div class="secao-titulo"><h2>Por canal</h2><small>${doMes.length} item(ns) em ${fmtMes(mes)}</small></div>${painDist(porCanal)}</div>` : ''}`;
 }
 
 // ─── formulário ───

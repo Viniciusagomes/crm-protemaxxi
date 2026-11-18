@@ -33,11 +33,13 @@ function vCreditos() {
   const pend = CRE.pend || [];
   return topo('Créditos e vales-troca', 'Saldo de crédito de cada cliente na loja: vales-troca de devolução, créditos gerados após venda e usos. Pedido pago com "vale" no Tiny abate sozinho.',
       `<button class="btn" data-a="creAtualizar">↻ Atualizar</button><button class="btn pri" data-a="creNovo">+ Registrar vale ou crédito</button>`)
-    + `<div class="grid g4">
-      <div class="card kpi-card destaque"><div class="rot">Crédito em aberto</div><div class="val verde">${R0(soma(positivos.map(s => +s.saldo)))}</div><div class="sub">${positivos.length} cliente(s) com crédito</div></div>
-      <div class="card kpi-card"><div class="rot">Aguardando aprovação</div><div class="val ${pend.length ? 'c-med' : ''}">${pend.length}</div><div class="sub">${R0(soma(pend.map(p => +p.valor)))} em lançamentos</div></div>
-      <div class="card kpi-card"><div class="rot">Saldo negativo</div><div class="val ${negativos.length ? 'c-ruim' : 'c-ok'}">${negativos.length}</div><div class="sub">usaram vale sem crédito registrado</div></div>
-      <div class="card kpi-card"><div class="rot">Como funciona</div><div class="sub" style="margin-top:6px">Vendedor registra → ${ehDono() ? 'você aprova' : 'o Vinícius aprova'} → o saldo aparece na ficha do cliente, na prospecção e na Expedição.</div></div></div>
+    + `<div class="pain-kpis">
+      ${painKpi('Crédito em aberto', R0(soma(positivos.map(s => +s.saldo))), `${positivos.length} cliente(s) com crédito`, '', 'destaque')}
+      ${painKpi('Aguardando aprovação', `<span class="${pend.length ? 'c-med' : ''}">${pend.length}</span>`, `${R0(soma(pend.map(p => +p.valor)))} em lançamentos`)}
+      ${painKpi('Saldo negativo', `<span class="${negativos.length ? 'c-ruim' : 'c-ok'}">${negativos.length}</span>`, negativos.length ? `${R0(-soma(negativos.map(s => +s.saldo)))} usados sem crédito registrado` : 'ninguém usou vale sem crédito')}
+      ${painKpi('Maior saldo', positivos.length ? R0(+positivos[0].saldo) : '—', positivos.length ? esc(positivos[0].cliente_nome || positivos[0].cliente_chave) : 'nenhum cliente com crédito')}</div>
+    ${positivos.length > 1 ? `<div class="card pain-card mt"><div class="secao-titulo"><h2>Maiores saldos</h2><small>clique para ver o extrato</small></div>
+      ${painDist(positivos.slice(0, 8).map(s => ({ rot: esc(s.cliente_nome || s.cliente_chave), v: +s.saldo, cls: 'ok', a: `data-a="creExtrato" data-chave="${esc(s.cliente_chave)}"` })), v => R0(v))}</div>` : ''}
     ${pend.length ? `<div class="card mt"><div class="secao-titulo"><h2>⏳ Aguardando aprovação</h2><small>${ehDono() ? 'Só você aprova' : 'O Vinícius aprova'}</small></div>
       <div class="rolagem"><table class="tabela"><thead><tr><th>Cliente</th><th>Tipo</th><th class="dir">Valor</th><th>Nº vale / NF</th><th>Motivo</th><th>Quem pediu</th><th></th></tr></thead><tbody>
       ${pend.map(p => `<tr><td><b>${esc(p.cliente_nome || '')}</b></td><td>${TIPOS_CRE[p.tipo]}</td><td class="dir"><b>${R(p.valor)}</b></td><td><small>${esc([p.numero_vale, p.nf_devolucao && 'NF ' + p.nf_devolucao, p.pedido_numero && 'pedido ' + p.pedido_numero].filter(Boolean).join(' · '))}</small></td>
@@ -48,7 +50,9 @@ function vCreditos() {
       ${lista.length ? listaCurta('creLista', `<table class="tabela"><thead><tr><th>Cliente</th><th class="dir">Saldo</th><th class="dir">Pendente</th><th>Último lançamento</th></tr></thead><tbody>
         ${lista.map(s => `<tr class="clic" data-a="creExtrato" data-chave="${esc(s.cliente_chave)}"><td><b>${esc(s.cliente_nome || s.cliente_chave)}</b></td><td class="dir ${+s.saldo < 0 ? 'c-ruim' : 'c-ok'}"><b>${R(s.saldo || 0)}</b></td><td class="dir">${+s.pendente ? R(s.pendente) : '—'}</td><td><small>${new Date(s.ultimo).toLocaleDateString('pt-BR')}</small></td></tr>`).join('')}
       </tbody></table>`, 'Buscar cliente…') : '<div class="vazio">Nenhum cliente com crédito ainda. Registre os vales-troca em aberto pelo botão "+ Registrar vale ou crédito".</div>'}</div>
-    <p class="explica mt">ℹ️ A API do Tiny não dá acesso à tela de Devoluções nem ao número dos vales. Por isso o vale é registrado aqui (com o número do vale e a NF de devolução) e a Intranet passa a controlar o saldo. O uso é automático: pedido do Tiny com forma de pagamento "vale" abate do saldo do cliente.</p>`;
+    <details class="card mt dobra"><summary><b>Como funciona</b><small>registro, aprovação e uso do crédito</small></summary>
+      <p class="explica mt">Vendedor registra → ${ehDono() ? 'você aprova' : 'o Vinícius aprova'} → o saldo aparece na ficha do cliente, na prospecção e na Expedição.</p>
+      <p class="explica">A API do Tiny não dá acesso à tela de Devoluções nem ao número dos vales. Por isso o vale é registrado aqui (com o número do vale e a NF de devolução) e a Intranet passa a controlar o saldo. O uso é automático: pedido do Tiny com forma de pagamento "vale" abate do saldo do cliente.</p></details>`;
 }
 
 function formCredito(chave, nome) {
@@ -122,7 +126,12 @@ function vBrindes() {
       : p.status === 'aprovado' && (ehDono() || veExp()) ? `<button class="btn peq" data-a="briAprovar" data-id="${p.id}" data-v="entregue">🎁 Entregue</button>` : ''}</td></tr>`;
   return topo('Brindes', 'Brindes da loja para clientes: o vendedor pede, o Vinícius aprova e o brinde sai junto com o pedido (aparece na Expedição e na TV).',
       `<button class="btn" data-a="creAtualizar">↻ Atualizar</button>${ehDono() ? '<button class="btn" data-a="briNovo">+ Cadastrar brinde</button>' : ''}`)
-    + `${pend.length ? `<div class="card"><div class="secao-titulo"><h2>⏳ Aguardando aprovação</h2><small>${pend.length} pedido(s)</small></div><div class="rolagem"><table class="tabela"><tbody>${pend.map(linhaPed).join('')}</tbody></table></div></div>` : ''}
+    + `<div class="pain-kpis">
+      ${painKpi('Custo no mês', R0(soma(doMes.map(p => +p.custo_total || 0))), `${soma(doMes.map(p => p.qtd))} brinde(s) aprovado(s) em ${fmtMes(m)}`, '', 'destaque')}
+      ${painKpi('Aguardando aprovação', `<span class="${pend.length ? 'c-med' : ''}">${pend.length}</span>`, pend.length ? `${soma(pend.map(p => p.qtd))} brinde(s) pedidos` : 'nada esperando')}
+      ${painKpi('Para separar', String(ped.filter(p => p.status === 'aprovado').length), 'aprovados que ainda não saíram')}
+      ${(() => { const baixo = CRE.brindes.filter(b => b.ativo && b.estoque <= 3); return painKpi('Estoque baixo', `<span class="${baixo.length ? 'c-med' : 'c-ok'}">${baixo.length}</span>`, baixo.length ? baixo.slice(0, 3).map(b => `${esc(b.nome)} (${b.estoque})`).join(', ') : 'todos com mais de 3'); })()}</div>
+    ${pend.length ? `<div class="card"><div class="secao-titulo"><h2>⏳ Aguardando aprovação</h2><small>${pend.length} pedido(s)</small></div><div class="rolagem"><table class="tabela"><tbody>${pend.map(linhaPed).join('')}</tbody></table></div></div>` : ''}
     <div class="brindes-grid mt">${CRE.brindes.filter(b => b.ativo || ehDono()).map(b => `<div class="brinde ${b.ativo ? '' : 'inativo'}">
       <div class="brinde-foto" data-foto="${esc(b.foto || '')}">${b.foto ? '' : '🎁'}</div>
       <div class="brinde-info"><b>${esc(b.nome)}</b>${b.descricao ? `<small>${esc(b.descricao)}</small>` : ''}
@@ -132,7 +141,7 @@ function vBrindes() {
     <div class="mt"><div class="card"><div class="secao-titulo"><h2>Pedidos de brinde</h2><small>últimos 120 dias</small></div>
         ${ped.length ? listaCurta('briLista', `<table class="tabela"><tbody>${ped.map(linhaPed).join('')}</tbody></table>`, 'Buscar cliente, brinde, vendedor…') : '<div class="vazio">Nenhum pedido ainda.</div>'}</div>
       <div class="card mt"><div class="secao-titulo"><h2>Custo dos brindes no mês</h2><small>${R(soma(doMes.map(p => +p.custo_total || 0)))}</small></div>
-        <table class="tabela"><tbody>${porVend.map(v => `<tr><td>${esc(nomeP(v.id))}</td><td class="dir">${v.n} brinde(s)</td><td class="dir"><b>${R(v.custo)}</b></td></tr>`).join('') || '<tr><td class="mut">Nenhum brinde aprovado no mês.</td></tr>'}</tbody></table></div></div>`;
+        ${porVend.length ? painDist(porVend.map(v => ({ rot: esc(nomeP(v.id)), v: v.custo, sub: `${v.n} brinde(s)` })), v => R(v)) : '<div class="vazio">Nenhum brinde aprovado no mês.</div>'}</div></div>`;
 }
 /** Fotos dos brindes vêm do armazenamento privado: busca links temporários depois de desenhar a tela. */
 async function fotosBrindes() {

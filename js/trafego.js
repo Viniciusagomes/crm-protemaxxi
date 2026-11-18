@@ -60,7 +60,7 @@ const trDelta = (a, b, melhorSobe = true) => {
   const v = a / b - 1, cls = Math.abs(v) < 0.03 ? '' : (v > 0) === melhorSobe ? 'c-ok' : 'c-ruim';
   return `<span class="${cls}">${v >= 0 ? '▲' : '▼'} ${Math.round(Math.abs(v) * 100)}%</span> vs. período anterior`;
 };
-const trAba = (k, nome, badge) => `<button class="btn peq ${TR.aba === k ? 'pri' : ''}" data-a="trAba" data-v="${k}">${nome}${badge ? ` <b>${badge}</b>` : ''}</button>`;
+const trAba = (k, nome, badge) => `<button class="${TR.aba === k ? 'on' : ''}" data-a="trAba" data-v="${k}">${nome}${badge ? `<span class="badge">${badge}</span>` : ''}</button>`;
 
 function vTrafego() {
   const st = D.sync.gads || {};
@@ -76,7 +76,7 @@ function vTrafego() {
   const cab = topo('Tráfego — Google Ads', `Conta <b>${esc(st.conta || '')}</b>${st.email ? ` · acesso de ${esc(st.email)}` : ''} · ${st.ultima_sync ? 'atualizado há ' + tempoDesde(st.ultima_sync) : 'aguardando a primeira sincronização'}`,
     `<button class="btn" data-a="recarregarGads" ${TR.atualizando ? 'disabled' : ''}>${TR.atualizando ? '⏳ Atualizando…' : '↻ Sincronizar agora'}</button>`);
   const aviso = st.erro ? `<div class="card mt"><b class="c-ruim">⚠ O Google respondeu com erro:</b> ${esc(st.erro)}</div>` : '';
-  const abas = `<div class="acoes mt">${trAba('visao', 'Visão geral')}${trAba('termos', 'Termos de pesquisa')}${trAba('palavras', 'Palavras e negativas')}${trAba('anuncios', 'Anúncios e extensões')}${trAba('cidades', 'Cidades')}${trAba('leads', 'Leads (landing)')}${trAba('propostas', 'Propostas', trPendentes() || '')}${trAba('conv', 'Conversões e horários')}${trAba('google', 'Sugestões e mudanças')}</div>`;
+  const abas = `<div class="subabas">${trAba('visao', 'Visão geral')}${trAba('termos', 'Termos de pesquisa')}${trAba('palavras', 'Palavras e negativas')}${trAba('anuncios', 'Anúncios e extensões')}${trAba('cidades', 'Cidades')}${trAba('leads', 'Leads (landing)')}${trAba('propostas', 'Propostas', trPendentes() || '')}${trAba('conv', 'Conversões e horários')}${trAba('google', 'Sugestões e mudanças')}</div>`;
   const corpo = { visao: trVisao, termos: trTermos, palavras: trPalavras, anuncios: trAnuncios, cidades: trCidades, google: trGoogle, leads: trLeads, propostas: trPropostas, conv: trConv }[TR.aba] || trVisao;
   return cab + aviso + abas + corpo(vs) + (ehDono() ? '<div class="mt"><button class="btn perigo peq" data-a="desconectarGads">Desconectar o Google Ads</button></div>' : '');
 }
@@ -85,7 +85,7 @@ function trPeriodo() {
   const h = hoje(), ini = addDias(h, -(TR.per - 1)), iniAnt = addDias(h, -(2 * TR.per - 1)), fimAnt = addDias(h, -TR.per);
   return { h, ini, iniAnt, fimAnt };
 }
-const trSeletorPeriodo = () => `<div class="acoes">${[7, 14, 30, 60].map(n => `<button class="btn peq ${TR.per === n ? 'pri' : ''}" data-a="trPer" data-v="${n}">${n} dias</button>`).join('')}</div>`;
+const trSeletorPeriodo = () => `<div class="seg">${[7, 14, 30, 60].map(n => `<button class="${TR.per === n ? 'on' : ''}" data-a="trPer" data-v="${n}">${n} dias</button>`).join('')}</div>`;
 
 function trVisao() {
   const d = TR.d, { h, ini, iniAnt, fimAnt } = trPeriodo();
@@ -98,9 +98,11 @@ function trVisao() {
   const dias = Array.from({ length: TR.per }, (_, i) => addDias(h, -(TR.per - 1 - i)));
   const porDia = Object.fromEntries(dias.map(x => [x, cur.filter(r => r.data === x)]));
   const maxC = Math.max(1, ...dias.map(x => trSoma(porDia[x], 'custo')));
-  const barras = `<div style="display:flex;align-items:flex-end;gap:2px;height:90px">${dias.map(x => { const c = trSoma(porDia[x], 'custo'), cv = trSoma(porDia[x], 'conversoes');
-    return `<div title="${fmtCurta(x)}: ${R(c)} · ${N(cv)} conv." style="flex:1;height:${Math.max(2, c / maxC * 100)}%;background:${cv > 0 ? '#2e9e6b' : '#8aa0b4'};border-radius:2px 2px 0 0"></div>`; }).join('')}</div>
-    <small class="mut">Cada barra é um dia (altura = gasto). Verde = teve conversão.</small>`;
+  const serie = campo => dias.map(x => trSoma(porDia[x], campo));
+  const barras = `<div class="tr-barras">${dias.map(x => { const c = trSoma(porDia[x], 'custo'), cv = trSoma(porDia[x], 'conversoes');
+    return `<div class="${cv > 0 ? 'conv' : ''}" title="${fmtCurta(x)}: ${R(c)} · ${N(cv)} conv."><i style="height:${Math.max(2, c / maxC * 100)}%"></i></div>`; }).join('')}</div>
+    <div class="tr-eixo"><span>${fmtCurta(dias[0])}</span><span>maior dia ${R0(maxC)}</span><span>${fmtCurta(dias[dias.length - 1])}</span></div>
+    <div class="pain-leg"><span><i class="atual"></i>Dia com conversão</span><span><i class="claro"></i>Dia sem conversão</span></div>`;
 
   // campanhas
   const linhas = d.campanhas.map(c => {
@@ -114,11 +116,11 @@ function trVisao() {
   }).sort((x, y) => y.kk.c - x.kk.c);
 
   return `<div class="topo mt" style="margin-bottom:0"><div></div>${trSeletorPeriodo()}</div>
-    <div class="grid g4 mt">
-      <div class="card kpi-card"><div class="rot">Gasto</div><div class="val">${R(a.c)}</div><div class="sub">${trDelta(a.c, b.c, false)}</div></div>
-      <div class="card kpi-card"><div class="rot">Cliques · CTR</div><div class="val">${N(a.cl)}</div><div class="sub">CTR ${P(a.ctr)} · CPC médio ${a.cl ? R(a.cpc) : '—'}<br>${trDelta(a.cl, b.cl)}</div></div>
-      <div class="card kpi-card"><div class="rot">Conversões</div><div class="val">${N(a.cv)}</div><div class="sub">${trDelta(a.cv, b.cv)}</div></div>
-      <div class="card kpi-card"><div class="rot">Custo por conversão</div><div class="val">${a.cv ? R(a.cpa) : '—'}</div><div class="sub">${a.cv && b.cv ? trDelta(a.cpa, b.cpa, false) : 'conversão = clique no WhatsApp (intenção), não venda'}</div></div>
+    <div class="pain-kpis mt">
+      ${painKpi('Gasto', R(a.c), trDelta(a.c, b.c, false), painSpark(serie('custo')), 'destaque')}
+      ${painKpi('Cliques', N(a.cl), `CTR ${P(a.ctr)} · CPC ${a.cl ? R(a.cpc) : '—'}<br>${trDelta(a.cl, b.cl)}`, painSpark(serie('cliques')))}
+      ${painKpi('Conversões', N(a.cv), trDelta(a.cv, b.cv), painSpark(serie('conversoes')))}
+      ${painKpi('Custo por conversão', a.cv ? R(a.cpa) : '—', a.cv && b.cv ? trDelta(a.cpa, b.cpa, false) : 'conversão = clique no WhatsApp (intenção), não venda')}
     </div>
     ${trAtencao(cur, linhas)}
     <div class="card mt"><h2>Gasto por dia</h2>${barras}</div>

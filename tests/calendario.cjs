@@ -26,6 +26,8 @@ vm.runInContext(`var UI = {}, EU = null, D = { pessoas: [] }, renders = 0, modal
         if (q.op === 'delete') data = { id: q.filtros[0][1] };
         return Promise.resolve({ data, error: null }).then(ok, err); } };
     return b; } };`, ctx);
+// peças de painel que a tela usa (18/11)
+{ const pn = fs.readFileSync(path.join(root, 'js/painel.js'), 'utf8'); vm.runInContext(pn.slice(pn.indexOf('function painKpi'), pn.indexOf('function vInicio')) + pn.slice(pn.indexOf('function painDist'), pn.indexOf('/** Checklist médio')), ctx); }
 vm.runInContext(fs.readFileSync(path.join(root, 'js/calendario.js'), 'utf8'), ctx, { filename: 'calendario.js' });
 const run = code => vm.runInContext(code, ctx);
 const js = code => JSON.parse(run(`JSON.stringify(${code})`));
