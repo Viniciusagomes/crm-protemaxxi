@@ -32,6 +32,7 @@ function badgeAba(k) {
     fila: () => CRM.atv ? CRM.atv.filter(a => a.pessoa_id === EU.id && atvPendente(a) && a.quando <= hoje()).length : 0,   // o número fica na fila, onde está o trabalho
     situacao: () => SIT.lista ? SIT.lista.filter(p => !p.removido && passosPedido(p).estado === 'problema').length : 0,
     boletos: () => BOL.lista ? (ehDono() ? bolAbertos() : meusBoletos()).length : 0,
+    contas: () => veContas() && CPA.lista ? CPA.lista.filter(b => b.status === 'a_pagar' && b.vencimento && b.vencimento <= addDias(hoje(), 1)).length : 0,   // vencidas e as que vencem até amanhã
     avaliacoes: () => ehDono() && AVA.lista ? AVA.lista.filter(a => a.nota && a.nota <= 3 && !a.tratado).length : 0,
     creditos: () => ehDono() && CRE.pend ? CRE.pend.length : 0,
     brindes: () => ehDono() && CRE.bped ? CRE.bped.filter(b => b.status === 'pendente').length : 0,
@@ -52,7 +53,7 @@ function menu() {
   const itens = [
     ['', 'inicio', '⌂', 'Início'], ['', 'meudia', '☀', 'Meu dia'],
     ['Vendas'], ['', 'crm', '🎯', 'Funil (CRM)'], ['', 'clientes', '👤', 'Clientes'], ['', 'vendas', '📈', 'Vendas'],
-    ['Financeiro'], ['', 'boletos', '🧾', 'Boletos em atraso'], ['', 'creditos', '💳', 'Créditos e brindes'], ['', 'remuneracao', '💰', ehDono() ? 'Remuneração' : 'Meu ganho'],
+    ['Financeiro'], ['', 'contas', '🧾', 'Contas a pagar'], ['', 'boletos', '🧾', 'Boletos em atraso'], ['', 'creditos', '💳', 'Créditos e brindes'], ['', 'remuneracao', '💰', ehDono() ? 'Remuneração' : 'Meu ganho'],
     ['Atendimento'], ['', 'atendimento', '💬', 'WhatsApp'], ['', 'emails', '✉', 'Caixa de e-mails'], ['', 'suporte', '🔧', 'Assistência (OS)'],
     ['Marketing'], ['', 'trafego', '📣', 'Tráfego (Google Ads)'], ['', 'calendario', '📅', 'Calendário de marketing'], ['', 'avaliacoes', '⭐', 'Avaliações'],
     ['Operação'], ['', 'ml', '🛍', 'Mercado Livre'], ['', 'expedicao', '📦', 'Expedição'], ['', 'visaoestoque', '📋', 'Estoque'], ['', 'compras', '🤝', 'Compras e produtos'],
@@ -91,12 +92,12 @@ function menuCat(nome) {
   const nav = document.getElementById('nav'); if (nav) nav.innerHTML = menu();
 }
 const VIEWS_FN = {
-  inicio: () => vInicio(), fila: () => vFilaDia(), vendas: () => vVendas(), ml: () => vML(), trafego: () => vTrafego(), pedidos: () => vPedidos(), clientes: () => vClientes(),
+  inicio: () => vInicio(), fila: () => vFilaDia(), contas: () => vContas(), vendas: () => vVendas(), ml: () => vML(), trafego: () => vTrafego(), pedidos: () => vPedidos(), clientes: () => vClientes(),
   solicitacoes: () => vIntranet(), suporte: () => vAssistencia(), expedicao: () => vExpedicao(), estoque: () => vEstoque(), visaoestoque: () => vVisaoEstoque(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(), creditos: () => vCreditos(), brindes: () => vBrindes(), crm: () => vCRM(), meudia: () => vMeuDia(), situacao: () => vSituacao(), boletos: () => vBoletos(), emails: () => vEmails(), avaliacoes: () => vAvaliacoes(), compras: () => vCompras(), cadastroprod: () => vCadastroProd(), atendimento: () => vAtendimento(),
   checklist: () => vChecklist(), calendario: () => vCalendario(), supervisao: () => vSupervisao(), geral: () => vGeral(), metas: () => vMetas(),
   remuneracao: () => vRemuneracao(), feedbacks: () => vFeedbacks(), config: () => vConfig(), ajuda: () => vAjuda(),
 };
-const SO_DONO = ['config', 'geral', 'logs', 'cadastroprod'];
+const SO_DONO = ['config', 'geral', 'logs', 'cadastroprod', 'contas'];
 
 /** Abas de cada perfil (o dono vê tudo). Vendedor: comercial + situação dos pedidos; estoque: expedição e TV;
  *  supervisor: tudo da própria área + supervisão da equipe. Remuneração, avaliações e configurações ficam só com o dono. */
@@ -134,6 +135,7 @@ function render() {
   if (!CRE.em && !CRE.carregando) { CRE.em = 1; carregarCreditos(true).then(render).catch(() => {}); }
   if (!BOL.em && !BOL.carregando && veBoletos()) { BOL.em = 1; carregarBoletos(true).then(render).catch(() => {}); }   // aviso de boleto em atraso   // saldos e pendências em segundo plano
   if (!AT.em && !AT.carregando && veAssist()) { AT.em = 1; carregarAT(true).then(render).catch(() => {}); }   // lembretes da assistência
+  if (!CPA.em && !CPA.carregando && veContas()) { CPA.em = 1; carregarContas(true).then(render).catch(() => {}); }   // contas a pagar: contador do menu (só donos)
   if (!COMP.em && !COMP.carregando && veCompras()) { COMP.em = 1; carregarCompras(true).then(render).catch(() => {}); }   // oportunidades para o contador do menu
   if (!WA.conv && !WA.carregando && !WA.falhou && veAtendimento()) carregarWA().then(render).catch(() => { WA.falhou = 1; });   // WhatsApp: contador e aviso de mensagem nova em qualquer tela
   $('#nav').innerHTML = menu();
@@ -248,6 +250,12 @@ const A = {
   emCaixa: el => { EM.caixa = el.dataset.v; EM.sel = null; render(); },
   emAbrir: el => emAbrir(el.dataset.id).catch(e => avisar(e.message)),
   emAnexo: el => emAnexo(el.dataset.id, el.dataset.e).catch(e => avisar(e.message)),
+  cpaAtualizar: () => carregarContas(true).then(render).catch(e => avisar(e.message)),
+  cpaNovo: () => cpaNovo(), cpaSalvar: () => cpaSalvar().catch(e => avisar(e.message)), cpaImportar: () => cpaImportar(), cpaImportarOk: el => cpaImportarOk(el),
+  cpaFiltro: el => { CPA.filtro = el.dataset.v; render(); },
+  cpaPago: el => cpaPago(el.dataset.id).catch(e => avisar(e.message)), cpaReabrir: el => cpaReabrir(el.dataset.id).catch(e => avisar(e.message)),
+  cpaIgnorar: el => cpaIgnorar(el.dataset.id).catch(e => avisar(e.message)), cpaExcluir: el => cpaExcluir(el.dataset.id).catch(e => avisar(e.message)),
+  cpaVerEmail: el => { UI.view = 'emails'; EM.caixa = 'boletos'; emAbrir(el.dataset.id).catch(e => avisar(e.message)); },
   emCopiar: el => navigator.clipboard?.writeText(el.dataset.v).then(() => avisar('Linha digitável copiada.')).catch(() => prompt('Copie a linha digitável:', el.dataset.v)),
   emBolPago: el => emBoleto(el.dataset.id, 'pago').catch(e => avisar(e.message)),
   emBolIgnorar: el => emBoleto(el.dataset.id, 'ignorado').catch(e => avisar(e.message)),
@@ -726,6 +734,7 @@ const C = {
   simMeta: el => { UI.simMeta = +el.value; render(); },
   simCheck: el => { UI.simCheck = +el.value; render(); },
   fbFiltro: el => { UI.fbPessoa = el.value; render(); },
+  cpaFornEscolhido: el => { const cnpj = new Map(cpaFornecedores()).get(el.value.trim()), alvo = $(el.dataset.cnpj || '#cpaCnpj'); if (cnpj && alvo && !alvo.value) alvo.value = cnpj; },
   fbTipoFiltro: el => { UI.fbTipo = el.value; render(); },
   cfgPessoa: el => { UI.cfgPessoa = el.value; render(); },
   set: el => {

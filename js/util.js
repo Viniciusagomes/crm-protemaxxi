@@ -58,6 +58,7 @@ const ICONES = {
   pedidos: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6M9 16h3"/>',
   situacao: '<path d="M3 12h4l3-8 4 16 3-8h4"/>',
   boletos: '<path d="M6 3h9l4 4v14H6zM14 3v5h5M12 11v4M12 18h.01"/>',
+  contas: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M8 15h3M14 15h2"/>',
   clientes: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.3 2.9-5.5 6.5-5.5s6.5 2.2 6.5 5.5M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.6c2.3.7 3.5 2.6 3.5 5.4"/>',
   monitoria: '<path d="M3 12.5V3h9.5l8.5 8.5-9 9z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
   avaliacoes: '<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9z"/>',

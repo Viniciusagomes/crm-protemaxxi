@@ -2,7 +2,8 @@
 //  POST e-mail cru (Content-Type message/rfc822, cabeçalhos x-email-de / x-email-para) ou JSON {de, para, raw} com o MIME em base64.
 //  Autenticação: cabeçalho x-email-segredo = secret EMAIL_ENTRADA_SEGREDO
 //  (o mesmo valor fica na variável EMAIL_SEGREDO do Worker; o Vinícius cadastra nos dois painéis, nunca pelo chat).
-//  Também aceita x-sync-secret (testes do servidor) e {acao:"limpar_orfaos"} (apaga anexos de e-mails excluídos).
+//  Também aceita x-sync-secret (testes do servidor), {acao:"limpar_orfaos"} (apaga anexos de e-mails excluídos)
+//  e {acao:"reler_boletos"} (relê CNPJ e nome do beneficiário dos boletos que ficaram sem; só servidor).
 // Guarda o e-mail e os anexos (bucket 'emails/<id>/') e lê o que der, conforme o endereço:
 //  boletos@      PDF do boleto → linha digitável (confere os dígitos), valor, vencimento, CNPJ e nome do beneficiário → boletos_pagar
 //                com alerta quando o CNPJ não é de fornecedor cadastrado, o banco mudou ou o e-mail veio de outro domínio;
@@ -62,8 +63,19 @@ function lerBoleto(texto: string) {
   }
   return { linha, banco: linha.slice(0, 3), valor: Number(linha.slice(37)) / 100 || null, vencimento: vencimentoDoFator(Number(linha.slice(33, 37))) };
 }
-function beneficiario(texto: string) {
-  const cnpjs = [...texto.matchAll(/\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}/g)].map((m) => dig(m[0])).filter((c) => c.length === 14 && !NOSSOS_CNPJ.includes(c));
+/** CNPJ com os dois dígitos verificadores certos. */
+function cnpjValido(c: string) {
+  if (!/^\d{14}$/.test(c) || /^(\d)\1{13}$/.test(c)) return false;
+  const dv = (n: number) => { const p = n === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]; const s = p.reduce((a, w, i) => a + Number(c[i]) * w, 0) % 11; return s < 2 ? 0 : 11 - s; };
+  return dv(12) === Number(c[12]) && dv(13) === Number(c[13]);
+}
+/** CNPJ e nome do beneficiário. Antes (até 18/11) 14 dígitos soltos do código de barras passavam por CNPJ:
+ *  agora vale primeiro o CNPJ escrito com a barra (00.000.000/0000-00), depois 14 dígitos soltos que não fazem parte
+ *  da linha digitável; e só com os dígitos verificadores certos. */
+function beneficiario(texto: string, linha?: string | null) {
+  const comBarra = [...texto.matchAll(/\d{2}\.?\d{3}\.?\d{3}\/\d{4}-?\d{2}/g)].map((m) => dig(m[0]));
+  const soltos = [...texto.matchAll(/(?<!\d)\d{14}(?!\d)/g)].map((m) => m[0]).filter((c) => !linha || !linha.includes(c));
+  const cnpjs = [...comBarra, ...soltos].filter((c) => cnpjValido(c) && !NOSSOS_CNPJ.includes(c));
   // o nome vem logo depois de "Beneficiário"; corta onde começam outros campos do boleto (agência, nosso número, CNPJ…)
   let nome = texto.match(/(?:Benefici[aá]rio|Cedente)(?:\s*final)?\s*[:\-]?\s*([A-Za-zÀ-ú][^\n\r]{2,120})/i)?.[1] ?? null;
   nome = nome?.split(/\s*(?:CNPJ|CPF|Nosso\s*N|Ag[eê]ncia|C[oó]digo|Data|Vencimento|Valor|Parcela|\d{4,})/i)[0]?.trim() ?? null;
@@ -320,6 +332,32 @@ Deno.serve(async (req) => {
     }
     return json({ ok: true, pastas_orfas: orfas.length, apagados });
   }
+  // manutenção (18/11): relê o beneficiário dos boletos que ficaram sem CNPJ ou sem nome (PDF guardado ou texto do e-mail)
+  if (corpo.acao === "reler_boletos") {
+    const { data: bols } = await sb.from("boletos_pagar").select("id,linha,email_id,anexo_id,cnpj,beneficiario").eq("origem", "email").or("cnpj.is.null,beneficiario.is.null").limit(60);
+    const res: any[] = [];
+    for (const b of bols ?? []) {
+      try {
+        let texto = "";
+        if (b.anexo_id) {
+          const { data: an } = await sb.from("email_anexos").select("caminho").eq("id", b.anexo_id).maybeSingle();
+          const { data: arq } = an?.caminho ? await sb.storage.from("emails").download(an.caminho) : { data: null };
+          if (arq) texto = await pdfTexto(new Uint8Array(await arq.arrayBuffer()));
+        }
+        if (!texto && b.email_id) { const { data: e } = await sb.from("emails").select("assunto,texto,html").eq("id", b.email_id).maybeSingle(); texto = `${e?.assunto ?? ""}\n${e?.texto ?? ""}\n${htmlTexto(e?.html ?? "")}`; }
+        const ben = beneficiario(texto, b.linha);
+        let forn: any = null;
+        if (ben.cnpj) { const { data: l } = await sb.from("fornecedores").select("id,nome,cnpj"); forn = (l ?? []).find((f: any) => dig(f.cnpj) === ben.cnpj) ?? null; }
+        const nome = forn?.nome ?? (ben.cnpj ? await nomeDoCnpj(ben.cnpj) : null) ?? ben.nome;
+        const upd: any = {};
+        if (ben.cnpj && !b.cnpj) { upd.cnpj = ben.cnpj; upd.fornecedor_id = forn?.id ?? null; }
+        if (nome && !b.beneficiario) upd.beneficiario = nome;
+        if (Object.keys(upd).length) await sb.from("boletos_pagar").update(upd).eq("id", b.id);
+        res.push({ id: b.id, cnpj: !!upd.cnpj, nome: !!upd.beneficiario });
+      } catch (x) { res.push({ id: b.id, erro: String((x as Error).message).slice(0, 120) }); }
+    }
+    return json({ ok: true, lidos: res.length, com_cnpj: res.filter((r) => r.cnpj).length, com_nome: res.filter((r) => r.nome).length, erros: res.filter((r) => r.erro).length });
+  }
   if (!corpo.raw && !corpo.bytes?.length) return json({ erro: "faltou o e-mail (raw)" }, 400);
   const bruto: Uint8Array = corpo.bytes ?? deB64(corpo.raw);
   const m: any = await PostalMime.parse(bruto);
@@ -352,12 +390,12 @@ Deno.serve(async (req) => {
       } else if (/pdf/i.test(a.mimeType ?? "") || /\.pdf$/i.test(nome)) {
         const t = await pdfTexto(bytes); textoTodo += "\n" + t;
         const b = lerBoleto(t);
-        if (b && (caixa === "boletos" || caixa === "outros" || /boleto/i.test(nome + (m.subject ?? "")))) lidos.push(await registrarBoleto(b, beneficiario(t), de, e.id, an?.id ?? null));
+        if (b && (caixa === "boletos" || caixa === "outros" || /boleto/i.test(nome + (m.subject ?? "")))) lidos.push(await registrarBoleto(b, beneficiario(t, b.linha), de, e.id, an?.id ?? null));
       }
     } catch (x) { erros.push(`${nome}: ${String((x as Error).message).slice(0, 150)}`); }
   }
   try {
-    if (caixa === "boletos" && !lidos.some((l) => l.tipo === "boleto")) { const b = lerBoleto(textoTodo); if (b) lidos.push(await registrarBoleto(b, beneficiario(textoTodo), de, e.id, null)); }
+    if (caixa === "boletos" && !lidos.some((l) => l.tipo === "boleto")) { const b = lerBoleto(textoTodo); if (b) lidos.push(await registrarBoleto(b, beneficiario(textoTodo, b.linha), de, e.id, null)); }
     if (caixa === "os_intelbras") lidos.push(await processarOS(e.id, m.subject ?? "", textoTodo, m.date && !isNaN(Date.parse(m.date)) ? new Date(m.date).toISOString() : new Date().toISOString()));
   } catch (x) { erros.push(String((x as Error).message).slice(0, 150)); }
 
