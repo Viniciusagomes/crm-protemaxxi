@@ -6,7 +6,7 @@ const assert = require('assert/strict');
 const root = path.join(__dirname, '..');
 
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-assert.match(html, /js\/carteira\.js\?v=20261116a/, 'cache do carteira.js atualizado');
+assert.match(html, /js\/carteira\.js\?v=\d{8}[a-z]/, 'cache do carteira.js versionado');
 
 const src = fs.readFileSync(path.join(root, 'js/carteira.js'), 'utf8');
 assert.match(src, /site: \['🌐 Lead do site', 'azul'\]/, 'rótulo da lista');

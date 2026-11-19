@@ -104,6 +104,13 @@ function seloContato(c) {
   if (!c) return '';
   return `${c.nao_contatar ? '<span class="tag ruim">🚫 Não contatar</span>' : ''}${contatoPausado(c) ? `<span class="tag med" title="${esc(c.contato_motivo || '')}">⏸ Pausa até ${fmtCurta(c.contato_pausa_ate)}</span>` : ''}${c.contato_canal ? `<span class="tag" title="Canal preferido">${CANAIS_CONTATO[c.contato_canal]}</span>` : ''}`;
 }
+/** Lead do site sem resultado passa de um dia para o outro (prospeccao_levar_leads, 19/11): mostra desde quando espera. */
+function proEsperando(x) {
+  const desde = x?.dados?.desde;
+  if (x?.resultado || !/^\d{4}-\d{2}-\d{2}$/.test(desde || '') || desde >= (x.data || hoje())) return '';
+  const dias = Math.round((pd(x.data || hoje()) - pd(desde)) / 864e5);
+  return `<span class="tag ${dias >= 2 ? 'ruim' : 'med'}" title="Lead que ainda não foi tratado: continua na campanha até ter um resultado">esperando desde ${fmtCurta(desde)} · ${dias} dia${dias > 1 ? 's' : ''}</span> `;
+}
 function resumoPro(lista) {
   return { total: lista.length, contatos: lista.filter(contatoPro).length, pulados: lista.filter(x => x.resultado === 'pular').length, pendentes: lista.filter(x => !x.resultado).length };
 }
@@ -206,7 +213,7 @@ function abaProspeccao() {
     return `<div class="pro-card ${x.resultado === 'pular' ? 'pulado' : x.resultado ? 'feito' : ''}" id="pro_${x.id}">
       <div class="pro-topo"><span class="tag ${l[1]}">${l[0]}</span>${seloSeg(mapa[x.cliente_chave]?.seg)}${seloCredito(x.cliente_chave)}${seloContato(c)}${x.resultado ? `<span class="tag ok">${RES_PRO[x.resultado]}</span>` : ''}</div>
       <div class="pro-nome">${x.lista === 'site' && !cli[x.cliente_chave] ? `<b>${esc(x.cliente_nome || 'Lead sem nome')}</b>` : `<a href="#" data-a="verCliente" data-chave="${esc(x.cliente_chave)}">${esc(x.cliente_nome || c.nome || '')}</a>`} <small class="mut">${esc(c.cidade || '')}</small></div>
-      <div class="pro-motivo">${esc(x.motivo || '')}${x.dados?.repor_chave && !x.resultado ? ` <button class="btn peq" data-a="proDispensar" data-id="${x.id}" title="Não sugerir mais este produto para este cliente">Compra eventual</button>` : ''}</div>
+      <div class="pro-motivo">${proEsperando(x)}${esc(x.motivo || '')}${x.dados?.repor_chave && !x.resultado ? ` <button class="btn peq" data-a="proDispensar" data-id="${x.id}" title="Não sugerir mais este produto para este cliente">Compra eventual</button>` : ''}</div>
       <small class="${x.resultado && x.resultado !== 'pular' ? 'c-ok' : 'mut'}">${x.resultado === 'pular' ? '↷ Pulado · não conta como contato' : x.resultado ? `✓ Contato registrado${x.resultado_em ? ' · ' + fmtCurta(x.resultado_em.slice(0, 10)) : ''}` : '○ Ainda não contatado'}</small>
       ${fone ? `<div class="pro-fone">📱 ${esc(fone)}</div>` : `${x.dados?.fone_errado ? `<small class="c-ruim">📵 ${esc(foneFmt(x.dados.fone_errado))} marcado como errado</small>` : ''}<div class="pro-fone sem"><input type="tel" placeholder="Sem telefone: digite com DDD" id="proFone_${x.id}"><button class="btn peq" data-a="proFone" data-id="${x.id}" data-chave="${esc(x.cliente_chave)}">Salvar</button></div>`}
       <textarea class="pro-msg" id="proMsg_${x.id}" data-fid="proMsg_${x.id}" data-pro-rascunho="${x.id}" rows="4">${esc(PRO.rascunhos[x.id] ?? msg)}</textarea><small class="mut">Sugestão para revisar antes de enviar. Abrir o WhatsApp não registra contato.</small>
