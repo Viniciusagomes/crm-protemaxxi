@@ -9,12 +9,12 @@ vm.runInContext(pedaco('// Abas que moram dentro de outra', 'const VIEWS_FN') + 
 const run = s => vm.runInContext(s, ctx);
 // vendedor comum: sem dono, sem equipe, sem estoque
 run(`var UI = { view: 'checklist' }, EU = { id: 'ana', tiny: 5, permissoes: {} }, D = { ml: null }, CRM = {}, SIT = {}, BOL = {}, AVA = {}, CRE = {}, EXP = null, COMP = {}, WA = {}, EM = {}, AT = {};
-  var vis = new Set(['inicio', 'meudia', 'checklist', 'pedidos', 'vendas', 'clientes', 'crm', 'situacao', 'boletos', 'solicitacoes', 'feedbacks', 'ajuda']);
+  var vis = new Set(['inicio', 'meudia', 'tutoriais', 'checklist', 'pedidos', 'vendas', 'clientes', 'crm', 'situacao', 'boletos', 'solicitacoes', 'feedbacks', 'ajuda']);
   var podeAba = k => vis.has(k), ehDono = () => false, veMonitoria = () => false, veTudoVendas = () => false, veML = () => false, veTrafego = () => false, veCompras = () => false,
     veAtendimento = () => false, veEmails = () => false, calPessoas = () => [], temEquipe = () => false, veExp = () => false, minhasPendentes = () => [], trPendentes = () => 0, cpPendentes = () => 0;`);
 const html = run('menu()');
 const itens = [...html.replace(/<div class="menu-sub">.*?<\/div>/gs, '').matchAll(/data-v="([^"]+)"/g)].map(m => m[1]);
-assert.deepEqual(itens, ['inicio', 'meudia', 'crm', 'clientes', 'vendas', 'boletos', 'solicitacoes', 'feedbacks'], 'vendedor vê o mesmo de antes, agrupado (Como usar foi para o rodapé)');
+assert.deepEqual(itens, ['inicio', 'meudia', 'tutoriais', 'crm', 'clientes', 'vendas', 'boletos', 'solicitacoes', 'feedbacks'], 'vendedor vê o mesmo de antes, agrupado (Como usar foi para o rodapé)');
 assert.doesNotMatch(html.replace(/<div class="menu-sub">.*?<\/div>/gs, ''), /data-v="checklist"|data-v="pedidos"/, 'checklist e pedidos ficam dentro de Meu dia e Vendas');
 assert.match(html, /class="on" data-a="nav" data-v="meudia"/, 'estando no checklist, o Meu dia fica marcado');
 assert.match(html, /<span class="rot">Feedbacks<\/span>/, 'grupo com uma sub-aba só mostra o nome dela');

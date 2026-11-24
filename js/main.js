@@ -51,7 +51,7 @@ function badgeAba(k) {
 }
 function menu() {
   const itens = [
-    ['', 'inicio', '⌂', 'Início'], ['', 'meudia', '☀', 'Meu dia'],
+    ['', 'inicio', '⌂', 'Início'], ['', 'meudia', '☀', 'Meu dia'], ['', 'tutoriais', '▶', 'Tutoriais'],
     ['Vendas'], ['', 'crm', '🎯', 'Funil (CRM)'], ['', 'clientes', '👤', 'Clientes'], ['', 'vendas', '📈', 'Vendas'],
     ['Financeiro'], ['', 'contas', '🧾', 'Contas a pagar'], ['', 'boletos', '🧾', 'Boletos em atraso'], ['', 'creditos', '💳', 'Créditos e brindes'], ['', 'remuneracao', '💰', ehDono() ? 'Remuneração' : 'Meu ganho'],
     ['Atendimento'], ['', 'atendimento', '💬', 'WhatsApp'], ['', 'emails', '✉', 'Caixa de e-mails'], ['', 'suporte', '🔧', 'Assistência (OS)'],
@@ -95,7 +95,7 @@ const VIEWS_FN = {
   inicio: () => vInicio(), fila: () => vFilaDia(), contas: () => vContas(), vendas: () => vVendas(), ml: () => vML(), trafego: () => vTrafego(), pedidos: () => vPedidos(), clientes: () => vClientes(),
   solicitacoes: () => vIntranet(), suporte: () => vAssistencia(), expedicao: () => vExpedicao(), estoque: () => vEstoque(), visaoestoque: () => vVisaoEstoque(), tvestoque: () => vTVEstoque(), logs: () => vLogs(), monitoria: () => vMonitoria(), creditos: () => vCreditos(), brindes: () => vBrindes(), crm: () => vCRM(), meudia: () => vMeuDia(), situacao: () => vSituacao(), boletos: () => vBoletos(), emails: () => vEmails(), avaliacoes: () => vAvaliacoes(), compras: () => vCompras(), cadastroprod: () => vCadastroProd(), atendimento: () => vAtendimento(),
   checklist: () => vChecklist(), calendario: () => vCalendario(), supervisao: () => vSupervisao(), geral: () => vGeral(), metas: () => vMetas(),
-  remuneracao: () => vRemuneracao(), feedbacks: () => vFeedbacks(), config: () => vConfig(), ajuda: () => vAjuda(),
+  remuneracao: () => vRemuneracao(), feedbacks: () => vFeedbacks(), config: () => vConfig(), ajuda: () => vAjuda(), tutoriais: () => vTutoriais(),
 };
 const SO_DONO = ['config', 'geral', 'logs', 'cadastroprod', 'contas'];
 
@@ -103,7 +103,7 @@ const SO_DONO = ['config', 'geral', 'logs', 'cadastroprod', 'contas'];
  *  supervisor: tudo da própria área + supervisão da equipe. Remuneração, avaliações e configurações ficam só com o dono. */
 function abasDoPerfil() {
   if (!EU || ehDono()) return null;
-  const P = EU.permissoes || {}, s = new Set(['inicio', 'meudia', 'fila', 'pedidos', 'clientes', 'solicitacoes', 'feedbacks', 'ajuda']);
+  const P = EU.permissoes || {}, s = new Set(['inicio', 'meudia', 'fila', 'pedidos', 'clientes', 'solicitacoes', 'feedbacks', 'ajuda', 'tutoriais']);
   const add = (...ks) => ks.forEach(k => s.add(k));
   const comercial = !!EU.tiny || !!P.vendas_todas;
   if (comercial) add('crm', 'vendas', 'situacao', 'boletos');
@@ -434,6 +434,7 @@ const A = {
   crmNovo: el => formNegocio(null, el.dataset.chave, el.dataset.nome),
   crmEditar: el => formNegocio(el.dataset.id),
   crmAba: el => { UI.crmAba = el.dataset.v; render(); },
+  tutPublicar: el => tutPublicar(el.dataset.id).catch(e => avisar(e.message)),
   crmAbrir: (el, e) => { if (e?.target?.closest?.('.kcard') && document.querySelector('.kcard.arrastando')) return; crmAbrir(el.dataset.id); },
   crmSalvar: el => crmSalvar(el.dataset.id).catch(e => avisar(e.message)),
   crmMover: el => crmMover(el.dataset.id, el.dataset.v).then(() => crmAbrir(el.dataset.id)).catch(e => avisar(e.message)),
@@ -710,6 +711,7 @@ const numOuVazio = v => v === '' ? '' : Number(v);
 
 let timerBusca = null;
 const C = {
+  tutArquivo: el => { const f = el.files?.[0]; if (f) tutEnviar(el.dataset.arq, f).catch(e => avisar(e.message)); el.value = ''; },
   calStatus: el => calMudar(el.dataset.id, { status: el.value }),
   calFeito: el => calMudar(el.dataset.id, { status: el.checked ? 'feito' : 'a_fazer' }),
   adsEtapa: el => adsEtapa(el.dataset.id, el.value).catch(e => alert(e.message)),
