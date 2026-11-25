@@ -39,7 +39,10 @@ O Vinícius contou que o Marcos não via alguns e-mails da caixa **os.intelbras@
   - os dois RMAs da mesma OS.
 - `tests/intelcamp-email.cjs`: o caso `sem_rma`, o orçamento ignorado e as imagens anexas.
 - `node tests/rodar-todos.cjs`: 43/43.
-- Simulação com os dados de hoje (não aplicada): pelo Terceiros, os e-mails das T941, T938, T939 e T942 passam a achar a OS. Pela série contida, os da T937 também. A T944 (OS 102338) aparece como `sem_rma`, porque o envio ainda não foi registrado.
+- Conferência com os dados de hoje, só por consulta (nada foi aplicado):
+  - pelo Terceiros, os e-mails das T941, T938 e T939 acham o RMA aberto;
+  - pela série, os da T943 e da T933 (que chegaram antes do RMA) e, pela série contida, os da T937 também;
+  - a T942 e a T944 ainda não têm o envio registrado, então ficam como `sem_rma`.
 - Sem revisão do Codex (não está instalado neste PC).
 
 ## Para ativar (depende do Vinícius)
