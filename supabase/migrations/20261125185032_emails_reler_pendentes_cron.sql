@@ -1,0 +1,3 @@
+-- relê a cada 15 min os e-mails da Intelcamp (os.intelbras@) que chegaram antes de a loja registrar o envio à assistência
+select cron.unschedule('emails-reler-pendentes') where exists (select 1 from cron.job where jobname = 'emails-reler-pendentes');
+select cron.schedule('emails-reler-pendentes', '8-59/15 * * * *', $$select net.http_post(url := 'https://qeacyyccxgytqrwmddyl.supabase.co/functions/v1/email-entrada', headers := jsonb_build_object('Content-Type','application/json','x-sync-secret',(select valor from privado.segredos where chave='sync')), body := '{"acao":"reler_pendentes"}'::jsonb, timeout_milliseconds := 120000)$$);

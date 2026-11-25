@@ -51,5 +51,22 @@ O Vinícius contou que o Marcos não via alguns e-mails da caixa **os.intelbras@
    `select cron.schedule('emails-reler-pendentes', '8-59/15 * * * *', $$select net.http_post(url := 'https://qeacyyccxgytqrwmddyl.supabase.co/functions/v1/email-entrada', headers := jsonb_build_object('Content-Type','application/json','x-sync-secret',(select valor from privado.segredos where chave='sync')), body := '{"acao":"reler_pendentes"}'::jsonb, timeout_milliseconds := 120000)$$);`
 3. Na primeira rodada, os e-mails antigos são relidos. Isso pode criar **rascunhos** de orçamento nas OS ainda não aprovadas. Ninguém recebe nada: a loja confere e envia.
 
+## Ativado (25/11, com o OK do Vinícius)
+- Função `email-entrada` v13 publicada (igual a esta cópia).
+- Cron `emails-reler-pendentes` criado: migration `20261125185032_emails_reler_pendentes_cron.sql`.
+- Primeira releitura: 29 pendentes, **13 ligados**, 4 `sem_rma` e nenhum erro.
+  - Ficaram ligadas as T927, T929, T933, T937, T938, T939, T941 e T943.
+  - Ficaram como `sem_rma` a T942 (2 e-mails) e a T944 (2 e-mails).
+  - Não ligaram (sem OS aberta para elas): as OS 100694, 101569, 101761 (T934, entregue), 101763, 101828, 102017 e 102262 da Intelcamp, e a NFS-e.
+- Rascunhos criados (ninguém recebeu nada):
+  - T927: R$ 180 → R$ 288;
+  - T929: R$ 330 → R$ 528;
+  - T937: R$ 250 → R$ 400;
+  - T941: R$ 50 → R$ 80.
+- **Atenção:** a T929 agora tem dois rascunhos.
+  - O de R$ 330 vem do e-mail de 09/11.
+  - O de R$ 50 vem do e-mail de 11/11.
+  - A loja confere qual vale e cancela o outro.
+
 ## Para o Codex
 "Nº OS Terceiros" no SHOficina é o número da nossa OS. Ele é a chave mais confiável, e a série vem depois.
