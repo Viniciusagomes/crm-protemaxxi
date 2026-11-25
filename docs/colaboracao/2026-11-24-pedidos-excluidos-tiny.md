@@ -25,11 +25,12 @@ Conferência feita em 24/11 (comparação dos ids do Tiny com os do banco, confi
   - `detalharUm`: um pedido excluído antes de ser detalhado era um "não localizado" que derrubava a rodada inteira. Agora o pedido é marcado como excluído.
 - Nenhuma tela mudou: todas já descartam `situacao === 'Cancelado'`.
 
-## Para ativar (depende do Vinícius)
-1. Publicar a função `tiny-sync` com esta versão.
-2. Para limpar os 13 meses, colocar todos na fila:
-   `update sync_estado set valor = jsonb_build_object('fila', <13 meses>, 'em', now()) where chave = 'conferencia_excluidos'`
-   (ou `insert`, se a linha não existir).
+## Ativação (24/11)
+- O Vinícius pediu para limpar **só novembro**: outubro e os meses anteriores ficam como estão, porque a comissão já foi fechada.
+- Por isso, a conferência automática olha só o mês atual. O mês anterior entra apenas do dia 1 ao dia 5, para pegar exclusões da virada.
+- A função `tiny-sync` foi publicada (versão 22, igual à deste PR), e a fila começou com `["2026-11"]`.
+- Para limpar um mês antigo no futuro, é só pô-lo na fila:
+  `update sync_estado set valor = jsonb_build_object('fila', '["2026-10"]'::jsonb, 'em', now()) where chave = 'conferencia_excluidos'`.
 
 ## Validação
 - A comparação Tiny × banco de novembro e outubro foi feita por script local (API v2, só leitura).

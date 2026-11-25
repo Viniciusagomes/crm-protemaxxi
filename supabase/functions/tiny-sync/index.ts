@@ -3,7 +3,7 @@
 //  - backfill:   cabeçalhos dos pedidos dos últimos 12 meses + mês atual, mês a mês (retoma de onde parou)
 //  - incremental: pedidos e contatos alterados desde a última rodada (a cada rodada do agendador, ~2 min: o balcão precisa ver os pedidos logo)
 //  - detalhar:   abre os pedidos ainda sem detalhe (cliente com CPF/CNPJ, itens, canal)
-//  - excluídos:  a cada hora confere o mês atual e o anterior; pedido excluído no Tiny vira "Cancelado" (excluido_tiny_em)
+//  - excluídos:  a cada hora confere o mês atual (o anterior só até o dia 5); pedido excluído no Tiny vira "Cancelado" (excluido_tiny_em)
 // Chamado pelo pg_cron a cada 10 min (header x-sync-secret) ou pelo dono no botão "Atualizar agora".
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -196,13 +196,14 @@ async function marcarExcluido(id: string) {
   if (error) throw new Error("marcar excluído: " + error.message);
 }
 // Pedido EXCLUÍDO no Tiny (não cancelado) some da pesquisa e nunca volta no incremental: ficava somando nas vendas.
-// A cada hora confere o mês atual e o anterior (a fila pode receber meses antigos para uma limpeza): compara os ids do
+// A cada hora confere o mês atual (e o anterior até o dia 5) (a fila pode receber meses antigos para uma limpeza): compara os ids do
 // Tiny com os do banco e só marca depois de confirmar um a um no pedido.obter.
 async function conferirExcluidos(c: Ctx, r: any) {
   const st = await estado("conferencia_excluidos") ?? { fila: [], em: null };
   if (!st.fila?.length) {
     if (st.em && Date.now() - Date.parse(st.em) < 60 * 60e3) return;
-    st.fila = mesesBackfill().slice(-2); st.em = new Date().toISOString();
+    // Mês fechado não muda sozinho (comissão já paga): o anterior só entra nos 5 primeiros dias do mês.
+    st.fila = mesesBackfill().slice(new Date().getDate() <= 5 ? -2 : -1); st.em = new Date().toISOString();
   }
   const mes = st.fila[0];
   const [a, m] = mes.split("-").map(Number); const ult = new Date(a, m, 0).getDate(); const mm = String(m).padStart(2, "0");
