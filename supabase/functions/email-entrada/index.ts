@@ -11,6 +11,7 @@
 //  nfe@          XML da NF-e / NFS-e → chave, emitente, número, valor → nfs_recebidas (e diz se já está na Entrada de NF)
 //  os.intelbras@ e-mails da Intelcamp (SHOficina): liga à OS na assistência, atualiza a etapa e cria o orçamento como RASCUNHO
 //                (veja processarOS). {acao:"reler", email_id, rma_id?} relê um e-mail (servidor ou usuário que vê o e-mail).
+//                {acao:"reler_pendentes"} (pg_cron, 15 min) relê os que chegaram antes de a loja registrar o envio à assistência.
 // Os XML de NF e os boletos são lidos em qualquer endereço (fornecedor que manda tudo para o mesmo e-mail).
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import PostalMime from "npm:postal-mime@2.4.4";
@@ -205,27 +206,51 @@ function lerSHOficina(texto: string, assunto: string) {
   if (total && itens.length && Math.abs(itens.reduce((s, i) => s + i.custo, 0) - total) > 0.05 && Math.abs(itens.reduce((s, i) => s + i.custo * i.qtd, 0) - total) <= 0.05) itens.forEach((i) => { i.custo = Math.round(i.custo * i.qtd * 100) / 100; });
   if (total && !itens.length) itens.push({ descricao: `Serviço conforme orçamento da assistência (OS ${os ?? "?"})`, qtd: 1, custo: total });
   const validade = Number(corrido.match(/validade (?:at[eé]|de)\s*(\d+)\s*dias/i)?.[1]) || null;
-  return { os, serie, serie_norm: serieNorm(serie), modelo: campo(/^Modelo\s*:?/i), aparelho: campo(/^Aparelho\s*:?/i), terceiros: terceiros && !/^S\/?N$/i.test(terceiros) ? terceiros : null,
+  // "Nº OS Terceiros" é o número da NOSSA OS (941 = T941). Vazio, o campo() pegava a linha seguinte (":", "Acessórios…"): só vale número.
+  const nossa = terceiros?.trim().match(/^T?\s*(\d{2,6})$/i)?.[1] ?? null;
+  return { os, serie, serie_norm: serieNorm(serie), modelo: campo(/^Modelo\s*:?/i), aparelho: campo(/^Aparelho\s*:?/i), terceiros: nossa,
     status, orcamento: /Or[cç]amento/i.test(assunto) || itens.length > 0, itens, total, validade_dias: validade };
 }
 
-/** Acha a nossa OS na assistência (RMA aberto) para o e-mail: certa (OS deles já ligada ou série igual) ou provável (série com 1 caractere diferente). */
+/** Série do e-mail igual à da OS, ou uma contida na outra (a loja às vezes digita "NS: YQ8K500(*)50779NS:"): só com 10+ caracteres. */
+const serieBate = (s: string, e: string) => s === e || (s.length >= 10 && e.length >= 10 && (s.includes(e) || e.includes(s)));
+/** Vários RMAs abertos da MESMA OS (envio registrado duas vezes): fica o ligado a esta OS da assistência, senão o mais novo. */
+function umPorOS(rmas: any[], osAssist: string | null) {
+  if (rmas.length < 2 || new Set(rmas.map((r) => r.os_id)).size > 1) return rmas;
+  return [rmas.find((r) => osAssist && r.os_assistencia === osAssist) ?? [...rmas].sort((a, b) => b.id - a.id)[0]];
+}
+/** Acha a nossa OS na assistência (RMA aberto) para o e-mail:
+ *  certa    — OS deles já ligada, "Nº OS Terceiros" (é o número da nossa OS) ou série igual;
+ *  provavel — série com 1 caractere diferente, ou o RMA já está ligado a outra OS da assistência;
+ *  sem_rma  — achou a nossa OS, mas a loja ainda não registrou o envio à assistência (a Intelcamp costuma mandar o
+ *             e-mail antes): o e-mail aparece ligado à OS e é relido sozinho depois (acao "reler_pendentes"). */
 async function acharOS(l: any) {
-  const { data: rmas } = await sb.from("at_rma").select("id,os_id,assistencia,etapa,os_assistencia,at_os!inner(id,numero,cliente_nome,status,numero_serie,produto_descricao,token,avisar_whatsapp,avisar_email,cliente_fone,cliente_email)")
+  const { data: rmas } = await sb.from("at_rma").select("id,os_id,assistencia,etapa,os_assistencia,situacao_em,at_os!inner(id,numero,cliente_nome,status,numero_serie,produto_descricao,token,avisar_whatsapp,avisar_email,cliente_fone,cliente_email)")
     .is("retornou_em", null).not("at_os.status", "in", "(entregue,cancelado)");
   const lista = rmas ?? [];
-  if (l.os) { const r = lista.filter((x: any) => x.os_assistencia === l.os); if (r.length) return { certeza: "certa", por: "os", rmas: r }; }
+  if (l.os) { const r = lista.filter((x: any) => x.os_assistencia === l.os); if (r.length) return { certeza: "certa", por: "os", rmas: umPorOS(r, l.os) }; }
+  if (l.terceiros) {
+    const nums = [l.terceiros, "T" + l.terceiros];
+    const r = lista.filter((x: any) => nums.includes(String(x.at_os.numero).toUpperCase()) && (!x.os_assistencia || !l.os || x.os_assistencia === l.os));
+    if (r.length) return { certeza: "certa", por: "terceiros", rmas: umPorOS(r, l.os) };
+    const { data: os } = await sb.from("at_os").select("id,numero,cliente_nome,status,numero_serie").in("numero", nums).not("status", "in", "(entregue,cancelado)").limit(1);
+    if (os?.length && !lista.some((x: any) => x.os_id === os[0].id)) return { certeza: "sem_rma", por: "terceiros", rmas: [], osSemRma: os };
+  }
   if (!l.serie_norm || l.serie_norm.length < 6) return { certeza: null, rmas: [] };
   const ids = lista.map((x: any) => x.os_id);
   const { data: itens } = ids.length ? await sb.from("at_os_itens").select("os_id,numero_serie").in("os_id", ids).not("numero_serie", "is", null) : { data: [] };
   const series = (r: any) => [r.at_os.numero_serie, ...(itens ?? []).filter((i: any) => i.os_id === r.os_id).map((i: any) => i.numero_serie)].map(serieNorm).filter((s) => s.length >= 6);
-  const iguais = lista.filter((r: any) => series(r).includes(l.serie_norm));
+  const iguais = lista.filter((r: any) => series(r).some((s) => serieBate(s, l.serie_norm)));
   // o RMA já está ligado a outra OS da assistência (e-mail antigo ou reabertura): não sobrescreve, pede confirmação
   const livres = iguais.filter((r: any) => !r.os_assistencia || !l.os || r.os_assistencia === l.os);
-  if (livres.length) return { certeza: "certa", por: "serie", rmas: livres };
+  if (livres.length) return { certeza: "certa", por: "serie", rmas: umPorOS(livres, l.os) };
   if (iguais.length) return { certeza: "provavel", por: "outra_os_assistencia", rmas: iguais };
   const perto = lista.filter((r: any) => l.serie_norm.length >= 8 && series(r).some((s) => distancia(s, l.serie_norm) <= 1));
-  return perto.length ? { certeza: "provavel", por: "serie_parecida", rmas: perto } : { certeza: null, rmas: [] };
+  if (perto.length) return { certeza: "provavel", por: "serie_parecida", rmas: perto };
+  // OS aberta com a mesma série, mas sem o envio à assistência registrado
+  const { data: abertas } = await sb.from("at_os").select("id,numero,cliente_nome,status,numero_serie").not("status", "in", "(entregue,cancelado)").not("numero_serie", "is", null).order("id", { ascending: false }).limit(300);
+  const sem = (abertas ?? []).filter((o: any) => serieBate(serieNorm(o.numero_serie), l.serie_norm) && !ids.includes(o.id)).slice(0, 1);
+  return sem.length ? { certeza: "sem_rma", por: "serie", rmas: [], osSemRma: sem } : { certeza: null, rmas: [] };
 }
 
 async function eventoUnico(osId: number, status: string, texto: string, publico = false) {
@@ -239,13 +264,19 @@ async function processarOS(emailId: number, assunto: string, texto: string, quan
   const valores = [...new Set([...texto.matchAll(/R\$\s*([\d.]+,\d{2})/g)].map((m) => valorBR(m[1])).filter((v) => v > 0))].slice(0, 10);
   let achado: any;
   if (forcarRma) {
-    const { data: r } = await sb.from("at_rma").select("id,os_id,assistencia,etapa,os_assistencia,at_os!inner(id,numero,cliente_nome,status,numero_serie,produto_descricao,token)").eq("id", forcarRma).maybeSingle();
+    const { data: r } = await sb.from("at_rma").select("id,os_id,assistencia,etapa,os_assistencia,situacao_em,at_os!inner(id,numero,cliente_nome,status,numero_serie,produto_descricao,token)").eq("id", forcarRma).maybeSingle();
     achado = r ? { certeza: "certa", por: "confirmado", rmas: [r] } : { certeza: null, rmas: [] };
   } else achado = await acharOS(l);
-  const base = { tipo: "os", fonte: "intelcamp", intelcamp: { os: l.os, modelo: l.modelo, serie: l.serie, terceiros: l.terceiros, status: l.status }, certeza: achado.certeza, por: achado.por ?? null, valores,
-    os: achado.rmas.map((r: any) => ({ id: r.os_id, numero: r.at_os.numero, cliente: r.at_os.cliente_nome, status: r.at_os.status, rma_id: r.id, serie: r.at_os.numero_serie })) };
-  if (!l.os && !l.serie_norm) return base;
+  const base: any = { tipo: "os", fonte: "intelcamp", intelcamp: { os: l.os, modelo: l.modelo, serie: l.serie, terceiros: l.terceiros, status: l.status, total: l.total }, certeza: achado.certeza, por: achado.por ?? null, valores,
+    os: achado.certeza === "sem_rma" ? achado.osSemRma.map((o: any) => ({ id: o.id, numero: o.numero, cliente: o.cliente_nome, status: o.status, rma_id: null, serie: o.numero_serie }))
+      : achado.rmas.map((r: any) => ({ id: r.os_id, numero: r.at_os.numero, cliente: r.at_os.cliente_nome, status: r.at_os.status, rma_id: r.id, serie: r.at_os.numero_serie })) };
+  if (!l.os && !l.serie_norm && !l.terceiros) return base;
   const quem = `Intelcamp (OS ${l.os ?? "?"})`;
+  if (achado.certeza === "sem_rma") {
+    const o = achado.osSemRma[0];
+    await eventoUnico(o.id, o.status, `📧 ${quem}: ${l.orcamento && l.total ? `orçamento de ${l.total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}` : `status "${l.status ?? "?"}"`}. Registre o envio à assistência nesta OS: a Intranet liga o e-mail e atualiza a etapa sozinha.`);
+    return base;
+  }
   if (achado.certeza === "provavel") {
     for (const r of achado.rmas) await eventoUnico(r.os_id, r.at_os.status, achado.por === "outra_os_assistencia"
       ? `📧 ${quem}: e-mail com o nº de série desta OS, mas ela já está ligada à OS ${r.os_assistencia} da assistência. Confira na Caixa de e-mails e confirme se vale para esta OS.`
@@ -259,15 +290,17 @@ async function processarOS(emailId: number, assunto: string, texto: string, quan
   const cfg: any = cfgs?.valor ?? {};
   const nova = l.orcamento ? "em_analise" : etapaDoStatus(l.status ?? "");
   const situacao = l.orcamento && l.total ? `Orçamento de ${l.total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}` : l.status;
-  const upd: any = { situacao_em: quando };
-  if (l.os) upd.os_assistencia = l.os;
-  if (situacao) upd.situacao_assistencia = situacao.slice(0, 200);
+  const upd: any = {};
+  if (l.os && (!r.os_assistencia || achado.por === "confirmado")) upd.os_assistencia = l.os;
+  // e-mail relido depois (reler_pendentes) pode ser mais velho que o último status: não volta a situação
+  if (situacao && (!r.situacao_em || Date.parse(quando) >= Date.parse(r.situacao_em))) { upd.situacao_assistencia = situacao.slice(0, 200); upd.situacao_em = quando; }
   if (nova && posEtapa(nova) > posEtapa(r.etapa)) upd.etapa = nova;
-  const { error: eu } = await sb.from("at_rma").update(upd).eq("id", r.id);
-  if (eu) throw new Error("etapa: " + eu.message);
+  if (Object.keys(upd).length) { const { error: eu } = await sb.from("at_rma").update(upd).eq("id", r.id); if (eu) throw new Error("etapa: " + eu.message); }
   const res: any = { ...base, etapa: upd.etapa ?? r.etapa, etapa_mudou: !!upd.etapa };
   if (l.status) await eventoUnico(r.os_id, o.status, `📧 ${quem}: status "${l.status}"${upd.etapa ? " — etapa da assistência atualizada" : ""}.`);
 
+  // orçamento que chega com a OS já aprovada/finalizada (e-mail velho relido): não cria rascunho novo
+  if (l.orcamento && l.itens.length && posEtapa(r.etapa) >= posEtapa("aprovado")) { res.orcamento = { ignorado: true, motivo: "OS já aprovada na assistência", custo: l.total }; return res; }
   if (l.orcamento && l.itens.length) {
     const margem = Number(cfg.margem_orcamento) || 1.6, arred = (v: number) => (cfg.orcamento_arredondar ?? "inteiro") === "inteiro" ? Math.ceil(v - 1e-9) : Math.round(v * 100) / 100;
     const itens = l.itens.map((i: any) => ({ descricao: i.descricao, custo: i.custo, valor: arred(i.custo * margem) }));
@@ -290,6 +323,19 @@ async function processarOS(emailId: number, assunto: string, texto: string, quan
   return res;
 }
 
+/** Relê um e-mail da caixa os.intelbras@ e grava o que achou (só troca o vínculo quando muda: não mexe em boleto/NF ligados). */
+async function relerEmail(e: any, rma?: number) {
+  const lido = await processarOS(e.id, e.assunto ?? "", `${e.assunto ?? ""}\n${e.texto ?? ""}\n${htmlTexto(e.html ?? "")}`, e.recebido_em, rma);
+  const proc = [...(e.processado ?? []).filter((p: any) => p.tipo !== "os"), lido];
+  const upd: any = { processado: proc, erro: null };
+  if (!e.ref_tipo || e.ref_tipo === "os") {
+    const ok = (lido.certeza === "certa" || lido.certeza === "sem_rma") && lido.os.length === 1;
+    upd.ref_tipo = ok ? "os" : null; upd.ref_id = ok ? String(lido.os[0].id) : null;
+  }
+  await sb.from("emails").update(upd).eq("id", e.id);
+  return lido;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ erro: "método" }, 405);
@@ -307,17 +353,26 @@ Deno.serve(async (req) => {
       pode = !!visto && !!rmaVisto;
     }
     if (!pode) return json({ erro: "não autorizado" }, 401);
-    const { data: e } = await sb.from("emails").select("id,assunto,texto,html,recebido_em,processado,caixa").eq("id", id).maybeSingle();
+    const { data: e } = await sb.from("emails").select("id,assunto,texto,html,recebido_em,processado,caixa,ref_tipo,ref_id").eq("id", id).maybeSingle();
     if (!e || e.caixa !== "os_intelbras") return json({ erro: "e-mail não encontrado na caixa os.intelbras" }, 404);
-    try {
-      const lido = await processarOS(e.id, e.assunto ?? "", `${e.assunto ?? ""}\n${e.texto ?? ""}\n${htmlTexto(e.html ?? "")}`, e.recebido_em, rma);
-      const proc = [...(e.processado ?? []).filter((p: any) => p.tipo !== "os"), lido];
-      const ref = lido.certeza === "certa" && lido.os.length === 1 ? ["os", String(lido.os[0].id)] : [null, null];
-      await sb.from("emails").update({ processado: proc, erro: null, ref_tipo: ref[0], ref_id: ref[1] }).eq("id", e.id);
-      return json({ ok: true, id: e.id, lido });
-    } catch (x) { return json({ erro: String((x as Error).message).slice(0, 300) }, 500); }
+    try { return json({ ok: true, id: e.id, lido: await relerEmail(e, rma) }); }
+    catch (x) { return json({ erro: String((x as Error).message).slice(0, 300) }, 500); }
   }
   if (!(await autorizado(req))) return json({ erro: "não autorizado" }, 401);
+  // a cada 15 min (pg_cron): relê os e-mails da Intelcamp dos últimos 60 dias que ainda não estão ligados a um RMA
+  // (a Intelcamp costuma mandar o e-mail antes de a loja registrar o envio à assistência), do mais velho ao mais novo
+  if (corpo.acao === "reler_pendentes") {
+    const desde = new Date(Date.now() - 60 * 864e5).toISOString();
+    const { data: lista } = await sb.from("emails").select("id,assunto,texto,html,recebido_em,processado,caixa,ref_tipo,ref_id").eq("caixa", "os_intelbras")
+      .eq("direcao", "entrada").gte("recebido_em", desde).order("recebido_em").limit(200);
+    const pend = (lista ?? []).filter((e: any) => { const p = (e.processado ?? []).find((x: any) => x.tipo === "os"); return p && p.certeza !== "certa" && p.certeza !== "provavel"; });
+    const res = { pendentes: pend.length, ligados: 0, sem_rma: 0, erros: [] as string[] };
+    for (const e of pend) {
+      try { const l = await relerEmail(e); if (l.certeza === "certa") res.ligados++; else if (l.certeza === "sem_rma") res.sem_rma++; }
+      catch (x) { res.erros.push(`${e.id}: ${String((x as Error).message).slice(0, 100)}`); }
+    }
+    return json({ ok: true, ...res });
+  }
   // manutenção: apaga do bucket os anexos de e-mails que não existem mais (pasta = id do e-mail)
   if (corpo.acao === "limpar_orfaos") {
     const { data: pastas } = await sb.storage.from("emails").list("", { limit: 1000 });
@@ -399,7 +454,7 @@ Deno.serve(async (req) => {
     if (caixa === "os_intelbras") lidos.push(await processarOS(e.id, m.subject ?? "", textoTodo, m.date && !isNaN(Date.parse(m.date)) ? new Date(m.date).toISOString() : new Date().toISOString()));
   } catch (x) { erros.push(String((x as Error).message).slice(0, 150)); }
 
-  const lOS = lidos.find((l) => l.tipo === "os"), os1 = lOS?.certeza === "certa" ? lOS.os : null;
+  const lOS = lidos.find((l) => l.tipo === "os"), os1 = lOS?.certeza === "certa" || lOS?.certeza === "sem_rma" ? lOS.os : null;
   const ref = lidos.find((l) => l.tipo === "boleto" && l.id) ? ["boleto", String(lidos.find((l) => l.tipo === "boleto").id)]
     : lidos.find((l) => (l.tipo === "nfe" || l.tipo === "nfse") && l.id) ? ["nf", String(lidos.find((l) => l.id).id)] : os1?.length === 1 ? ["os", String(os1[0].id)] : [null, null];
   await sb.from("emails").update({ processado: lidos.length ? lidos : null, erro: erros.join(" | ") || null, ref_tipo: ref[0], ref_id: ref[1] }).eq("id", e.id);

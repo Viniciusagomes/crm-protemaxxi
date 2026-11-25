@@ -49,12 +49,16 @@ function emLido(e, completo) {
 /** E-mail da Intelcamp (SHOficina): OS deles, status, a nossa OS ligada (certa ou provável) e o rascunho do orçamento. */
 function emLidoIntelcamp(p, e, completo) {
   const ic = p.intelcamp || {}, o1 = (p.os || [])[0];
-  const nossa = (p.os || []).map(o => `<span class="tag ${p.certeza === 'certa' ? 'azul' : 'med'}">🔧 OS ${esc(o.numero)} · ${esc(o.cliente || '')}${p.certeza === 'provavel' ? ' (provável)' : ''}</span>`).join(' ');
-  const orc = p.orcamento ? (p.orcamento.ja_lancado ? ' <span class="tag">orçamento já lançado na OS</span>'
-    : ` <span class="tag ok">✎ Rascunho ${R(p.orcamento.valor)} ao cliente (custo ${R(p.orcamento.custo)})</span>`) : '';
+  const nossa = (p.os || []).map(o => `<span class="tag ${p.certeza === 'certa' ? 'azul' : 'med'}">🔧 OS ${esc(o.numero)} · ${esc(o.cliente || '')}${p.certeza === 'provavel' ? ' (provável)' : p.certeza === 'sem_rma' ? ' (envio não registrado)' : ''}</span>`).join(' ');
+  const orc = p.orcamento ? (p.orcamento.ignorado ? ` <span class="tag">orçamento ${p.orcamento.custo ? R(p.orcamento.custo) + ' ' : ''}não lançado: ${esc(p.orcamento.motivo || '')}</span>`
+    : p.orcamento.ja_lancado ? ' <span class="tag">orçamento já lançado na OS</span>'
+    : ` <span class="tag ok">✎ Rascunho ${R(p.orcamento.valor)} ao cliente (custo ${R(p.orcamento.custo)})</span>`)
+    : p.certeza === 'sem_rma' && ic.total ? ` <span class="tag">orçamento de ${R(ic.total)}</span>` : '';
   let mais = '';
   if (completo) {
-    if (p.certeza === 'provavel') mais = `<div class="alerta med" style="margin-top:6px"><span class="ic">?</span><span>${p.por === 'outra_os_assistencia' ? `O nº de série é o da OS, mas ela já está ligada a outra OS da assistência. Se este e-mail vale para ela, confirme` : `O nº de série do e-mail (<b>${esc(ic.serie || '')}</b>) é parecido com o da OS, mas não igual. Se for a mesma, confirme`}: a Intranet atualiza a etapa e, se for orçamento, cria o rascunho.
+    if (p.certeza === 'sem_rma') mais = `<div class="alerta med" style="margin-top:6px"><span class="ic">!</span><span>Este e-mail é da OS ${esc(o1?.numero || '')}, mas o envio à assistência ainda não foi registrado nela.
+      Registre o envio na ficha da OS: em até 15 minutos a Intranet liga este e-mail, atualiza a etapa e, se for orçamento, cria o rascunho.</span></div>`;
+    else if (p.certeza === 'provavel') mais = `<div class="alerta med" style="margin-top:6px"><span class="ic">?</span><span>${p.por === 'outra_os_assistencia' ? `O nº de série é o da OS, mas ela já está ligada a outra OS da assistência. Se este e-mail vale para ela, confirme` : `O nº de série do e-mail (<b>${esc(ic.serie || '')}</b>) é parecido com o da OS, mas não igual. Se for a mesma, confirme`}: a Intranet atualiza a etapa e, se for orçamento, cria o rascunho.
       <br>${(p.os || []).map(o => `<button class="btn peq pri" data-a="emOsConfirmar" data-id="${e.id}" data-r="${o.rma_id}">✓ É a OS ${esc(o.numero)} (série ${esc(o.serie || '—')})</button>`).join(' ')}</span></div>`;
     else if (!p.certeza) mais = ` <small class="mut">Não achei OS na assistência com o nº de série ${esc(ic.serie || '—')}.</small>`;
     else if (p.orcamento && !p.orcamento.ja_lancado) mais = `<div class="alerta" style="margin-top:6px"><span class="ic">✎</span><span>O orçamento ficou como <b>rascunho</b> na OS ${esc(o1?.numero || '')}: confira e envie ao cliente pela ficha da OS.</span></div>`;
@@ -139,13 +143,30 @@ async function emAbrir(id) {
   render();
   if (!EM.corpo[id]) {
     const { data } = await sb.from('emails').select('texto,html').eq('id', id).single();
-    EM.corpo[id] = data || { texto: '' }; render();
+    EM.corpo[id] = data || { texto: '' };
+    if (data?.html) EM.corpo[id].html = await emImagensAnexas(data.html, (e || EM.lista.find(y => y.id === id))?.anexos || []);
+    render();
   }
   const x = EM.lista.find(y => y.id === id);
   if (x && x.direcao === 'entrada' && !x.lido_em) {
     x.lido_em = new Date().toISOString(); if (!x.arquivado) EM.naoLidos = Math.max(0, EM.naoLidos - 1);
     await sb.from('emails').update({ lido_em: x.lido_em, lido_por: EU.id }).eq('id', id); render();
   }
+}
+/** Imagem do corpo que vem como anexo (src="Mlogo.jpg" da Intelcamp, ou "cid:…"): troca por um link assinado do anexo,
+ *  senão o leitor mostra a imagem quebrada. Só imagens do próprio e-mail; o resto do HTML fica como veio. */
+async function emImagensAnexas(html, anexos) {
+  const imgs = anexos.filter(a => /^image\//.test(a.tipo || ''));
+  if (!imgs.length) return html;
+  const nomes = [...new Set([...html.matchAll(/src\s*=\s*["']?(?:cid:)?([^"'\s>]+)/gi)].map(m => m[1]).filter(s => !/^(https?:|data:)/i.test(s)))];
+  const base = s => decodeURIComponent(s).split(/[\/@]/)[0].toLowerCase();
+  const pares = nomes.map(n => [n, imgs.find(a => (a.nome || '').toLowerCase() === base(n)) || (imgs.length === 1 && nomes.length === 1 ? imgs[0] : null)]).filter(p => p[1]);
+  const url = {};
+  for (const [n, a] of pares) {
+    const { data } = await sb.storage.from('emails').createSignedUrl(a.caminho, 3600).catch(() => ({ data: null }));
+    if (data?.signedUrl) url[n] = data.signedUrl;
+  }
+  return html.replace(/(src\s*=\s*["']?)(?:cid:)?([^"'\s>]+)/gi, (m, pre, v) => url[v] ? pre + url[v] : m);
 }
 async function emAnexo(id, emailId) {
   const a = EM.lista.find(e => e.id === Number(emailId))?.anexos?.find(x => x.id === Number(id)); if (!a) return;
