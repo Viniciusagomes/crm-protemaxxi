@@ -20,7 +20,22 @@ const provavel=vm.runInContext('emLido(EM.lista[1], true)',ctx);
 assert.ok(provavel.includes('(provável)') && provavel.includes('AGUARDANDO AVALIAÇÃO'));
 assert.ok(provavel.includes('data-a="emOsConfirmar" data-id="6" data-r="8"'));
 assert.ok(!vm.runInContext('emLido(EM.lista[1], false)',ctx).includes('emOsConfirmar'));
+// OS achada, mas sem o envio à assistência registrado: mostra a OS e pede para registrar
+vm.runInContext(`EM.lista.push({id:178,caixa:'os_intelbras',direcao:'entrada',processado:[{tipo:'os',fonte:'intelcamp',certeza:'sem_rma',por:'terceiros',intelcamp:{os:'102338',total:220},os:[{id:179,numero:'T944',cliente:'MS',rma_id:null}]}]});`,ctx);
+const semRma=vm.runInContext('emLido(EM.lista[2], true)',ctx);
+assert.ok(semRma.includes('OS T944') && semRma.includes('envio não registrado') && semRma.includes('Registre o envio'));
+assert.ok(semRma.includes('orçamento de') && semRma.includes('220'));
+assert.ok(!semRma.includes('emOsConfirmar'));
+// orçamento ignorado (OS já aprovada)
+assert.ok(vm.runInContext(`emLido({processado:[{tipo:'os',fonte:'intelcamp',certeza:'certa',intelcamp:{os:'1'},os:[{id:1,numero:'T1'}],orcamento:{ignorado:true,motivo:'OS já aprovada na assistência',custo:180}}]})`,ctx).includes('não lançado: OS já aprovada'));
 (async()=>{
+ // imagem do corpo que vem como anexo (Mlogo.jpg / cid:) vira link assinado; link externo fica como está
+ vm.runInContext(`sb.storage={from:()=>({createSignedUrl:async c=>({data:{signedUrl:'https://x/'+c+'?t=1'}})})};`,ctx);
+ const html=await vm.runInContext(`emImagensAnexas('<img width=238 src="Mlogo.jpg"><img src="cid:foto.png@01D"><img src="https://site/a.png">',[{nome:'Mlogo.jpg',tipo:'image/jpeg',caminho:'178/1-Mlogo.jpg'},{nome:'foto.png',tipo:'image/png',caminho:'178/2-foto.png'},{nome:'nota.pdf',tipo:'application/pdf',caminho:'178/3.pdf'}])`,ctx);
+ assert.ok(html.includes('src="https://x/178/1-Mlogo.jpg?t=1"'),html);
+ assert.ok(html.includes('src="https://x/178/2-foto.png?t=1"'),html);
+ assert.ok(html.includes('src="https://site/a.png"'));
+ assert.equal(await vm.runInContext(`emImagensAnexas('<p>oi</p>',[])`,ctx),'<p>oi</p>');
  await vm.runInContext('emOsConfirmar("6","8")',ctx);
  assert.deepEqual(JSON.parse(JSON.stringify(ctx.chamadas)),[{nome:'email-entrada',body:{acao:'reler',email_id:6,rma_id:8}}]);
  assert.equal(vm.runInContext('EM.lista[1].processado[0].certeza',ctx),'certa');
